@@ -2,48 +2,50 @@
 name: ADAPT
 description: An evidence-led operating workspace for inspecting and approving D2C budget decisions.
 colors:
-  canvas: "#f5f5f1"
-  surface: "#fff"
-  ink: "#202522"
-  muted: "#626860"
-  rule: "#e2e5de"
-  accent: "#6550b9"
-  accent-soft: "#efebfa"
-  success: "#23704c"
-  warning: "#8a5813"
-  danger: "#ae3939"
-  success-soft: "#eef6f0"
-  warning-soft: "#faf2e5"
-  danger-soft: "#faeeee"
-  soft: "#f8f9f5"
-  primary-hover: "#53409e"
-  focus: "#a48ee6"
-  selection: "#d9cff2"
-  nav-text: "#bcc4b7"
-  nav-hover: "#2d342d"
-  nav-active: "#d4c8f2"
-  nav-active-text: "#282032"
-  dark-canvas: "#181c1a"
-  dark-surface: "#222723"
-  dark-ink: "#edf0e9"
-  dark-muted: "#b0b8ad"
-  dark-rule: "#3a423c"
-  dark-accent: "#b7a0f1"
-  dark-accent-soft: "#342c4c"
-  dark-success: "#88cda5"
-  dark-warning: "#e0b97d"
-  dark-danger: "#ee9b9b"
-  dark-success-soft: "#263d2f"
-  dark-warning-soft: "#403423"
-  dark-danger-soft: "#402a2a"
-  dark-soft: "#2a302b"
+  canvas: "#f2f5f6"
+  surface: "#ffffff"
+  ink: "#172126"
+  muted: "#64727a"
+  rule: "#dce3e6"
+  rule-strong: "#c8d2d7"
+  accent: "#315fb5"
+  accent-soft: "#eaf0fb"
+  success: "#1f724e"
+  warning: "#976018"
+  danger: "#b23c42"
+  success-soft: "#eaf5ee"
+  warning-soft: "#fbf2e3"
+  danger-soft: "#fbecee"
+  soft: "#f6f8f9"
+  primary-hover: "#254d98"
+  focus: "#8fb2ff"
+  selection: "#dce8ff"
+  nav: "#11191d"
+  nav-text: "#b8c3c8"
+  nav-hover: "#19262c"
+  nav-active: "#21385f"
+  nav-active-text: "#e9f0ff"
+  dark-canvas: "#10171a"
+  dark-surface: "#182125"
+  dark-ink: "#eef3f5"
+  dark-muted: "#a7b4ba"
+  dark-rule: "#303d43"
+  dark-accent: "#91b3fb"
+  dark-accent-soft: "#223452"
+  dark-success: "#83cca4"
+  dark-warning: "#e2b775"
+  dark-danger: "#f09a9f"
+  dark-success-soft: "#213a2d"
+  dark-warning-soft: "#3c3020"
+  dark-danger-soft: "#40272c"
+  dark-soft: "#202b30"
 typography:
   headline:
     fontFamily: "Manrope Variable, sans-serif"
-    fontSize: "30px"
+    fontSize: "34px"
     fontWeight: 700
-    lineHeight: 1.25
-    letterSpacing: "-.025em"
+    lineHeight: 1.16
+    letterSpacing: "-.045em"
   title:
     fontFamily: "Manrope Variable, sans-serif"
     fontSize: "17px"
@@ -73,10 +75,10 @@ typography:
     letterSpacing: ".2px"
 rounded:
   chip: "4px"
-  control: "6px"
-  panel-mobile: "7px"
-  inset: "8px"
-  panel: "9px"
+  control: "7px"
+  panel-mobile: "9px"
+  inset: "9px"
+  panel: "11px"
   dialog: "12px"
 spacing:
   xs: "4px"
@@ -91,7 +93,7 @@ components:
     textColor: "{colors.surface}"
     typography: "{typography.label}"
     rounded: "{rounded.control}"
-    padding: "10px 13px"
+    padding: "10px 14px"
   button-primary-hover:
     backgroundColor: "{colors.primary-hover}"
   button-secondary:
@@ -99,19 +101,19 @@ components:
     textColor: "{colors.ink}"
     typography: "{typography.label}"
     rounded: "{rounded.control}"
-    padding: "10px 13px"
+    padding: "10px 14px"
   button-ghost:
     backgroundColor: "transparent"
     textColor: "{colors.muted}"
     typography: "{typography.label}"
     rounded: "{rounded.control}"
-    padding: "10px 13px"
+    padding: "10px 14px"
   button-danger:
     backgroundColor: "{colors.danger}"
     textColor: "{colors.surface}"
     typography: "{typography.label}"
     rounded: "{rounded.control}"
-    padding: "10px 13px"
+    padding: "10px 14px"
   panel:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
@@ -152,28 +154,28 @@ components:
 
 ## Overview
 
-**Creative North Star: "The Evidence Workspace"**
+**Creative North Star: "The Decision Control Room"**
 
-ADAPT's operate mode feels calm, precise and inspectable. A warm off-white workspace and an ink navigation rail frame compact financial information. Restrained violet identifies primary actions, selected states and model forecasts; status colors communicate health, review and blocked states alongside explicit text.
+ADAPT's operate mode feels calm, precise and inspectable. A cool slate workspace and near-black navigation rail frame compact financial information. Restrained cobalt identifies primary actions, selected states and model forecasts; status colors communicate health, review and blocked states alongside explicit text.
 
 Fine rules, aligned numbers and grouped white surfaces keep the evidence readable. Approval remains a deliberate interaction connected to the proposal's evidence, policy checks and decision hash. Illustrative fixtures remain visibly labelled, and forecasts remain distinct from measured outcomes.
 
 **Key Characteristics:**
 
-- Warm neutral workspace with an ink navigation rail.
-- Restrained violet emphasis and text-labelled semantic status.
+- Cool neutral workspace with a near-black navigation rail.
+- Restrained cobalt emphasis and text-labelled semantic status.
 - Compact typography, tabular financial numerals and fine dividers.
 - Evidence before explicit approval, with visible fixture provenance.
 - Locally bundled fonts, responsive navigation and reduced-motion support.
 
 ## Colors
 
-The palette uses warm neutrals for work surfaces, violet for model/action emphasis and separate semantic colors for operational states. Frontmatter captures the existing stylesheet; dark-prefixed values are the corresponding dark-theme overrides.
+The palette uses cool neutrals for work surfaces, cobalt for model/action emphasis and separate semantic colors for operational states. Frontmatter captures the stylesheet; dark-prefixed values are the corresponding dark-theme overrides.
 
 ### Primary
 
-- **Restrained Violet** (`accent`): primary action fills, forecasts, selected controls and links. **Violet Wash** (`accent-soft`) groups the brief and selected scenarios without saturating the page.
-- **Deep Action Violet** (`primary-hover`): primary button hover. **Focus Lavender** (`focus`) marks keyboard focus; **Selection Lavender** (`selection`) marks selected text.
+- **Action Cobalt** (`accent`): primary action fills, forecasts, selected controls and links. **Cobalt Wash** (`accent-soft`) groups the brief and selected scenarios without saturating the page.
+- **Deep Cobalt** (`primary-hover`): primary button hover. **Focus Blue** (`focus`) marks keyboard focus; **Selection Blue** (`selection`) marks selected text.
 
 ### Secondary
 
@@ -183,9 +185,9 @@ The palette uses warm neutrals for work surfaces, violet for model/action emphas
 
 ### Neutral
 
-- **Warm Canvas** (`canvas`) and **White Surface** (`surface`): page ground and grouped panels.
+- **Slate Canvas** (`canvas`) and **White Surface** (`surface`): page ground and grouped panels.
 - **Operating Ink** (`ink`): primary text and navigation background. **Quiet Slate** (`muted`) carries supporting context; **Fine Rule** (`rule`) separates rows; **Inset Neutral** (`soft`) distinguishes minor groups.
-- Navigation has separate quiet text, hover surface and lavender selected-state tokens. The rail retains its ink background in both themes.
+- Navigation has separate quiet text, hover surface and cobalt selected-state tokens. The rail retains its near-black background in both themes.
 
 **The Status Text Rule.** Pair every semantic state color with a readable label or explanation; color alone cannot establish the state.
 
@@ -200,24 +202,24 @@ Both fonts are bundled locally through Fontsource. Manrope gives headings and fi
 
 ### Hierarchy
 
-- **Headline:** the page heading role in frontmatter. Decision headings use 28px; at the mobile breakpoint page headings use 25px and decision headings 24px.
+- **Headline:** the page heading role in frontmatter. Decision headings use 32px; at the mobile breakpoint page headings use 28px.
 - **Title:** section headings use the title role; mobile section titles use 15px.
 - **Subtitle:** smaller grouped headings use the subtitle role.
 - **Body:** the root size and family; component copy adjusts size for its density.
 - **Label:** compact semibold action text. Badges have their own smaller role.
-- **Financial values:** Manrope with tabular numerals. Standard metrics use 25px, forecasts 36px and the scenario day 54px. These are component sizes rather than a universal display scale.
+- **Financial values:** Manrope with tabular numerals. Standard metrics use 24–26px, forecasts 36px and the scenario day 54px. These are component sizes rather than a universal display scale.
 
 **The Comparable Numbers Rule.** Use tabular numerals for financial metrics, review facts, chart labels and tables; align amounts consistently within their group.
 
 ## Layout
 
-Desktop uses a fixed ink sidebar (224px) and matching workspace offset. The optional compact sidebar uses 76px. Main content is centered at a maximum width of 1290px with padding of 30px 36px 36px. At widths of at least 1600px, the maximum becomes 1400px and shell gutters become 48px.
+Desktop uses a fixed near-black sidebar (244px) and matching workspace offset. The optional compact sidebar uses 76px. Main content is centered at a maximum width of 1360px with padding of 34px 34px 44px. At widths of at least 1600px, the maximum becomes 1400px and shell gutters become 48px.
 
-Command Center uses six-column metric/source groups and a two-column overview. Decisions and the lab use flexible main content plus a review/control aside (300px), separated by a 22px gap. The decision aside is sticky at a 20px top offset. Related rows use rules inside grouped panels.
+Command Center uses a bordered six-column metric band and a two-column overview. Decisions and the lab use flexible main content plus a review/control aside (300px), separated by a 20px gap. The decision aside is sticky at a 20px top offset. Related rows use rules inside grouped panels.
 
-At widths up to 1200px, the sidebar becomes 196px, main gutters become 24px, metrics/sources become three columns, the overview becomes one column and the decision/lab aside becomes 275px. At widths up to 900px, decision/lab layouts become one column: the decision review precedes the main content and internally uses two columns.
+At widths up to 1200px, the sidebar becomes 212px, main gutters become 24px, metrics/sources become three columns, the overview becomes one column and the decision/lab aside becomes 275px. At widths up to 900px, decision/lab layouts become one column: the decision review precedes the main content and internally uses two columns.
 
-At widths up to 700px, the sidebar becomes a full-width static header with horizontal primary navigation and no workspace offset. Main padding becomes 23px 18px; metrics/sources use two columns. The decision main precedes its single-column review and lab controls stack. Wide allocation tables retain horizontal scrolling. Mobile primary navigation preserves route labels.
+At widths up to 860px, the sidebar becomes an off-canvas drawer with a labelled menu trigger and no workspace offset. Main padding becomes 30px 24px, then 24px 16px on phones; metrics and stat bands use two columns. The decision review becomes a responsive preface to the main evidence and lab controls stack. Wide data tables retain horizontal scrolling. The drawer exposes every route and closes by route change, backdrop, close control or Escape.
 
 The spacing vocabulary is recorded in frontmatter. Fitted component padding also includes 13px, 18px, 20px and 22px; preserve those observed values when extending the same component. The retained 32px design scale step appears in dialog viewport spacing, rather than standard panel padding.
 
@@ -227,9 +229,8 @@ The workspace is flat at rest: background tones, thin borders and dividers estab
 
 ### Shadow Vocabulary
 
-- **Lineage popover:** `0 8px 24px #1112`.
-- **Approval dialog:** `0 15px 60px #0003`.
-- **Dialog backdrop:** `#1118` with a 2px blur.
+- **Floating details and dialogs:** `0 18px 44px rgb(24 39 47 / 0.14)` in light mode, stronger in dark mode.
+- **Dialog backdrop:** `rgb(8 15 18 / 0.62)` with a 3px blur.
 
 **The Flat Workspace Rule.** Keep ordinary panels and information rows flat; reserve elevation for floating details and modal decisions.
 
@@ -245,11 +246,11 @@ Borders are generally a single fine rule. Circular avatars, health dots and loop
 
 Compact semibold actions with gently curved outlines. Primary and destructive fills use fixed colors. Secondary actions use a surface fill with a fine border; ghost actions use a transparent fill and muted text. Hover changes the background without movement. Disabled buttons reduce opacity to 0.5 and use a not-allowed cursor.
 
-Buttons use a 150ms ease background transition. Keyboard focus uses a 3px lavender outline with a 3px offset. Icon buttons are smaller square controls rather than a separate primary action style.
+Buttons use a 150ms ease background transition. Keyboard focus uses a 3px blue outline with a 3px offset. Icon buttons are smaller square controls rather than a separate primary action style.
 
 ### Chips
 
-Status badges use soft semantic fills, explicit short text and a small radius. These are informational labels. Forecast/model badges use violet; success, review and blocked badges use their semantic pairs.
+Status badges use soft semantic fills, explicit short text and a small radius. These are informational labels. Forecast/model badges use cobalt; success, review and blocked badges use their semantic pairs.
 
 ### Cards / Containers
 
@@ -257,11 +258,11 @@ Surface fills, a fine border and no shadow. Standard panels use the frontmatter 
 
 ### Inputs / Fields
 
-Fields use a surface fill, fine border, control radius, padding of 10px 12px and a minimum height of 38px. Compact labels sit above the field. Keyboard focus uses the shared outline; invalid inputs use a danger border. Textareas resize vertically. Approval checkboxes use action violet.
+Fields use a surface fill, strong rule, control radius, padding of 10px 12px and a minimum height of 42px. Compact labels sit above the field. Focus adds a cobalt border and subtle focus ring; invalid inputs use a danger border. Textareas resize vertically. Approval checkboxes use action cobalt.
 
 ### Navigation
 
-The ink rail uses compact labelled links, a quiet hover fill and a lavender selected surface with dark text. At 700px it becomes horizontal navigation in the header. Decision section links use a text row and fine bottom rule; preserve the distinction between primary routes and in-page evidence sections.
+The near-black rail groups routes into Workspace, Operations and Intelligence. Links use quiet text, a restrained hover fill and a deep cobalt selected surface with a bright inset marker. At 860px it becomes an off-canvas drawer. Decision section links and report views use compact segmented surfaces; preserve the distinction between primary routes and in-page evidence sections.
 
 ### Decision Review and Approval
 
@@ -269,7 +270,7 @@ The review groups forecast, policy checks and action together. Approval presents
 
 ### Charts and Progress
 
-Charts use fine grid lines, violet emphasis, restrained supporting series and textual numeric labels. Accessible summaries expose numeric data. Loading uses a 1.2s linear rotating indicator; control transitions are brief and functional. Reduced motion removes animations, transitions and smooth scrolling.
+Charts use fine grid lines, cobalt emphasis, restrained supporting series and textual numeric labels. Accessible summaries expose numeric data. Loading uses short skeleton lines; control transitions are brief and functional. Reduced motion removes animations, transitions and smooth scrolling.
 
 ## Do's and Don'ts
 
@@ -288,3 +289,4 @@ Charts use fine grid lines, violet emphasis, restrained supporting series and te
 - **Don't** present fixture values as engine output, evaluation results or measured simulator evidence.
 - **Don't** hide a failed API connection by silently showing fixtures.
 - **Don't** add remote font or image requests to the locally bundled visual system.
+- **Don't** introduce purple or decorative gradients as default emphasis; cobalt and semantic colors have defined jobs.
