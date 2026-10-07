@@ -2908,6 +2908,57 @@ summary::-webkit-details-marker {
 .more-pages {
   display: none;
 }
+.workspace-create {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  margin-top: 24px;
+}
+.workspace-create .field {
+  flex: 1;
+  margin: 0;
+}
+.workspace-create input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.workspace strong {
+  overflow-wrap: anywhere;
+}
+.model-detail,
+.replay-archive {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+}
+.model-detail .fact-grid {
+  margin: 20px 0;
+}
+.identity-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+.identity-list dt {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+.identity-list dd {
+  margin: 0;
+}
+.table-note {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+table caption {
+  text-align: left;
+  padding: 14px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
 .insight-navigation {
   display: flex;
   flex-direction: column;
@@ -3074,6 +3125,10 @@ summary::-webkit-details-marker {
   }
 }
 @media (max-width: 700px) {
+  .workspace-create {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .mobile-filter-toggle {
     display: flex;
     justify-content: space-between;

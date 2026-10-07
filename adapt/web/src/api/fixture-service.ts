@@ -24,6 +24,10 @@ import { anomalyFixtures, optimizerFixture } from './workbench-fixtures';
 import { allocationErrors } from '../lib/allocation';
 
 const KEY = 'adapt.frontend.fixtures.v1';
+let activeWorkspace = 'default';
+// Each tab keeps its own loaded context; another tab's selection must not relabel its data.
+export const getActiveFixtureWorkspace = () => activeWorkspace;
+const fixtureKey = () => (activeWorkspace === 'default' ? KEY : `${KEY}.${activeWorkspace}`);
 type State = {
   version: 1;
   scenario: ScenarioKey;
@@ -62,8 +66,20 @@ const initial = (): State => ({
 });
 let state: State = initial();
 export function loadFixtureState() {
+  state = initial();
+  activeWorkspace = 'default';
   try {
-    const value = JSON.parse(localStorage.getItem(KEY) || 'null');
+    const selected = localStorage.getItem('adapt.active-workspace') || 'default';
+    if (selected !== 'default') {
+      const registry = JSON.parse(localStorage.getItem('adapt.workspace-registry') || 'null');
+      if (
+        /^[a-zA-Z0-9_-]{1,80}$/.test(selected) &&
+        Array.isArray(registry?.items) &&
+        registry.items.some((w: { id: string }) => w.id === selected)
+      )
+        activeWorkspace = selected;
+    }
+    const value = JSON.parse(localStorage.getItem(fixtureKey()) || 'null');
     if (
       value?.version === 1 &&
       scenarioKeys.includes(value.scenario) &&
@@ -99,7 +115,7 @@ export function loadFixtureState() {
 }
 const save = () => {
   try {
-    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(fixtureKey(), JSON.stringify(state));
   } catch {
     /* Fixture session still works without storage. */
   }
@@ -209,6 +225,21 @@ export const fixtureService = {
   async overview() {
     settle();
     const overview = fixtureOverview(state.scenario, state.day);
+    if (activeWorkspace === 'default') overview.workspace = 'D2C workspace';
+    try {
+      const registry = JSON.parse(localStorage.getItem('adapt.workspace-registry') || 'null');
+      const workspace = registry?.items?.find(
+        (w: { id: string; name: string }) => w.id === activeWorkspace,
+      );
+      if (
+        typeof workspace?.name === 'string' &&
+        workspace.name.trim().length >= 2 &&
+        workspace.name.length <= 60
+      )
+        overview.workspace = workspace.name;
+    } catch {
+      /* Default label remains when no registry is stored. */
+    }
     overview.calibration = state.calibration;
     const completed = state.decisions.some((d) => d.status === 'EXECUTED');
     const matured = state.outcomes.length > 0;
@@ -618,4 +649,17 @@ export const fixtureService = {
 };
 export const resetFixtureForTests = () => {
   state = initial();
+  activeWorkspace = 'default';
 };
+export function activateFixtureWorkspace(id: string) {
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(id)) throw new Error('Invalid workspace identity.');
+  settle();
+  if (hasUnresolved())
+    throw new Error('409: Resolve the current execution before switching workspaces.');
+  // Commit storage before changing the in-memory identity. No silent switch on storage failure.
+  localStorage.setItem(fixtureKey(), JSON.stringify(state));
+  localStorage.setItem('adapt.active-workspace', id);
+  activeWorkspace = id;
+  state = initial();
+  loadFixtureState();
+}

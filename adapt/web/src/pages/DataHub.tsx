@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Workspaces } from '../components/Workspaces';
 import { Download, Upload, ArrowRight } from 'lucide-react';
 import { insights } from '../api/insights';
 import { useAction } from '../hooks/workspace';
 import { useOverview } from '../hooks/workspace';
 import { dataMode } from '../api/client';
+import { getActiveFixtureWorkspace } from '../api/fixture-service';
 import {
   parseCsv,
   validateImport,
@@ -32,7 +34,14 @@ export function DataHub() {
     queryFn: insights.reconciliation,
   });
   const overview = useOverview();
-  const [tab, setTab] = useState<'sources' | 'import'>('sources');
+  const [params, setParams] = useSearchParams();
+  const tab =
+    params.get('section') === 'import'
+      ? 'import'
+      : params.get('section') === 'workspaces'
+        ? 'workspaces'
+        : 'sources';
+  const setTab = (section: string) => setParams({ section });
   return (
     <>
       <div className="page-heading">
@@ -57,8 +66,17 @@ export function DataHub() {
         >
           <Upload size={14} /> CSV import
         </button>
+        <button
+          className="button secondary"
+          aria-pressed={tab === 'workspaces'}
+          onClick={() => setTab('workspaces')}
+        >
+          Workspaces
+        </button>
       </div>
-      {tab === 'import' ? (
+      {tab === 'workspaces' ? (
+        <Workspaces />
+      ) : tab === 'import' ? (
         <ImportWizard />
       ) : (
         <>
@@ -158,6 +176,13 @@ export function DataHub() {
 }
 
 function ImportWizard() {
+  const localWorkspace = getActiveFixtureWorkspace();
+  const historyKey =
+    dataMode === 'fixture'
+      ? localWorkspace === 'default'
+        ? 'adapt.import-previews'
+        : `adapt.import-previews.${localWorkspace}`
+      : null;
   const [type, setType] = useState<ImportType>('ads');
   const [csv, setCsv] = useState<Csv | null>(null);
   const [name, setName] = useState('');
@@ -176,7 +201,7 @@ function ImportWizard() {
     { id: string; name: string; rows: number; mode: string }[]
   >(() => {
     try {
-      const v = JSON.parse(localStorage.getItem('adapt.import-previews') || '[]');
+      const v = JSON.parse(historyKey ? localStorage.getItem(historyKey) || '[]' : '[]');
       return Array.isArray(v)
         ? v
             .filter(
@@ -375,7 +400,7 @@ function ImportWizard() {
                       ].slice(0, 10);
                       setHistory(next);
                       try {
-                        localStorage.setItem('adapt.import-previews', JSON.stringify(next));
+                        if (historyKey) localStorage.setItem(historyKey, JSON.stringify(next));
                       } catch {
                         /* The current preview still works without persistence. */
                       }

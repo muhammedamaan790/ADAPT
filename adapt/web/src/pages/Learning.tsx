@@ -3,16 +3,9 @@ import { Link } from 'react-router-dom';
 import { insights } from '../api/insights';
 import { Badge, Empty, ErrorState, Loading, SectionTitle } from '../components/ui';
 import { dateTime, money } from '../lib/format';
+import { ModelManagement } from '../components/ModelManagement';
 
 export function Learning() {
-  const query = useQuery({
-    queryKey: ['learning'],
-    queryFn: insights.learning,
-    refetchInterval: 5000,
-  });
-  if (query.isPending) return <Loading label="Loading calibration and learning records" />;
-  if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
-  const d = query.data!;
   return (
     <>
       <div className="page-heading">
@@ -25,6 +18,22 @@ export function Learning() {
         </div>
         <Badge tone="accent">EVIDENCE OF FEEDBACK</Badge>
       </div>
+      <LearningMetrics />
+      <ModelManagement />
+    </>
+  );
+}
+function LearningMetrics() {
+  const query = useQuery({
+    queryKey: ['learning'],
+    queryFn: insights.learning,
+    refetchInterval: 5000,
+  });
+  if (query.isPending) return <Loading label="Loading calibration and learning records" />;
+  if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
+  const d = query.data!;
+  return (
+    <>
       <div className="workbench-stats">
         <div>
           <span>Current calibration factor</span>
@@ -124,29 +133,6 @@ export function Learning() {
             </table>
           </div>
         )}
-      </section>
-      <section className="panel">
-        <SectionTitle title="Model registry" />
-        <ul className="connection-list">
-          {d.models.map((m) => (
-            <li key={`${m.name}:${m.version}`}>
-              <div className="ledger-heading">
-                <strong>{m.name}</strong>
-                <Badge tone={m.status === 'CHAMPION' ? 'success' : 'neutral'}>
-                  {m.status.replaceAll('_', ' ')}
-                </Badge>
-              </div>
-              <p>
-                Version {m.version} · trained{' '}
-                {m.trained_at ? dateTime(m.trained_at) : 'not reported'}
-              </p>
-              <p>{m.note}</p>
-            </li>
-          ))}
-        </ul>
-        <p className="caption">
-          Model promotion and rollback are backend-owned. Missing model metadata stays unavailable.
-        </p>
       </section>
     </>
   );

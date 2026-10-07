@@ -24,8 +24,10 @@ import {
   SectionTitle,
 } from '../components/ui';
 import { dateTime, money } from '../lib/format';
+import { Evaluation } from '../components/Evaluation';
 
 export function ScenarioLab() {
+  const [section, setSection] = useState<'scenarios' | 'evaluation'>('scenarios');
   const overview = useOverview();
   const events = useEvents();
   const executions = useExecutions();
@@ -43,13 +45,59 @@ export function ScenarioLab() {
   const reset = useAction(async (n: number) => {
     await api.reset(n);
   });
-  if (overview.isPending) return <Loading label="Loading Scenario Lab" />;
+  const navigation = (
+    <div className="report-tabs" role="group" aria-label="Scenario Lab views">
+      <button
+        className="button secondary"
+        aria-pressed={section === 'scenarios'}
+        onClick={() => setSection('scenarios')}
+      >
+        Scenario controls
+      </button>
+      <button
+        className="button secondary"
+        aria-pressed={section === 'evaluation'}
+        onClick={() => setSection('evaluation')}
+      >
+        Head-to-Head
+      </button>
+    </div>
+  );
+  if (section === 'evaluation')
+    return (
+      <>
+        <div className="page-heading">
+          <div>
+            <h1>Scenario Lab</h1>
+            <p>Inspect precomputed results under the same evaluation envelope.</p>
+          </div>
+        </div>
+        {navigation}
+        <Evaluation />
+      </>
+    );
+  if (overview.isPending)
+    return (
+      <>
+        <div className="page-heading">
+          <h1>Scenario Lab</h1>
+        </div>
+        {navigation}
+        <Loading label="Loading Scenario Lab" />
+      </>
+    );
   if (overview.error || !overview.data)
     return (
-      <ErrorState
-        error={overview.error || new Error('World state unavailable')}
-        retry={() => void overview.refetch()}
-      />
+      <>
+        <div className="page-heading">
+          <h1>Scenario Lab</h1>
+        </div>
+        {navigation}
+        <ErrorState
+          error={overview.error || new Error('World state unavailable')}
+          retry={() => void overview.refetch()}
+        />
+      </>
     );
   const world = overview.data;
   const busy = scenario.isPending || advance.isPending || reset.isPending;
@@ -84,6 +132,7 @@ export function ScenarioLab() {
           Stage 1 · {dataMode === 'fixture' ? 'UI examples' : 'World controls'}
         </Badge>
       </div>
+      {navigation}
       <div className="lab-intro">
         <FlaskConical size={23} />
         <div>
