@@ -25,7 +25,11 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 UNAVAILABLE = "REPLAY_ENV_UNAVAILABLE"
-ENTRY = ("import json, sys; from adapt.core.db import Database; from adapt.decide.decisions import replay; "
+# The project is not an installed package (pyproject `[tool.uv] package = false`), so the archived code is importable
+# only with backend/ on the path; the entry point adds it itself instead of relying on the caller's PYTHONPATH (unset
+# on CI runners). It runs with cwd = the archived project directory.
+ENTRY = ("import json, sys; sys.path[:0] = ['backend']; from adapt.core.db import Database; "
+         "from adapt.decide.decisions import replay; "
          "db = Database(sys.argv[1]); print(json.dumps(replay(db, sys.argv[2]), default=str)); db.close()")
 
 
@@ -74,7 +78,11 @@ def replay_archived(workspace: str | Path, decision_id: str, repo: Path = REPO, 
         ws = tmp / "workspace" / workspace.name                     # a copy: the live file keeps its single writer
         ws.parent.mkdir(parents=True)
         shutil.copy(workspace, ws)
-        (ws.parent / "artifacts").symlink_to(workspace.parent / "artifacts", target_is_directory=True)
+        try:
+            (ws.parent / "artifacts").symlink_to(workspace.parent / "artifacts", target_is_directory=True)
+        except OSError:  # Windows without Developer Mode: copy instead (content-addressed, read-only use)
+            if (workspace.parent / "artifacts").exists():
+                shutil.copytree(workspace.parent / "artifacts", ws.parent / "artifacts")
         res = run(["uv", "run", "--frozen", "python", "-c", ENTRY, str(ws), decision_id], project)
         if res.returncode != 0:
             return {**out, "match": False, "status": "REPLAY_FAILED", "reason": res.stderr[-500:]}
