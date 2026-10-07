@@ -1,0 +1,10 @@
+# Objective modes (spec §8.2). Stage 1 builds PROFIT only. Versioned with the policy.
+PROFIT:
+  lambda: 0.5                     # max E[dCAA] - lambda x (E - P10)
+economics:
+  horizon_days: 7                 # H
+  search_draws: 50                # fixed subset of the 200 joint draws used by the search (reported values use all)
+  greedy_step_inr: 500
+  allocation_increment_inr: 100   # application allocation increment (spec §22.3; demo default for readability)
+  attribution_window_days: 28     # unit SKU mix, unmapped contribution rate, observed ROAS
+  pacing_window_days: 7           # delivered spend / budget

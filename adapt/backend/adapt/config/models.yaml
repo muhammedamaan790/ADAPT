@@ -1,0 +1,24 @@
+# Model contracts (spec §7.2, §22.2). Changing a value here is a model-version change.
+response_curve:
+  train_days: 120
+  holdout_days: 28            # P: promotion holdout
+  diagnostic_days: 14         # D: fit diagnostic window (ends at fit_ts)
+  bootstrap_draws: 200        # joint moving-block bootstrap refits
+  block_days: 7
+  seed: 20261001              # bootstrap index stream (joint across units)
+  min_median_spend: 500       # INR; below -> INSUFFICIENT_DATA -> pooled curve
+  min_spend_days: 30
+  shrinkage_k: 30             # w = n_eff / (n_eff + 30)
+  bounds:                     # normalised units (spend / median spend, revenue / median revenue)
+    beta: [0.000001, 100.0]
+    K: [0.2, 5.0]
+    S: [0.5, 3.0]
+    theta: [0.0, 0.7]
+    gamma: [0.0, 100.0]
+  unstable:
+    condition_number: 1000000.0
+    cv_K: 0.5
+    baseline_corr: 0.9
+  coverage_band: [0.70, 0.90] # P10-P90 predictive coverage on the holdout
+  pooled_min_campaigns: 3
+  baseline_trend_days: 14     # forecast baseline = mean of the last 14 baseline values

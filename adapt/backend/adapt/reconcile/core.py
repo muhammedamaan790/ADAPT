@@ -258,7 +258,7 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
                    LEFT JOIN sold ON sold.date = e.date AND sold.sku = e.sku
                    WHERE e.available_at <= {asof})
         SELECT *, {_quote(inv['dc_id'])} AS dc_id, {int(inv['lead_time_days'])} AS lead_time_days,
-               {float(inv['inbound_confidence'])} AS inbound_confidence,
+               {float(inv['inbound_confidence'])}::DOUBLE AS inbound_confidence,
                avg(units_sold) OVER w AS mean_daily_units,
                coalesce(stddev_samp(units_sold) OVER w, 0) AS sigma_daily_units,
                {z} * coalesce(stddev_samp(units_sold) OVER w, 0) * sqrt({int(inv['lead_time_days'])}) AS safety_stock,

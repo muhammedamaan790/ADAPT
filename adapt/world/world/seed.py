@@ -2,18 +2,22 @@
 
   uv run python -m world.seed --seed 42 --out data/world/seed42
 
-History runs through the same world.step as live days. Budgets change on the 1st of each world month as
-logged "human" edits (actor history-manager), so ADAPT later sees them in budget history (classifier S7).
+History runs through the same world.step as live days. The manager plans each world month on its 1st and tweaks
+every budget weekly around that plan (benchmarks.yaml history_manager); every change is a logged "human" edit
+(actor history-manager), so ADAPT later sees them in budget history (classifier S7).
 Every request id is deterministic, so two seedings of the same seed produce identical semantic state hashes.
 """
 
 from __future__ import annotations
 
 import argparse
+import math
 import time
 from datetime import date
 from pathlib import Path
 
+from world.priors import benchmarks
+from world.rng import generator
 from world.state import WorldStore
 from world.step import make_store, manager_budgets
 from world.truth import Truth, WorldConfig, build_truth, write_truth
@@ -49,23 +53,29 @@ def seed_world(cfg: WorldConfig, out_dir: str | Path, overwrite: bool = False,
     for key, start, _ in pending:
         if not -n_hist <= start <= 0:
             raise ValueError(f"scheduled scenario {key} start {start} is outside the history [-{n_hist}, 0]")
+    sigma = benchmarks()["history_manager"]["weekly_adjust_sigma"]
     months = truth.history_budgets.groupby("from_day", sort=True)["to_day"].max()
     for from_day, to_day in months.items():
         cum = dict(store.read("SELECT creative_id, cum_impressions FROM creative_state"))
-        for budget_id, amount in sorted(manager_budgets(truth, cum, int(from_day), int(to_day)).items()):
-            store.commit("set_budget", f"seed{s}:budget:{budget_id}:{from_day}", "history-manager",
-                         {"platform": platform_of[budget_id], "budget_id": budget_id, "amount": amount,
-                          "status": "ENABLED"})
-        day = int(from_day)
-        while day <= int(to_day):
-            if pending and pending[0][1] == day:
-                key, start, params = pending.pop(0)
-                store.commit("activate_scenario", f"seed{s}:scenario:{key}:{start}", "seeder",
-                             {"key": key, "start_day": start, "params": params})
-                continue
-            stop = min(int(to_day), pending[0][1] - 1 if pending and pending[0][1] <= int(to_day) else int(to_day))
-            store.commit("advance", f"seed{s}:advance:{day}", "seeder", {"days": stop - day + 1})
-            day = stop + 1
+        plan = manager_budgets(truth, cum, int(from_day), int(to_day))
+        for seg_from in range(int(from_day), int(to_day) + 1, 7):  # weekly tweaks around the month's plan
+            seg_to = min(seg_from + 6, int(to_day))
+            for budget_id, amount in sorted(plan.items()):
+                z = float(generator(s, seg_from, budget_id, "history:manager_adjust").standard_normal())
+                tweaked = float(round(amount * math.exp(sigma * z - sigma ** 2 / 2) / 100.0) * 100.0)
+                store.commit("set_budget", f"seed{s}:budget:{budget_id}:{seg_from}", "history-manager",
+                             {"platform": platform_of[budget_id], "budget_id": budget_id, "amount": tweaked,
+                              "status": "ENABLED"})
+            day = seg_from
+            while day <= seg_to:
+                if pending and pending[0][1] == day:
+                    key, start, params = pending.pop(0)
+                    store.commit("activate_scenario", f"seed{s}:scenario:{key}:{start}", "seeder",
+                                 {"key": key, "start_day": start, "params": params})
+                    continue
+                stop = min(seg_to, pending[0][1] - 1 if pending and pending[0][1] <= seg_to else seg_to)
+                store.commit("advance", f"seed{s}:advance:{day}", "seeder", {"days": stop - day + 1})
+                day = stop + 1
     for key, start, params in pending:  # scheduled exactly at day 0: active from the first live day
         store.commit("activate_scenario", f"seed{s}:scenario:{key}:{start}", "seeder",
                      {"key": key, "start_day": start, "params": params})

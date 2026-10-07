@@ -225,7 +225,10 @@ def _demand_index(daily: pd.DataFrame, window: dict, cfg: WorldConfig, codes: li
             wd = cfg.world_date(day).weekday()
             idx = float(trend.iloc[i]) * wf_out[code][wd]
             rows.append((code, day, float(trend.iloc[i]), wf_out[code][wd], idx))
-        level_out[code] = float(trend.iloc[-28:].mean())
+        # carried forward from where history ends: the mean trend of the last 14 days. The last-28-day mean sat ~18%
+        # below the recent level on a growing trend and made demand drop off a cliff on day 0 (measured, seed 42);
+        # the single last value is too noisy (the centred window is truncated at the edge)
+        level_out[code] = float(trend.iloc[-14:].mean())
     demand = pd.DataFrame(rows, columns=["category_code", "day", "trend", "weekday_factor", "index"])
     return demand, wf_out, level_out, units_mean
 

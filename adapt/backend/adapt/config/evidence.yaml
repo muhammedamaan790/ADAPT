@@ -1,0 +1,41 @@
+# Evidence-module thresholds (spec §22.1). Pre-tuning defaults; tuned only on seeds 1-20.
+auction:
+  rise_threshold: 0.15          # a campaign "rose" if CPM_post / CPM_pre > 1.15
+  share_up_gate: 0.6
+  full_score_rise: 0.30         # median rise ln(1.30) -> score 1
+  min_campaigns: 3
+  min_impressions: 5000         # per window, per campaign
+fatigue:
+  first_window_days: 7
+  first_min_impressions: 5000
+  min_clicks: 100
+  min_age_days: 14
+  slope_days: 14
+  slope_min_impressions: 500    # days below this are dropped from the slope regression
+  slope_min_days: 10
+  slope_t: -2.0
+  freq_rise_gate: 0.20
+  specificity_gate: 0.15
+  min_siblings: 2
+  full_score_decline: 0.40
+  no_specificity_cap: 0.69      # without >= 2 eligible siblings fatigue can reach WEAK EVIDENCE at most
+inventory:
+  horizon_days: 7               # H for available units / projected units
+  gap_gate: 0.20
+  full_score_exposure: 0.30
+  min_group_clicks: 200         # pre-window clicks attributed to each SKU group (exposed / not exposed)
+price:
+  min_change: 0.05
+  lookback_days: 3              # price changes from post_start - 3 to post_end count
+  priced_share_gate: 0.20
+  full_score_diff: 0.15
+  min_purchases: 30
+tracking:
+  clicks_stable: 0.15           # |delta ln clicks| <= ln(1.15)
+  drop_gate: 0.30
+  full_score_drop: 0.50
+  min_clicks: 300
+  orders_stable: 0.15
+ranking:
+  strong: 0.70
+  weak: 0.40

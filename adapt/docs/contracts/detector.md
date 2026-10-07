@@ -54,9 +54,13 @@ dimension with the smallest set wins. Persisted in `intel.decompositions`.
 STAT/SHIFT/COLLAPSE, daily z), `intel.anomalies` (incidents and classified non-incidents), `intel.decompositions`.
 
 ## Measured (seed 42 real data, as of 2026-10-01 12:00)
-1,628 evaluations in 6.8 s. DEMO_01 detected: creative 2380000000270301 CTR −48% (z 6.0), sibling creative
-−17%, campaign CVR; the funnel gives CTR 56% of the movement and the drill-down points at the fatigued creative's
-ad set (81%). 13 incidents in total before threshold tuning (z1/z2/β are tuned on seeds 1–20 in the Stage 2 eval).
+1,628 evaluations. DEMO_01 is detected: creative 2380000000270301 CTR −28% (z 4.0), with sibling creatives
+2380000000270101 (−28%) and 2380000000270102 (−18%) of the same campaign also flagged. 15 incidents in total before
+threshold tuning (z1/z2/β are tuned on seeds 1–20 in the Stage 2 eval).
+
+Re-measured after the history manager gained weekly budget tweaks (response_curves.md, v2.4.5). The earlier world
+gave −48% (z 6.0) and 13 incidents. Spend now varies week to week, so frequency, and with it CTR, is noisier, and the
+fatigued creative's decline reads smaller against a noisier baseline.
 
 ## TESTS
 Unit/property (`backend/tests/test_detect_diagnose.py`): transforms invert exactly, the forecast continues a trend
