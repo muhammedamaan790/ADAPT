@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -32,6 +32,9 @@ import {
   SectionTitle,
   Status,
 } from '../components/ui';
+const DecisionInsights = lazy(() =>
+  import('../components/DecisionInsights').then((m) => ({ default: m.DecisionInsights })),
+);
 import { TrendChart, Waterfall } from '../components/charts';
 import { dateTime, humanStatus, money, percent, signedMoney } from '../lib/format';
 
@@ -429,6 +432,9 @@ export function DecisionCenter() {
               </div>
             </section>
           )}
+          <Suspense fallback={<Loading label="Loading decision tools" />}>
+            <DecisionInsights key={d.decision_id} decision={d} />
+          </Suspense>
           <section className="panel" id="execution">
             <SectionTitle title="Execution & verification">
               {execution && <Status value={execution.state} />}
