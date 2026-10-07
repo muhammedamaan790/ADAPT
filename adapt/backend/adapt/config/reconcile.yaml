@@ -1,0 +1,26 @@
+# Reconciliation + canonical model settings (A3). Business configuration, versioned with the policy.
+
+return_window_days: 30          # spec §5: lines older than this are matured (realised refund is final)
+return_rate_window_days: 180    # trailing matured window used to estimate each SKU's return rate
+attribution_window_days: 28     # campaign_sku attribution weights use this trailing window (spec §4)
+attribution_smoothing: 0.01     # w_k = (rev_k + s*R*a_k) / (R + s*R)  (spec §4)
+attribution_version: v1-last-paid-click
+
+# Campaign -> product set: the brand's naming convention puts the product set after " | " in the campaign name,
+# and it equals the store's product_type (e.g. "META Prospecting | Men·Outerwear & Coats").
+campaign_product_set_separator: " | "
+unmapped_sku_label: __unmapped__
+warehouse_skus: [OTHER-ASSORTED]   # store SKUs outside any promoted product set
+
+# UTM source/medium -> channel for orders. Paid campaigns take their campaign's channel instead.
+utm_channels:
+  - {source: email, medium: email, channel: email}
+  - {source: google, medium: organic, channel: organic}
+  - {source: null, medium: null, channel: direct}
+
+inventory:                      # TheLook / ERP have no lead times: configured per DC (spec §4)
+  dc_id: DC-01
+  lead_time_days: 14
+  inbound_confidence: 0.9       # confirmed POs
+  service_level: 0.95
+  demand_window_days: 28        # sigma and mean of daily demand for safety stock / cover

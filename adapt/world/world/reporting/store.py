@@ -15,6 +15,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from world.accounts import STORE_CURRENCY, STORE_GST_RATE, WAREHOUSE_SKU
+from world.priors import benchmarks
 from world.reporting.common import NotSeeded, date_of, iso_local, not_seeded_response, parse_iso_date, world_of
 from world.reporting.common import reportable_days as _days
 
@@ -117,8 +118,10 @@ def sku_economics(request: Request) -> JSONResponse:
     rows = [{"sku": s.sku, "currency": STORE_CURRENCY, "cogs": _m(s.unit_cogs_inr), "ship_cost": _m(s.ship_cost_inr),
              "payment_fee_pct": s.fee_pct} for s in truth.catalog.skus]
     wh = truth.warehouse
+    costs = benchmarks()["unit_costs"]
+    wh_ship = max(costs["ship_cost_min_inr"], costs["ship_cost_pct"] * float(wh["price_inr"]))
     rows.append({"sku": WAREHOUSE_SKU, "currency": STORE_CURRENCY, "cogs": _m(float(wh["cogs_inr"])),
-                 "ship_cost": None, "payment_fee_pct": truth.catalog.skus[0].fee_pct})
+                 "ship_cost": _m(wh_ship), "payment_fee_pct": costs["payment_fee_pct"]})
     return JSONResponse({"sku_economics": rows})
 
 

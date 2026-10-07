@@ -1,0 +1,18 @@
+# Data health per source (spec §4): score = 100 x (w_f*freshness + w_c*completeness + w_k*consistency)
+weights: {freshness: 0.4, completeness: 0.3, consistency: 0.3}
+bands: {green: 85, yellow: 60}   # >= green -> GREEN; >= yellow -> YELLOW; else RED. Hard failures force RED.
+
+# Freshness: age = logical now - available_at of the newest complete day. 1 within SLA, linear to 0 at 3x SLA.
+sla_hours:
+  meta_ads: 24
+  google_ads: 24
+  store: 24
+  finance: 168
+  ga4: 30
+  erp: 24
+
+completeness:
+  row_count_band: 0.40           # |today's rows / trailing-7-day mean - 1| beyond this is penalised
+  trailing_days: 7
+
+pipeline_run_hour: 12            # the daily pipeline runs at 12:00 logical time (after all report lags)

@@ -45,6 +45,12 @@ $env:PYTHONPATH="backend"; uv run python -m adapt.ingest.sync
 ```
 First run backfills 365 days (~2 minutes for seed 42), later runs re-pull a 3-day window. Rules in `docs/contracts/connectors.md`.
 
+## Build the canonical state, marts and data health (A3)
+```powershell
+$env:PYTHONPATH="backend"; uv run python -m adapt.reconcile.build
+```
+Rebuilds `core.*`, `marts.*` and `ops.data_health` as of the world's today (12:00 logical time) in ~8 s. The API then serves `/api/v1/data/sources`, `/data/health`, `/data/mapping-coverage` and `/data/reconciliation`. Rules in `docs/contracts/reconcile.md`.
+
 ## Run the API
 ```powershell
 uv run uvicorn adapt.api.main:app --app-dir backend --port 8000

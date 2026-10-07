@@ -457,16 +457,19 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
     _insert(cur, "fact_lost_demand", pd.DataFrame(lost_rows, columns=["day", "sku", "channel", "campaign_id", "units"]))
 
     # ERP: (s, Q) policy on trailing observed sales, then the daily snapshot
-    window = inv_cfg["planning_window_days"]
-    trailing = {r[0]: (r[1], r[2]) for r in cur.execute(
-        "SELECT sku, sum(units_sold), count(*) FROM fact_erp_daily WHERE day > ? GROUP BY sku", [day - window]
+    window, fast = inv_cfg["planning_window_days"], inv_cfg["fast_window_days"]
+    trailing = {r[0]: (r[1], r[2], r[3], r[4]) for r in cur.execute(
+        "SELECT sku, sum(units_sold), count(*), sum(units_sold) FILTER (WHERE day > ?), "
+        "count(*) FILTER (WHERE day > ?) FROM fact_erp_daily WHERE day > ? GROUP BY sku",
+        [day - fast, day - fast, day - window]
     ).fetchall()}
     erp_rows = []
     blocked = po_blocked(cur, day)  # supplier delay (scenario S3 / DEMO_01): no new purchase orders
     for sku in sorted(inventory):
         on_hand, inbound_qty, inbound_day, _, _, lead = inventory[sku]
-        sold_hist, n_hist = trailing.get(sku, (0, 0))
-        daily = (sold_hist + units_sold.get(sku, 0)) / (n_hist + 1)
+        sold_hist, n_hist, sold_fast, n_fast = trailing.get(sku, (0, 0, 0, 0))
+        today_units = units_sold.get(sku, 0)
+        daily = max((sold_hist + today_units) / (n_hist + 1), ((sold_fast or 0) + today_units) / ((n_fast or 0) + 1))
         s_point = math.ceil(daily * (lead + inv_cfg["safety_days"]))
         q = max(1, math.ceil(daily * inv_cfg["order_cover_days"]))
         if inbound_qty == 0 and on_hand <= s_point and sku not in blocked:

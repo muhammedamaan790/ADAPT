@@ -18,6 +18,14 @@ def test_health_reports_ok_and_modes(tmp_path):
     assert body["llm_mode"] == "offline"
 
 
+def test_data_routes_say_503_until_the_canonical_state_exists(tmp_path):
+    app = create_app(settings=Settings(data_dir=tmp_path, env="test"), db=Database(":memory:"))
+    with TestClient(app) as client:
+        for path in ("/api/v1/data/sources", "/api/v1/data/mapping-coverage", "/api/v1/data/reconciliation"):
+            r = client.get(path)
+            assert r.status_code == 503 and "not built" in r.json()["detail"]
+
+
 def test_openapi_contract_is_generated(tmp_path):
     app = create_app(settings=Settings(data_dir=tmp_path, env="test"), db=Database(":memory:"))
     with TestClient(app) as client:

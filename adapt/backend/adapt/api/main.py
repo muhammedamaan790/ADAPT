@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 
 from adapt import __version__
+from adapt.api.routers import data
 from adapt.api.schemas import HealthResponse
 from adapt.config.settings import Settings, get_settings
 from adapt.core.db import Database
@@ -45,6 +46,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None) -> 
             llm_mode="groq" if s.groq_api_key else "offline",
         )
 
+    app.include_router(data.router)
     return app
 
 

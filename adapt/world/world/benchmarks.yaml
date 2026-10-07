@@ -72,6 +72,7 @@ inventory:                       # simulated ERP (s, Q) policy; TheLook stock ne
   safety_days: 5                 # reorder point s = trailing daily sales x (lead time + safety_days)
   order_cover_days: 30           # order quantity Q = trailing daily sales x order_cover_days
   planning_window_days: 28       # the planner's trailing-sales window
+  fast_window_days: 7            # planner demand = max(fast-window mean, planning-window mean): reacts to growth
 
 min_prior_rows: 10               # fewer E-commerce rows than this for a channel -> parametric fallback below
 fallback_rates:                  # USD CPM; used only when a channel has too few rows
