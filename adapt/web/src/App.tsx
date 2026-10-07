@@ -14,6 +14,11 @@ import {
   SlidersHorizontal,
   ListChecks,
   PlugZap,
+  MessageSquare,
+  TrendingUp,
+  BookOpen,
+  Database,
+  ChartNoAxesCombined,
 } from 'lucide-react';
 import { CommandCenter } from './pages/CommandCenter';
 import { DecisionCenter } from './pages/DecisionCenter';
@@ -30,10 +35,31 @@ const ExecutionLedger = lazy(() =>
 const Connection = lazy(() =>
   import('./pages/Connection').then((m) => ({ default: m.Connection })),
 );
+const Opportunities = lazy(() =>
+  import('./pages/Opportunities').then((m) => ({ default: m.Opportunities })),
+);
+const Outcomes = lazy(() => import('./pages/Outcomes').then((m) => ({ default: m.Outcomes })));
+const Learning = lazy(() => import('./pages/Learning').then((m) => ({ default: m.Learning })));
+const DataHub = lazy(() => import('./pages/DataHub').then((m) => ({ default: m.DataHub })));
+const Copilot = lazy(() => import('./components/Copilot').then((m) => ({ default: m.Copilot })));
+const routeNames: Record<string, string> = {
+  decisions: 'Decision Center',
+  scenarios: 'Scenario Lab',
+  anomalies: 'Anomalies',
+  optimizer: 'Optimizer',
+  executions: 'Execution & Ledger',
+  connection: 'Backend Connection',
+  opportunities: 'Opportunity Map',
+  outcomes: 'Outcomes',
+  learning: 'Learning',
+  data: 'Data Hub',
+};
 
 export function App() {
   const [dark, setDark] = useState(() => localStorage.getItem('adapt.theme') === 'dark');
   const [collapsed, setCollapsed] = useState(false);
+  const [morePages, setMorePages] = useState(false);
+  const [copilot, setCopilot] = useState(false);
   const overview = useOverview();
   const route = useLocation().pathname;
   const toggleTheme = () => {
@@ -92,6 +118,35 @@ export function App() {
             <PlugZap size={19} />
             <span>Backend Connection</span>
           </NavLink>
+          <button
+            className="more-pages"
+            aria-expanded={morePages}
+            aria-controls="insight-navigation"
+            onClick={() => setMorePages(!morePages)}
+          >
+            More pages
+          </button>
+          <div
+            id="insight-navigation"
+            className={`insight-navigation ${morePages ? 'expanded' : ''}`}
+          >
+            <NavLink to="/opportunities">
+              <TrendingUp size={19} />
+              <span>Opportunity Map</span>
+            </NavLink>
+            <NavLink to="/outcomes">
+              <ChartNoAxesCombined size={19} />
+              <span>Outcomes</span>
+            </NavLink>
+            <NavLink to="/learning">
+              <BookOpen size={19} />
+              <span>Learning</span>
+            </NavLink>
+            <NavLink to="/data">
+              <Database size={19} />
+              <span>Data Hub</span>
+            </NavLink>
+          </div>
         </nav>
         <div className="sidebar-bottom">
           <div className="mode-box">
@@ -128,23 +183,16 @@ export function App() {
         <header className="topbar">
           <div className="breadcrumb">
             Workspace <span>/</span>{' '}
-            <strong>
-              {route.startsWith('/decisions')
-                ? 'Decision Center'
-                : route.startsWith('/scenarios')
-                  ? 'Scenario Lab'
-                  : route.startsWith('/anomalies')
-                    ? 'Anomalies'
-                    : route.startsWith('/optimizer')
-                      ? 'Optimizer'
-                      : route.startsWith('/executions')
-                        ? 'Execution & Ledger'
-                        : route.startsWith('/connection')
-                          ? 'Backend Connection'
-                          : 'Command Center'}
-            </strong>
+            <strong>{routeNames[route.split('/')[1]] || 'Command Center'}</strong>
           </div>
           <div className="topbar-actions">
+            <button
+              className="icon-button"
+              aria-label="Open Copilot"
+              onClick={() => setCopilot(true)}
+            >
+              <MessageSquare size={18} />
+            </button>
             <Badge tone={dataMode === 'fixture' ? 'warning' : 'accent'}>
               {dataMode === 'fixture' ? 'FRONTEND FIXTURES' : 'API MODE'}
             </Badge>
@@ -182,6 +230,10 @@ export function App() {
               <Route path="/optimizer" element={<Optimizer />} />
               <Route path="/executions" element={<ExecutionLedger />} />
               <Route path="/connection" element={<Connection />} />
+              <Route path="/opportunities" element={<Opportunities />} />
+              <Route path="/outcomes" element={<Outcomes />} />
+              <Route path="/learning" element={<Learning />} />
+              <Route path="/data" element={<DataHub />} />
               <Route
                 path="*"
                 element={
@@ -205,6 +257,11 @@ export function App() {
           </span>
         </footer>
       </div>
+      {copilot && (
+        <Suspense fallback={<Loading label="Opening Copilot" />}>
+          <Copilot close={() => setCopilot(false)} />
+        </Suspense>
+      )}
     </div>
   );
 }

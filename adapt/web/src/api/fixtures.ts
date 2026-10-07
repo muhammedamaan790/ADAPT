@@ -177,7 +177,7 @@ export function fixtureDecision(key: ScenarioKey): Decision {
           calibrated_pred: 0,
         }
       : {
-          p10: safety ? 400 : 1800,
+          p10: safety ? -400 : -1800,
           p50: safety ? 2400 : 7200,
           p90: safety ? 4200 : 11200,
           prob_loss: 0.14,
