@@ -21,6 +21,7 @@ from adapt.decide.safety import safety_candidates
 from adapt.economics.portfolio import Portfolio
 from adapt.economics.state import load_state
 from adapt.learn.calibration import FAMILY, calibrate, current_factor
+from adapt.predict.forecasts import residual_pool
 
 PLATFORM_SOURCE = {"meta": "meta_ads", "google": "google_ads"}
 COMMON_SOURCES = ("store", "erp", "finance")
@@ -85,10 +86,12 @@ def oos_residual_pool(unit) -> list[float]:
     return [0.0]
 
 
-def measurement_basis(state, allocation: np.ndarray, legs: list[dict]) -> dict:
+def measurement_basis(state, allocation: np.ndarray, legs: list[dict], db=None) -> dict:
     """Frozen at decision time: no-action counterfactual revenue paths (all joint draws, the pre-action budgets) and
     the predicted delta path, over MEASUREMENT_DAYS, for the treated units; their contribution margin per rupee of
-    attributed net revenue, pacing, and out-of-sample relative residual pools (spec §10 forecast counterfactual)."""
+    attributed net revenue, pacing, and out-of-sample relative residual pools (spec §10 forecast counterfactual):
+    the 56 days of rolling-origin residuals of the stored daily forecasts when available, else the curve candidate's
+    P + D out-of-sample errors (labelled, so the outcome says which pool it used)."""
     st14 = replace(state, horizon=MEASUREMENT_DAYS)
     pf = Portfolio(st14)
     treated = sorted({leg["unit_id"] for leg in legs})
@@ -97,9 +100,13 @@ def measurement_basis(state, allocation: np.ndarray, legs: list[dict]) -> dict:
     for uid in treated:
         i = pf.unit_index[uid]
         u = state.units[i]
+        pool = residual_pool(db, uid, u.campaign_ids, state.as_of.date()) if db is not None else None
         units[uid] = {"campaign_ids": u.campaign_ids, "pre_budget": float(pf.s0[i]), "new_budget": float(allocation[i]),
                       "pacing": float(pf.pacing[i]), "cm": float(pf.cm[i]),
-                      "cf_revenue": pf.R0[:, i, :].round(2).tolist(), "residual_pool": oos_residual_pool(u)}
+                      "cf_revenue": pf.R0[:, i, :].round(2).tolist(),
+                      "residual_pool": pool if pool is not None else oos_residual_pool(u),
+                      "residual_source": "rolling_origin_forecasts" if pool is not None else
+                      ((u.curve.diagnostics.get("oos_model") or "none") if u.curve is not None else "none")}
     return {"days": MEASUREMENT_DAYS, "units": units,
             "pred_daily_delta_caa": econ.daily_delta_caa.mean(0).tolist(),
             "total_budget": float(pf.s0.sum())}
@@ -125,6 +132,7 @@ def run_optimizer(db, as_of: datetime, flags: dict | None = None, persist: bool 
            "calibration_factor": factor, "flags": flags}
     if persist:
         _persist(db, as_of, state, opt, out)
+    out["state"] = state  # in-memory only (decision creation snapshots it); never persisted from here
     return out
 
 
@@ -134,13 +142,13 @@ def _persist(db, as_of: datetime, state, opt: Optimizer, out: dict) -> None:
     if result.get("status") == "OK" and result["legs"]:
         s = np.array([result["allocation"][u.unit_id] for u in state.units])
         proposals.append((result["decision_id"], "OPTIMIZATION", FAMILY, result["expected"]["raw_pred"],
-                          result["expected"]["calibrated_pred"], measurement_basis(state, s, result["legs"])))
+                          result["expected"]["calibrated_pred"], measurement_basis(state, s, result["legs"], db)))
     for cand in safety:
         s = opt.s0.copy()
         for leg in cand["legs"]:
             s[opt.pf.unit_index[leg["unit_id"]]] = leg["after"]
         proposals.append((cand["decision_id"], "SAFETY", None, cand["expected"]["E"], cand["expected"]["E"],
-                          measurement_basis(state, s, cand["legs"])))
+                          measurement_basis(state, s, cand["legs"], db)))
 
     def work(cur):
         cur.execute(DDL)

@@ -10,8 +10,9 @@ Verdicts (m = max(2,000, 5% of the treated units' expected CBA over the window))
   SUCCESS lower > +m | FAILED upper < -m | NEUTRAL CI inside [-m, +m] | INCONCLUSIVE otherwise or no valid sample.
 Maturity: OPTIMIZATION >= 100 unique orders on the treated campaigns and >= 3 days, or 14 days at most (then
 INCONCLUSIVE if the order count was not reached); SAFETY at the end of its 3-day window (avoided loss = effect).
-Stage 1 residual pool: the curve candidate's out-of-sample relative errors on its P + D windows (42 days); the
-spec's 56 rolling-origin days need the pipeline's stored daily forecasts (C2).
+Residual pool: the 56 days of rolling-origin out-of-sample residuals of the forecasts the pipeline stores daily
+(predict/forecasts.py, backfilled once with weekly refits); a unit with fewer than 28 valid days falls back to its
+curve candidate's P + D out-of-sample errors, and the outcome's method names the pool it used.
 """
 
 from __future__ import annotations
@@ -125,7 +126,8 @@ def measure_outcome(db, decision_id: str, as_of: datetime) -> dict:
         # rho compares like with like: realized over the window vs the raw prediction for the same days
         calibration = apply_outcome(db, decision_id, out["verdict"], out["realized"], out["raw_pred_window"],
                                     basis["total_budget"], as_of, family or "BUDGET_REALLOCATION")
-    method = "MODEL_ESTIMATE (forecast counterfactual)"
+    sources = sorted({u.get("residual_source", "curve_candidate") for u in basis["units"].values()})
+    method = f"MODEL_ESTIMATE (forecast counterfactual; residuals: {', '.join(sources)})"
 
     def work(cur):
         cur.execute("INSERT OR REPLACE INTO learn.outcomes VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
