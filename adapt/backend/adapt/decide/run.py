@@ -115,19 +115,24 @@ def measurement_basis(state, allocation: np.ndarray, legs: list[dict], db=None) 
 
 
 def run_optimizer(db, as_of: datetime, flags: dict | None = None, persist: bool = True) -> dict:
-    from adapt.decide.alternatives import objectives_for, selected_objective, sensitivity
+    from adapt.decide.alternatives import objectives_for, selected_objective, sensitivity, start_sensitivity
     from adapt.policy.engine import cooldown_units
     from adapt.policy.locks import kill_switch_active
 
     state = load_state(db, as_of)
     flags = policy_flags(db, state, as_of) if flags is None else flags
     oc = objectives_for(selected_objective(db))
+    started = start_sensitivity(state, flags, objectives=oc)  # scenario solves run in the pool meanwhile
     opt = Optimizer(state, flags, objectives=oc)
     result = opt.solve()
     safety = safety_candidates(opt) if result.get("status") == "OK" else []
     if result.get("status") == "OK":
         result["alternatives"] = sensitivity(state, flags, objectives=oc, portfolios=(opt.pf, opt.full),
-                                             cooldown=cooldown_units(db, as_of), kill_switch=kill_switch_active(db))
+                                             cooldown=cooldown_units(db, as_of), kill_switch=kill_switch_active(db),
+                                             started=started)
+    else:
+        for fut in started.values():
+            fut.cancel()
     factor = current_factor(db)
     run_id = "opt-" + hashlib.sha256(f"{as_of.isoformat()}|{json.dumps(result.get('allocation'), sort_keys=True)}"
                                      .encode()).hexdigest()[:12]

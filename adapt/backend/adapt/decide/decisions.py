@@ -385,16 +385,18 @@ def replay(db, decision_id: str) -> dict:
     if stored.get("risk_preference"):
         return {"decision_id": decision_id, "match": None, "reason": "CHOSEN_SCENARIO",
                 "detail": "replay its source decision; this one is that decision's stored sensitivity scenario"}
-    from adapt.decide.alternatives import objectives_for, sensitivity
+    from adapt.decide.alternatives import objectives_for, sensitivity, start_sensitivity
 
     oc = objectives_for(objective or "PROFIT", policy["objectives"])
     if "manual_allocation" in manifest:  # a user modification: value the snapshotted allocation, never re-optimize
         prop = manual_proposal(state, get_artifact(db, manifest["manual_allocation"]), policy)
     elif cls == "OPTIMIZATION":
+        started = start_sensitivity(state, flags, policy["guardrails"], oc) if stored.get("alternatives") else {}
         opt = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=oc)
         prop = opt.solve()
         if stored.get("alternatives"):  # recomputed exactly when the decision carried them (bound by the hash)
-            prop["alternatives"] = sensitivity(state, flags, policy["guardrails"], oc, (opt.pf, opt.full), cool, ks)
+            prop["alternatives"] = sensitivity(state, flags, policy["guardrails"], oc, (opt.pf, opt.full), cool, ks,
+                                               started=started)
     else:
         opt = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=policy["objectives"])
         sku = json.loads(db.query("SELECT payload FROM intel.decisions WHERE decision_id = ?",

@@ -56,7 +56,7 @@ def load_state(db, as_of: datetime, curves: dict[str, CurveArtifact] | None = No
 
     budgets = {b: (p, float(a or 0), bool(sh), st) for b, p, a, sh, st in
                db.query("SELECT budget_id, platform, current_amount_inr, is_shared, status FROM core.budgets")}
-    weights_raw = db.query("SELECT campaign_id, sku, attribution_weight FROM core.campaign_sku")
+    weights_raw = db.query("SELECT campaign_id, sku, attribution_weight FROM core.campaign_sku ORDER BY 1, 2")
     camp_meta = {cid: (ps, name) for cid, ps, name in
                  db.query("SELECT campaign_id, product_set, name FROM core.campaigns")}
     camp_w: dict[str, dict[str, float]] = {}
@@ -66,12 +66,12 @@ def load_state(db, as_of: datetime, curves: dict[str, CurveArtifact] | None = No
     # ---- SKUs: unit economics + inventory ------------------------------------------------------------------------
     price_rows = db.query("""SELECT sku, price, cogs, ship_cost, fee_pct, return_rate FROM core.pricing_snapshots
                              QUALIFY row_number() OVER (PARTITION BY sku ORDER BY valid_from DESC) = 1""")
-    disc = dict(db.query("""SELECT sku, sum(discount) / nullif(sum(gross), 0) FROM core.order_items
+    disc = dict(db.query("""SELECT sku, dsum(discount) / nullif(dsum(gross), 0) FROM core.order_items
                             WHERE analysis_date BETWEEN ? AND ? GROUP BY 1""", [lo, last]))
     inv = {r[0]: r[1:] for r in db.query(
         """SELECT sku, on_hand, reserved, inbound_qty, expected_arrival, inbound_confidence, safety_stock
            FROM marts.sku_daily WHERE date = ?""", [last])}
-    sold7 = dict(db.query("SELECT sku, sum(units) FROM marts.sku_daily WHERE date BETWEEN ? AND ? GROUP BY 1",
+    sold7 = dict(db.query("SELECT sku, dsum(units) FROM marts.sku_daily WHERE date BETWEEN ? AND ? GROUP BY 1",
                           [last - timedelta(days=6), last]))
     rc = risk_config()
     stage2 = rc["predicate"] == "STOCKOUT_PROBABILITY"
@@ -101,18 +101,18 @@ def load_state(db, as_of: datetime, curves: dict[str, CurveArtifact] | None = No
     for bid, cids, channel, _ps in budget_units(db):
         platform, amount, shared, _status = budgets.get(bid, (None, 0.0, False, None))
         if amount <= 0:
-            amount = float(db.query(f"SELECT coalesce(sum(current_budget_inr), 0) FROM core.campaigns "
+            amount = float(db.query(f"SELECT coalesce(dsum(current_budget_inr), 0) FROM core.campaigns "
                                     f"WHERE campaign_id IN ({_in(cids)})", cids)[0][0])
         spend, budget_days = db.query(f"""
-            SELECT sum(cd.spend), sum(bh.value) FROM
-              (SELECT date, sum(spend) AS spend FROM marts.campaign_daily WHERE campaign_id IN ({_in(cids)})
+            SELECT dsum(cd.spend), dsum(bh.value) FROM
+              (SELECT date, dsum(spend) AS spend FROM marts.campaign_daily WHERE campaign_id IN ({_in(cids)})
                  AND date BETWEEN ? AND ? GROUP BY 1) cd
             LEFT JOIN core.budget_history bh ON bh.entity_id = ? AND bh.effective_from <= cd.date
                  AND (bh.effective_to IS NULL OR cd.date < bh.effective_to)""", [*cids, pace_lo, last, bid])[0]
         pacing = float(spend) / float(budget_days) if spend and budget_days else 1.0
         pacing = min(max(pacing, 0.3), 1.2)
-        rev = db.query(f"""SELECT campaign_id, sum(attributed_net_revenue), sum(spend) FROM marts.campaign_daily
-                           WHERE campaign_id IN ({_in(cids)}) AND date BETWEEN ? AND ? GROUP BY 1""",
+        rev = db.query(f"""SELECT campaign_id, dsum(attributed_net_revenue), dsum(spend) FROM marts.campaign_daily
+                           WHERE campaign_id IN ({_in(cids)}) AND date BETWEEN ? AND ? GROUP BY 1 ORDER BY 1""",
                        [*cids, lo, last])
         tot_rev = sum(float(r or 0) for _, r, _ in rev)
         tot_spend = sum(float(s or 0) for _, _, s in rev)
@@ -125,12 +125,12 @@ def load_state(db, as_of: datetime, curves: dict[str, CurveArtifact] | None = No
         mapped = {k: v for k, v in w.items() if k != UNMAPPED and k in skus and v > 0}
         u = max(0.0, 1.0 - sum(mapped.values()))
         mapped_list = list(mapped)
-        unm = db.query(f"""SELECT sum(cba), sum(net_revenue) FROM core.order_items
+        unm = db.query(f"""SELECT dsum(cba), dsum(net_revenue) FROM core.order_items
                            WHERE campaign_id IN ({_in(cids)}) AND analysis_date BETWEEN ? AND ?
                              {f"AND sku NOT IN ({_in(mapped_list)})" if mapped_list else ""}""",
                        [*cids, lo, last, *mapped_list])[0]
         if not unm[1]:
-            unm = db.query(f"""SELECT sum(cba), sum(net_revenue) FROM core.order_items
+            unm = db.query(f"""SELECT dsum(cba), dsum(net_revenue) FROM core.order_items
                                WHERE campaign_id IN ({_in(cids)}) AND analysis_date BETWEEN ? AND ?""",
                            [*cids, lo, last])[0]
         ucr = float(unm[0]) / float(unm[1]) if unm[1] else 0.0
@@ -143,7 +143,7 @@ def load_state(db, as_of: datetime, curves: dict[str, CurveArtifact] | None = No
             categories=sorted({ps for ps, _ in meta if ps}), stage=stages.pop() if len(stages) == 1 else None))
 
     # ---- non-modelled baseline (organic, direct, email, unpaid): constant across allocations ----------------------
-    other = db.query("""SELECT sum(cba), sum(net_revenue) FROM core.order_items
+    other = db.query("""SELECT dsum(cba), dsum(net_revenue) FROM core.order_items
                         WHERE campaign_id IS NULL AND analysis_date BETWEEN ? AND ?""", [lo, last])[0]
     days = (last - lo).days + 1
     return PortfolioState(as_of=as_of, horizon=H, units=units, skus=skus,

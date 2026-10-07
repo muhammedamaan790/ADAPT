@@ -84,6 +84,27 @@ def build_constraints(state: PortfolioState, flags: dict[str, list[str]] | None 
                        reserve_baseline_infeasible=infeasible)
 
 
+DR_CACHE_MAX = 200_000  # memoized unit increments per Portfolio (each (n,) floats); cleared when full
+
+
+def p10(d: np.ndarray) -> float:
+    """np.percentile(d, 10) (linear method) for a 1-D array, bit for bit, without its generic overhead: the greedy
+    search evaluates it hundreds of thousands of times. Same virtual index, same partition order statistics and the
+    same lerp formula numpy uses (b - (b - a)(1 - t) for t >= 0.5, else a + (b - a) t)."""
+    n = d.shape[0]
+    vi = (n - 1) * P10_Q
+    lo = int(np.floor(vi))
+    hi = min(lo + 1, n - 1)
+    t = vi - lo
+    part = np.partition(d, (lo, hi))
+    a, b = part[lo], part[hi]
+    diff = b - a
+    return float(b - diff * (1 - t) if t >= 0.5 else a + diff * t)
+
+
+P10_Q = np.true_divide(10, 100)
+
+
 class FastEval:
     """Exact Stage 1 objective pieces with O(n K) updates for a one-unit move."""
 
@@ -98,9 +119,20 @@ class FastEval:
         self.T = pf.T
         self._unm_cba, self._unm_net = pf.u * pf.ucr, pf.u.copy()
 
-    # ---- the cannibalization path (T != 0): state = the (n, U) curve-increment matrix --------------------------------
     def _unit_dR(self, i: int, budget: float) -> np.ndarray:
-        return (self.pf.unit_paths(i, budget) - self.pf.R0[:, i, :]).sum(-1)
+        """Unit i's horizon curve increment per draw at a budget: a pure function of (i, budget), memoized on the
+        Portfolio so the greedy search, SLSQP and the sensitivity solves sharing it reuse it (read-only arrays)."""
+        cache = self.pf.__dict__.setdefault("_dR_cache", {})
+        key = (i, float(budget))
+        out = cache.get(key)
+        if out is None:
+            if len(cache) >= DR_CACHE_MAX:
+                cache.clear()
+            out = cache[key] = (self.pf.unit_paths(i, budget) - self.pf.R0[:, i, :]).sum(-1)
+            out.flags.writeable = False
+        return out
+
+    # ---- the cannibalization path (T != 0): state = the (n, U) curve-increment matrix --------------------------------
 
     def _derive(self, s: np.ndarray, dR: np.ndarray) -> dict:
         booked = book(dR, self.pf.R0h + dR, self.T)["booked"]
@@ -115,7 +147,7 @@ class FastEval:
     def unit_terms(self, i: int, budget: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """(rows (n, K) of delta units on mapped SKUs, unmapped dCBA (n,), unmapped dNet (n,)) for unit i at budget."""
         pf = self.pf
-        dRh = (pf.unit_paths(i, budget) - pf.R0[:, i, :]).sum(-1)
+        dRh = self._unit_dR(i, budget)
         rows = dRh[:, None] * pf.W[i][None, :] / pf.nrpu[None, :] if self.K else np.zeros((self.n, 0))
         return rows, dRh * pf.u[i] * pf.ucr[i], dRh * pf.u[i]
 
@@ -284,17 +316,23 @@ class Optimizer:
             return False
         tot = s.sum()
         for ch, mx in c.channel_max.items():
-            if tot > 0 and s[[i for i, x in enumerate(self.channels) if x == ch]].sum() / tot > mx + tol:
+            if tot > 0 and s[self._channel_idx(ch)].sum() / tot > mx + tol:
                 return False
         for ch, mn in c.channel_min.items():
-            if tot > 0 and s[[i for i, x in enumerate(self.channels) if x == ch]].sum() / tot < mn - tol:
+            if tot > 0 and s[self._channel_idx(ch)].sum() / tot < mn - tol:
                 return False
         return True
+
+    def _channel_idx(self, ch: str) -> list[int]:
+        idx = self.__dict__.setdefault("_ch_idx", {})
+        if ch not in idx:
+            idx[ch] = [i for i, x in enumerate(self.channels) if x == ch]
+        return idx[ch]
 
     def objective(self, d: np.ndarray) -> float:
         """The PROFIT risk-adjusted value of dCAA draws: E - lambda (E - P10)."""
         e = float(d.mean())
-        return e - self.lam * (e - float(np.percentile(d, 10)))
+        return e - self.lam * (e - p10(d))
 
     def value(self, st: dict) -> float:
         """The selected objective's value of an allocation state."""
@@ -316,7 +354,7 @@ class Optimizer:
         cur = self.value(st)
         ladder = []
         for _ in range(max_iter):
-            best = None
+            moves = []  # (value, loop order, unit, new budget, sign, state) of every improving linear-feasible move
             for i in range(len(self.s0)):
                 for sign in (1, -1):
                     nb = float(np.clip(st["s"][i] + sign * self.step, self.c.lo[i], self.c.hi[i]))
@@ -327,13 +365,16 @@ class Optimizer:
                     if not self.linear_ok(cand_s):
                         continue
                     cand = self.fe.with_move(st, i, nb)
-                    if sign > 0 and not self.fe.gate_ok(cand):
-                        continue
-                    if not self.objective_ok(cand):
-                        continue
                     v = self.value(cand)
-                    if v > cur + 1e-6 and (best is None or v > best[0]):
-                        best = (v, i, nb, cand)
+                    if v > cur + 1e-6:
+                        moves.append((v, len(moves), i, nb, sign, cand))
+            # the costlier gate / objective checks run from the best value down; the first move passing them is
+            # exactly the one a check-everything loop picks (largest value; ties to the earliest in loop order)
+            best = None
+            for v, _order, i, nb, sign, cand in sorted(moves, key=lambda m: (-m[0], m[1])):
+                if (sign < 0 or self.fe.gate_ok(cand)) and self.objective_ok(cand):
+                    best = (v, i, nb, cand)
+                    break
             if best is None:
                 break
             v, i, nb, cand = best

@@ -18,6 +18,7 @@ import copy
 import json
 from datetime import datetime
 
+from adapt.core import parallel
 from adapt.economics.state import guardrails_config, objectives_config
 
 DDL = """
@@ -55,10 +56,45 @@ def objectives_for(mode: str, base: dict | None = None) -> dict:
     return oc
 
 
-def sensitivity(state, flags, guardrails: dict | None = None, objectives: dict | None = None,
-                portfolios=None, cooldown: set[str] | None = None, kill_switch: bool = False) -> list[dict]:
-    """Conservative / Aggressive scenarios for a PROFIT decision (each validated by the policy engine)."""
+SCENARIOS = ("conservative", "aggressive")
+
+
+def _scenario_guardrails(g0: dict, p: dict) -> dict:
+    g = copy.deepcopy(g0)
+    g["change"]["max_daily_change_pct"] = min(float(p["max_daily_change_pct"]),
+                                              float(g0["change"]["max_daily_change_pct"]))
+    return g
+
+
+def _solve_scenario(state, flags, g: dict, oc: dict, lam: float, portfolios=None) -> dict:
+    """One sensitivity solve (a pure function of its inputs, so it can run in the shared process pool; a worker builds
+    its own Portfolio from the same state, which gives the same numbers as the shared one)."""
     from adapt.decide.optimizer import Optimizer
+
+    return Optimizer(state, flags, guardrails=g, objectives=oc, mode="PROFIT", lam=lam, portfolios=portfolios).solve()
+
+
+def start_sensitivity(state, flags, guardrails: dict | None = None, objectives: dict | None = None) -> dict:
+    """Start the scenario solves in the shared pool so they run while the recommended allocation is being solved.
+    Returns {name: Future}; empty when parallelism is off or the objective has no scenarios."""
+    oc = objectives or objectives_config()
+    if oc.get("selected", "PROFIT") != "PROFIT":
+        return {}
+    g0 = guardrails or guardrails_config()
+    started = {}
+    for name in SCENARIOS:
+        p = oc["sensitivity"][name]
+        fut = parallel.submit(_solve_scenario, state, flags, _scenario_guardrails(g0, p), oc, float(p["lambda"]))
+        if fut is not None:
+            started[name] = fut
+    return started
+
+
+def sensitivity(state, flags, guardrails: dict | None = None, objectives: dict | None = None,
+                portfolios=None, cooldown: set[str] | None = None, kill_switch: bool = False,
+                started: dict | None = None) -> list[dict]:
+    """Conservative / Aggressive scenarios for a PROFIT decision (each validated by the policy engine). `started`:
+    solves already running in the pool (start_sensitivity); the others are solved here."""
     from adapt.policy.engine import policy_result, validate
 
     oc = objectives or objectives_config()
@@ -66,13 +102,11 @@ def sensitivity(state, flags, guardrails: dict | None = None, objectives: dict |
         return []
     g0 = guardrails or guardrails_config()
     out = []
-    for name in ("conservative", "aggressive"):
+    for name in SCENARIOS:
         p = oc["sensitivity"][name]
-        g = copy.deepcopy(g0)
-        g["change"]["max_daily_change_pct"] = min(float(p["max_daily_change_pct"]),
-                                                  float(g0["change"]["max_daily_change_pct"]))
-        r = Optimizer(state, flags, guardrails=g, objectives=oc, mode="PROFIT", lam=float(p["lambda"]),
-                      portfolios=portfolios).solve()
+        g = _scenario_guardrails(g0, p)
+        r = parallel.result((started or {}).get(name), _solve_scenario, state, flags, g, oc, float(p["lambda"]),
+                            portfolios)
         if r.get("status") != "OK":
             out.append({"name": name, "status": r.get("status")})
             continue

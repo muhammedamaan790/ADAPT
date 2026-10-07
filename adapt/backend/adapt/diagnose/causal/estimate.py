@@ -30,6 +30,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
+from adapt.core import parallel
 from adapt.diagnose.causal.synthetic_control import synthetic_control
 
 CONFIG = Path(__file__).resolve().parents[2] / "config" / "causal.yaml"
@@ -169,14 +170,16 @@ def estimate(db, inc, materiality_m: float | None = None) -> dict:
     y = np.log(treated["revenue"] / treated["spend"])
     agg = treated["spend"][s_real:s_real + n_post]
     seed = int(hashlib.sha256(f"{inc.anomaly_id}|{inc.post_start}".encode()).hexdigest()[:8], 16)
+    placebo_start = s_real - off
+    placebo_args = (y, X, ids, placebo_start, n_post, treated["spend"][placebo_start:placebo_start + n_post], cfg,
+                    seed + 1)
+    placebo = parallel.submit(synthetic_control, *placebo_args)  # independent of the main fit: runs alongside it
     sc = synthetic_control(y, X, ids, s_real, n_post, agg, cfg, seed)
     pre = slice(s_real - 28, s_real)
     cm = float(treated["cba"][pre].sum() / treated["revenue"][pre].sum()) if treated["revenue"][pre].sum() else 0.0
     gates["pre_fit"] = _gate(sc.holdout_smape <= cfg["smape_max"], holdout_smape=round(sc.holdout_smape, 4),
                              max=cfg["smape_max"])
-    placebo_start = s_real - off
-    pl = synthetic_control(y, X, ids, placebo_start, n_post, treated["spend"][placebo_start:placebo_start + n_post],
-                           cfg, seed + 1)
+    pl = parallel.result(placebo, synthetic_control, *placebo_args)
     pl_inr = pl.effect_pct * pl.counterfactual_level_sum * cm
     m = float(materiality_m) if materiality_m is not None else max(2000.0, 0.05 * float(treated["cba"][pre].mean()))
     pl_ok = pl.ci_lo <= 0 <= pl.ci_hi and abs(pl_inr) < m

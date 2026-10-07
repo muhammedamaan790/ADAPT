@@ -327,7 +327,9 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
 def build_campaign_sku(cur, today: date) -> None:
     """campaign_sku weights (spec §4): allocation = equal share of the product set; attribution = smoothed observed
     share of the campaign's attributed net revenue over the trailing window, with __unmapped__ absorbing revenue on
-    SKUs outside the product set. Weights sum to 1 per campaign; R = 0 falls back to the allocation weights."""
+    SKUs outside the product set. Weights sum to 1 per campaign; R = 0 falls back to the allocation weights.
+    Revenue is summed as exact DECIMAL (order-independent), since the weights feed every decision (see
+    adapt.core.db.DSUM_MACRO)."""
     cfg = reconcile_config()
     s = float(cfg["attribution_smoothing"])
     lo = d_literal(today - timedelta(days=cfg["attribution_window_days"]))
@@ -338,17 +340,17 @@ def build_campaign_sku(cur, today: date) -> None:
                     JOIN core.skus k ON k.category = c.product_set AND k.promoted),
              n AS (SELECT c.campaign_id, count(ps.sku) AS n FROM core.campaigns c LEFT JOIN ps USING (campaign_id)
                    GROUP BY 1),
-             rev AS (SELECT campaign_id, sku, sum(rev) AS rev FROM (
+             rev AS (SELECT campaign_id, sku, sum(CAST(rev AS DECIMAL(38, 6))) AS rev FROM (
                          SELECT campaign_id, sku, net_revenue AS rev FROM core.order_items
                          WHERE campaign_id IS NOT NULL AND analysis_date BETWEEN {lo} AND {hi}
                          UNION ALL
                          SELECT campaign_id, sku, net_revenue FROM core.platform_attributed_daily
                          WHERE analysis_date BETWEEN {lo} AND {hi}) GROUP BY 1, 2),
-             tot AS (SELECT c.campaign_id, coalesce(sum(rev.rev), 0) AS r FROM core.campaigns c
+             tot AS (SELECT c.campaign_id, CAST(coalesce(sum(rev.rev), 0) AS DOUBLE) AS r FROM core.campaigns c
                      LEFT JOIN rev USING (campaign_id) GROUP BY 1),
-             mapped AS (SELECT ps.campaign_id, ps.sku, 1.0 / n.n AS a, coalesce(rev.rev, 0) AS r
+             mapped AS (SELECT ps.campaign_id, ps.sku, 1.0 / n.n AS a, CAST(coalesce(rev.rev, 0) AS DOUBLE) AS r
                         FROM ps JOIN n USING (campaign_id) LEFT JOIN rev USING (campaign_id, sku)),
-             unm AS (SELECT c.campaign_id, coalesce(sum(rev.rev) FILTER (WHERE ps.sku IS NULL), 0) AS r,
+             unm AS (SELECT c.campaign_id, CAST(coalesce(sum(rev.rev) FILTER (WHERE ps.sku IS NULL), 0) AS DOUBLE) AS r,
                             CASE WHEN n.n = 0 THEN 1.0 ELSE 0.0 END AS a
                      FROM core.campaigns c JOIN n USING (campaign_id) LEFT JOIN rev USING (campaign_id)
                      LEFT JOIN ps ON ps.campaign_id = rev.campaign_id AND ps.sku = rev.sku
