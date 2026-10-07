@@ -58,6 +58,8 @@ The current aggregate suite contains **107 tests = 62 unit + 23 fixture browser 
 
 Source inspection of the current backend shows health and Data Hub read HTTP routes. Detection and diagnosis modules exist, but decision/optimizer, policy, shadow-log and scenario-capability HTTP routes required here are not exposed. Backend runtime tooling (`uv`), a running service and canonical data were not provisioned locally. No live canonical integration was performed.
 
+Before pushing, the branch incorporated teammate commit `3f813d5` from main: B4–B8 evidence, response curves, portfolio economics, PROFIT optimizer and outcome/calibration modules. That merge changes no frontend files and adds no HTTP routes. The frontend validation above remains applicable; the new backend modules were not independently validated by this frontend pass.
+
 [frontend-policy-api.md](frontend-policy-api.md) is the provisional backend handoff. Its schemas and routes must be reconciled with authoritative OpenAPI before live use. Remaining acceptance work is:
 
 1. Implement the authoritative objective, proposal, valuation, revision, policy, shadow and scenario catalog endpoints. Advertise objectives and scenarios only when their required models and gates exist.
