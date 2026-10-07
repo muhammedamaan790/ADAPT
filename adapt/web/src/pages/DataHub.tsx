@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Workspaces } from '../components/Workspaces';
+import { SourceChecks } from '../components/SourceChecks';
 import { Download, Upload, ArrowRight } from 'lucide-react';
 import { insights } from '../api/insights';
 import { useAction } from '../hooks/workspace';
@@ -118,6 +119,7 @@ export function DataHub() {
               </>
             )}
           </section>
+          <SourceChecks />
           <section className="panel">
             <SectionTitle title="Attribution reconciliation" />
             {reconciliation.isPending ? (
@@ -144,6 +146,53 @@ export function DataHub() {
                   </div>
                 </dl>
                 <p className="workbench-copy">{reconciliation.data!.note}</p>
+                {reconciliation.data!.window_start && (
+                  <p className="caption">
+                    Window: {reconciliation.data!.window_start} to {reconciliation.data!.window_end}
+                  </p>
+                )}
+                {reconciliation.data!.platforms?.length ? (
+                  <div
+                    className="table-scroll"
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Platform reconciliation; scroll for additional columns"
+                  >
+                    <table>
+                      <caption className="sr-only">Per-platform attribution reconciliation</caption>
+                      <thead>
+                        <tr>
+                          <th>Platform</th>
+                          <th>Reported conversions</th>
+                          <th>Attributed store orders</th>
+                          <th>Conversion / order ratio</th>
+                          <th>Session / click ratio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reconciliation.data!.platforms.map((p) => (
+                          <tr key={p.platform}>
+                            <td>{p.platform}</td>
+                            <td>{p.platform_conversions.toLocaleString('en-IN')}</td>
+                            <td>{p.store_attributed_orders}</td>
+                            <td>
+                              {p.over_attribution === null
+                                ? p.over_attribution_reason || 'Not estimable'
+                                : `${p.over_attribution.toFixed(2)}×`}
+                            </td>
+                            <td>
+                              {p.session_click_ratio === null
+                                ? 'Not estimable'
+                                : `${p.session_click_ratio.toFixed(2)}×`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="caption">No per-platform conversion reconciliation supplied.</p>
+                )}
               </>
             )}
           </section>

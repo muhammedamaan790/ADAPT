@@ -118,7 +118,7 @@ export function MetricTile({ metric }: { metric: Metric }) {
           {percent(metric.change)} <span className="muted">vs prior 7 days</span>
         </small>
       ) : (
-        <small className="text-warning">Projected stock shortfall</small>
+        <small className="muted">No comparison supplied</small>
       )}
       {open && (
         <div className="lineage">

@@ -4,8 +4,10 @@ import { askCopilot } from '../api/insights';
 import type { CopilotReply } from '../api/insight-contracts';
 import { dataMode } from '../api/client';
 import { Badge, InlineError, Modal } from './ui';
+import { SqlInspector } from './SqlInspector';
 
 export function Copilot({ close }: { close: () => void }) {
+  const [tab, setTab] = useState('questions');
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<{ question: string; reply: CopilotReply }[]>([]);
   const [pending, setPending] = useState(false);
@@ -43,90 +45,120 @@ export function Copilot({ close }: { close: () => void }) {
           : 'Answers arrive through the backend event stream with validated evidence links.'}{' '}
         Copilot cannot approve, execute or alter budgets.
       </p>
-      <div className="copilot-prompts">
-        {['Why this allocation?', 'What about inventory risk?', 'What feedback has matured?'].map(
-          (q) => (
-            <button
-              key={q}
-              className="button secondary"
-              disabled={pending}
-              onClick={() => void send(q)}
-            >
-              {q}
-            </button>
-          ),
-        )}
+      <div className="report-tabs" role="group" aria-label="Copilot tools">
+        <button
+          className="button secondary"
+          disabled={pending}
+          aria-pressed={tab === 'questions'}
+          onClick={() => setTab('questions')}
+        >
+          Evidence questions
+        </button>
+        <button
+          className="button secondary"
+          disabled={pending}
+          aria-pressed={tab === 'sql'}
+          onClick={() => setTab('sql')}
+        >
+          SQL inspection
+        </button>
       </div>
-      <div
-        className="copilot-transcript"
-        role="log"
-        aria-live="polite"
-        aria-label="Copilot conversation"
-      >
-        {messages.length ? (
-          messages.map((m, i) => (
-            <article key={i}>
-              <h3>{m.question}</h3>
-              <p>{m.reply.text}</p>
-              <div className="badge-row">
-                <Badge>{m.reply.mode === 'TEMPLATE' ? 'Fixture template' : 'LLM answer'}</Badge>
-                {m.reply.evidence.map((e) => (
-                  <Link key={e.href} className="text-link" to={e.href} onClick={close}>
-                    {e.label}
-                  </Link>
-                ))}
-              </div>
-            </article>
-          ))
-        ) : (
-          <p className="caption">
-            Ask about the current proposal, inventory gates or outcome feedback.
-          </p>
-        )}
-        {pending && <p role="status">Waiting for a complete, validated answer…</p>}
-      </div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send(question);
-        }}
-      >
-        <label className="field">
-          Ask Copilot
-          <textarea
-            rows={2}
-            maxLength={2000}
-            value={question}
-            disabled={pending}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask about your workspace evidence"
-          />
-        </label>
-        <InlineError error={error} />
-        <div className="modal-actions">
-          <button
-            className="button secondary"
-            type="button"
-            disabled={pending}
-            onClick={() => setMessages([])}
+      {tab === 'sql' ? (
+        <SqlInspector />
+      ) : (
+        <>
+          <div className="copilot-prompts">
+            {[
+              'Why this allocation?',
+              'What about inventory risk?',
+              'What feedback has matured?',
+            ].map((q) => (
+              <button
+                key={q}
+                className="button secondary"
+                disabled={pending}
+                onClick={() => void send(q)}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+          <div
+            className="copilot-transcript"
+            role="log"
+            aria-live="polite"
+            aria-label="Copilot conversation"
           >
-            Clear conversation
-          </button>
-          {pending ? (
-            <button
-              className="button secondary"
-              type="button"
-              onClick={() => controller.current?.abort()}
-            >
-              Cancel request
-            </button>
-          ) : (
-            <button className="button primary" type="submit" disabled={question.trim().length < 3}>
-              Ask question
-            </button>
-          )}
-        </div>
-      </form>
+            {messages.length ? (
+              messages.map((m, i) => (
+                <article key={i}>
+                  <h3>{m.question}</h3>
+                  <p>{m.reply.text}</p>
+                  <div className="badge-row">
+                    <Badge>{m.reply.mode === 'TEMPLATE' ? 'Fixture template' : 'LLM answer'}</Badge>
+                    {m.reply.evidence.map((e) => (
+                      <Link key={e.href} className="text-link" to={e.href} onClick={close}>
+                        {e.label}
+                      </Link>
+                    ))}
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="caption">
+                Ask about the current proposal, inventory gates or outcome feedback.
+              </p>
+            )}
+            {pending && <p role="status">Waiting for a complete, validated answer…</p>}
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send(question);
+            }}
+          >
+            <label className="field">
+              Ask Copilot
+              <textarea
+                rows={2}
+                maxLength={2000}
+                value={question}
+                disabled={pending}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder="Ask about your workspace evidence"
+              />
+            </label>
+            <InlineError error={error} />
+            <div className="modal-actions">
+              <button
+                className="button secondary"
+                type="button"
+                disabled={pending}
+                onClick={() => setMessages([])}
+              >
+                Clear conversation
+              </button>
+              {pending ? (
+                <button
+                  className="button secondary"
+                  type="button"
+                  onClick={() => controller.current?.abort()}
+                >
+                  Cancel request
+                </button>
+              ) : (
+                <button
+                  className="button primary"
+                  type="submit"
+                  disabled={question.trim().length < 3}
+                >
+                  Ask question
+                </button>
+              )}
+            </div>
+          </form>
+        </>
+      )}
     </Modal>
   );
 }

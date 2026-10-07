@@ -250,10 +250,12 @@ class LiveNotBuilt:
 
 
 def build_adapters(client: httpx.Client, base_url: str = "", settings=None, db=None,
-                   live_http: httpx.Client | None = None, env: dict | None = None) -> dict:
-    """Execution mode is fixed here, once, per platform (settings env override, else platforms.yaml); never an automatic
-    fallback. Google `live` = the v25 test-account adapter, mirrored into the world service after verification."""
-    modes = dict(platforms_config()["execution_mode"])
+                   live_http: httpx.Client | None = None, env: dict | None = None,
+                   modes: dict[str, str] | None = None) -> dict:
+    """Execution mode is fixed here, once, per platform (explicit `modes`, then the settings env override, else
+    platforms.yaml); never an automatic fallback. Google `live` = the v25 test-account adapter, mirrored into the
+    world service after verification."""
+    modes = {**platforms_config()["execution_mode"], **(modes or {})}
     if settings is not None:
         modes["google"] = settings.google_execution_mode
     out = {}

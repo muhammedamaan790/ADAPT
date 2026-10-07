@@ -182,8 +182,12 @@ def _model_hashes(db, state: PortfolioState) -> dict:
 
 
 def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: datetime,
-                     actor: str = "ADAPT", supersedes: str | None = None) -> list[str]:
-    """Turn an optimizer run (decide.run.run_optimizer) into decision objects. Returns the new decision ids."""
+                     actor: str = "ADAPT", supersedes: str | None = None,
+                     follows: str | None = None) -> list[str]:
+    """Turn an optimizer run (decide.run.run_optimizer) into decision objects. Returns the new decision ids.
+    A run carrying `manual_allocation` (a user modification) snapshots that allocation, so replay values it
+    instead of re-optimizing. `supersedes` (the frontend calls it `follows`) links a modification or a chosen
+    risk preference to the decision it replaces."""
     ensure(db)
     pol = current_policy(db, at)
     ks = kill_switch_active(db)
@@ -203,6 +207,8 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
     manifest = {"state": put_artifact(db, state_to_dict(state)), "flags": put_artifact(db, flags),
                 "policy": put_artifact(db, pol["config"]), "calibration": put_artifact(db, {"factor": factor}),
                 "cooldown": put_artifact(db, sorted(cool)), "kill_switch": put_artifact(db, {"active": ks})}
+    if run.get("manual_allocation"):
+        manifest["manual_allocation"] = put_artifact(db, run["manual_allocation"])
     manifest_sha = content_hash(manifest)
     env = replay_environment({k: manifest[k] for k in ("policy",)})
     env_id = f"env-{env['replay_environment_fingerprint'][:16]}"
@@ -231,7 +237,7 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
             snap_id = f"SNAP-{sha256_hex(f'{did}|{h}')[:16]}"  # same content in two runs: same hash, two snapshots
             cur.execute("INSERT INTO intel.decisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
                         [did, run["run_id"], cls, content["type"], content["objective"], at,
-                         json.dumps({"decision_id": did, **normalize(content)}), h, snap_id, supersedes])
+                         json.dumps({"decision_id": did, **normalize(content)}), h, snap_id, supersedes or follows])
             cur.execute("INSERT INTO ops.decision_snapshots VALUES "
                         "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         [snap_id, did, run["run_id"], manifest_sha, json.dumps(manifest), fp["economics_hash"],
@@ -332,6 +338,28 @@ def reject(db, decision_id: str, actor: str, reason: str, now: datetime) -> dict
     return get_decision(db, decision_id)
 
 
+# ---- user modifications ----------------------------------------------------------------------------------------------
+def manual_proposal(state: PortfolioState, allocation: dict[str, float], policy: dict) -> dict:
+    """Value a user-edited allocation with the same portfolio_economics the optimizer uses (all draws)."""
+    from adapt.economics.portfolio import Portfolio
+
+    g = policy["guardrails"]
+    total0 = sum(u.budget for u in state.units)
+    B = float(g["budget"]["total_budget_inr"] or total0)
+    R = max(float(g["budget"]["cash_reserve_rupees"] or 0), float(g["budget"]["cash_reserve_pct"] or 0) * B)
+    econ = Portfolio(state).evaluate(allocation)
+    summ = econ.summary()
+    legs = [{"unit_id": u.unit_id, "platform": u.platform, "channel": u.channel, "campaign_ids": u.campaign_ids,
+             "budget_id": u.unit_id, "is_shared": u.is_shared, "before": u.budget,
+             "after": float(allocation.get(u.unit_id, u.budget))}
+            for u in state.units if abs(float(allocation.get(u.unit_id, u.budget)) - u.budget) > 1e-9]
+    legs.sort(key=lambda leg: (leg["after"] > leg["before"], leg["unit_id"]))
+    alloc_total = sum(float(allocation.get(u.unit_id, u.budget)) for u in state.units)
+    return {"status": "OK", "legs": legs, "expected": {**summ, "raw_pred": summ["E"]},
+            "inventory_risk_after": econ.inventory_risk_by_sku, "unallocated": max(B - alloc_total, 0.0),
+            "reserve_floor": R, "total_budget": B, "why_not": []}
+
+
 # ---- replay ---------------------------------------------------------------------------------------------------------
 def replay(db, decision_id: str) -> dict:
     """Re-run economics + optimizer + policy from the snapshot artifacts only; compare the decision hash."""
@@ -360,13 +388,15 @@ def replay(db, decision_id: str) -> dict:
     from adapt.decide.alternatives import objectives_for, sensitivity
 
     oc = objectives_for(objective or "PROFIT", policy["objectives"])
-    opt = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=oc)
-    result = opt.solve()
-    if cls == "OPTIMIZATION":
-        prop = result
+    if "manual_allocation" in manifest:  # a user modification: value the snapshotted allocation, never re-optimize
+        prop = manual_proposal(state, get_artifact(db, manifest["manual_allocation"]), policy)
+    elif cls == "OPTIMIZATION":
+        opt = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=oc)
+        prop = opt.solve()
         if stored.get("alternatives"):  # recomputed exactly when the decision carried them (bound by the hash)
             prop["alternatives"] = sensitivity(state, flags, policy["guardrails"], oc, (opt.pf, opt.full), cool, ks)
     else:
+        opt = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=policy["objectives"])
         sku = json.loads(db.query("SELECT payload FROM intel.decisions WHERE decision_id = ?",
                                   [decision_id])[0][0])["trigger"]["sku"]
         prop = next((c for c in safety_candidates(opt) if c["sku"] == sku), None)

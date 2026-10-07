@@ -146,6 +146,21 @@ def run_optimizer(db, as_of: datetime, flags: dict | None = None, persist: bool 
     return out
 
 
+def persist_basis(db, decision_id: str, run_id: str, decision_ts: datetime, cls: str, raw_pred: float,
+                  calibrated_pred: float, state, allocation: dict, legs: list[dict]) -> None:
+    """Freeze the measurement basis of a decision created outside an optimizer run (a user modification)."""
+    s = np.array([float(allocation.get(u.unit_id, u.budget)) for u in state.units])
+    basis = measurement_basis(state, s, legs, db)
+
+    def work(cur):
+        cur.execute(DDL)
+        cur.execute("INSERT OR REPLACE INTO learn.measurement_basis VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    [decision_id, run_id, decision_ts, cls, FAMILY if cls == "OPTIMIZATION" else None, raw_pred,
+                     calibrated_pred, json.dumps(basis, default=float)])
+
+    db.write(work)
+
+
 def _persist(db, as_of: datetime, state, opt: Optimizer, out: dict) -> None:
     result, safety = out["result"], out["safety"]
     proposals = []

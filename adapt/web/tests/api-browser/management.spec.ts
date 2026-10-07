@@ -48,7 +48,7 @@ test('model promotion binds reviewed artifact and revision; stale registry prese
 }) => {
   const calls = await modelBackend(page, modelTestDetail, true);
   await page.goto('/learning');
-  await expect(page.getByText('Learning metrics unavailable.')).toBeVisible();
+  await expect(page.getByText('Learning metrics unavailable.').first()).toBeVisible();
   await page.getByRole('button', { name: 'Request candidate promotion' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('button', { name: 'Confirm registry request' })).toBeDisabled();

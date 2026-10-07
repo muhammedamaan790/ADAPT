@@ -28,6 +28,10 @@ class Settings(BaseSettings):
 
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
 
+    # strict CORS: only the web app's origins (spec §9.5); the Vite dev proxy needs none
+    web_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174",
+                              "http://127.0.0.1:5174"]
+
     @property
     def workspace_db_path(self) -> Path:
         return self.data_dir / "workspaces" / f"{self.workspace}.duckdb"
