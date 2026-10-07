@@ -53,6 +53,24 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
+let csrfToken = '';
+let onAuthRequired: (() => void) | null = null;
+/** The session's CSRF token (from /auth/login or /auth/me); sent on every write. Kept in memory only. */
+export function setCsrfToken(token: string) {
+  csrfToken = token;
+}
+/** Called when the API answers 401, so the login gate can show the sign-in form again. */
+export function setAuthRequiredHandler(handler: (() => void) | null) {
+  onAuthRequired = handler;
+}
+export function writeHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'X-Request-ID': crypto.randomUUID(),
+    'Idempotency-Key': crypto.randomUUID(),
+    ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+  };
+}
 export async function request<T>(
   path: string,
   schema: z.ZodType<T>,
@@ -70,17 +88,12 @@ export async function request<T>(
       signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal,
       headers: {
         Accept: 'application/json',
-        ...(mutation
-          ? {
-              'Content-Type': 'application/json',
-              'X-Request-ID': crypto.randomUUID(),
-              'Idempotency-Key': crypto.randomUUID(),
-            }
-          : {}),
+        ...(mutation ? writeHeaders() : {}),
       },
       ...(mutation ? { body: JSON.stringify(body) } : {}),
     });
     if (!response.ok) {
+      if (response.status === 401 && !path.startsWith('/auth/')) onAuthRequired?.();
       const content = await response.json().catch(() => ({}));
       const detail =
         typeof content.detail === 'string'

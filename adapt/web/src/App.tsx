@@ -29,6 +29,7 @@ import { dataMode } from './api/client';
 import { Badge, Loading, Modal } from './components/ui';
 import { useOverview } from './hooks/workspace';
 import { ViewBoundary } from './components/ViewBoundary';
+import { SessionChip } from './components/AuthGate';
 
 const Anomalies = lazy(() => import('./pages/Anomalies').then((m) => ({ default: m.Anomalies })));
 const Optimizer = lazy(() => import('./pages/Optimizer').then((m) => ({ default: m.Optimizer })));
@@ -261,9 +262,7 @@ export function App() {
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <span className="avatar" title="Growth manager">
-              GM
-            </span>
+            <SessionChip />
           </div>
         </header>
         {dataMode === 'fixture' && (

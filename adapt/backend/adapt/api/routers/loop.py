@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 from adapt.api import models as m
 from adapt.api import views as v
+from adapt.api.auth import DEMO_USER, User
 from adapt.api.runtime import Busy, Runtime
 from adapt.decide import decisions as dec
 from adapt.decide.optimizer import build_constraints, search_draws
@@ -36,7 +37,12 @@ def mutation_headers(x_request_id: str = Header(..., alias="X-Request-ID"),
 
 router = APIRouter(prefix="/api/v1", tags=["loop"])
 mutating = [Depends(mutation_headers)]
-ACTOR, ROLE = "demo-manager", "manager"
+
+
+def actor(request: Request) -> User:
+    """The signed-in user, recorded on every approval, rejection and execution (the demo manager when auth is off)."""
+    return getattr(request.state, "user", DEMO_USER)
+
 STAGE1_SCENARIOS = {"DEMO_01", "S1", "S2", "S3", "S4", "S5", "S7"}
 # spec §14; Stage 1 supports S1-S5, S7, DEMO_01 (the world implements them and every module they need exists)
 SCENARIO_CATALOG = [
@@ -185,9 +191,10 @@ def approve(decision_id: str, body: m.ApproveBody, request: Request):
         with r.mutation():
             now = r.now()
             state_now = load_state(r.db, now)
-            dec.approve(r.db, decision_id, body.decision_hash, ACTOR, ROLE, now, state_now)
+            u = actor(request)
+            dec.approve(r.db, decision_id, body.decision_hash, u.user_id, u.role, now, state_now)
             if body.execute:
-                saga.execute_decision(r.db, decision_id, r.adapters, ACTOR, now, state_now)
+                saga.execute_decision(r.db, decision_id, r.adapters, actor(request).user_id, now, state_now)
     except Exception as exc:  # noqa: BLE001 - mapped to HTTP status codes
         _fail(exc)
     return _decision_or_404(r.db, decision_id)
@@ -201,7 +208,7 @@ def reject(decision_id: str, body: m.RejectBody, request: Request):
             d = dec.get_decision(r.db, decision_id)
             if d["decision_hash"] != body.decision_hash:
                 raise dec.DecisionError("HASH_MISMATCH", "the decision changed; review it again")
-            dec.reject(r.db, decision_id, ACTOR, body.reason, r.now())
+            dec.reject(r.db, decision_id, actor(request).user_id, body.reason, r.now())
     except Exception as exc:  # noqa: BLE001
         _fail(exc)
     return _decision_or_404(r.db, decision_id)
@@ -229,7 +236,8 @@ def modify(decision_id: str, body: m.AllocationInput, request: Request):
             prop["decision_id"] = new_id
             run = {"run_id": run_id, "result": prop, "safety": [], "calibration_factor":
                    d["expected"].get("optimism_correction_factor", 0.9), "manual_allocation": alloc}
-            created = dec.create_decisions(r.db, run, state, flags, r.now(), actor=ACTOR, follows=decision_id)
+            created = dec.create_decisions(r.db, run, state, flags, r.now(), actor=actor(request).user_id,
+                                           follows=decision_id)
             if not created and not r.db.query("SELECT 1 FROM intel.decisions WHERE decision_id = ?", [new_id]):
                 raise dec.DecisionError("CONFLICT", "the modified allocation has no changes")
             if created:
@@ -237,7 +245,7 @@ def modify(decision_id: str, body: m.AllocationInput, request: Request):
                 persist_basis(r.db, new_id, run_id, as_of, "OPTIMIZATION", nd["expected"]["raw_pred"],
                               nd["expected"]["calibrated_pred"], state, alloc, prop["legs"])
             if dec.get_decision(r.db, decision_id)["status"] in ("DRAFT", "PENDING_APPROVAL"):
-                r.db.write(lambda cur: dec.add_event(cur, decision_id, "superseded", r.now(), ACTOR,
+                r.db.write(lambda cur: dec.add_event(cur, decision_id, "superseded", r.now(), actor(request).user_id,
                                                      {"superseded_by": new_id,
                                                       "invalidation_reason": "modified by the manager"}))
     except Exception as exc:  # noqa: BLE001
@@ -368,7 +376,7 @@ def anomaly_status(anomaly_id: str, body: m.AnomalyStatusBody, request: Request)
                 cur.execute("CREATE TABLE IF NOT EXISTS ops.anomaly_status_log (anomaly_id VARCHAR, status VARCHAR, "
                             "reason VARCHAR, actor VARCHAR, logged_at TIMESTAMP)")
                 cur.execute("INSERT INTO ops.anomaly_status_log VALUES (?, ?, ?, ?, ?)",
-                            [anomaly_id, body.status, body.reason or None, ACTOR, now])
+                            [anomaly_id, body.status, body.reason or None, actor(request).user_id, now])
                 cur.execute("UPDATE intel.anomalies SET status = ? WHERE anomaly_id = ?", [internal, anomaly_id])
 
             r.db.write(work)
@@ -429,7 +437,7 @@ def rollback(execution_id: str, body: m.RecoveryBody, request: Request):
     try:
         with r.mutation():
             did, _d = _execution(r, execution_id, body)
-            out = saga.rollback(r.db, did, r.adapters, ACTOR, r.now())
+            out = saga.rollback(r.db, did, r.adapters, actor(request).user_id, r.now())
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -447,10 +455,11 @@ def reconcile(execution_id: str, body: m.RecoveryBody, request: Request):
                                                       "AND state = 'CONFLICT'", [execution_id])]
             if conflicts:
                 for lid in conflicts:
-                    saga.reconcile_conflict(r.db, lid, "accept_observed", ACTOR, ROLE, r.now())
+                    saga.reconcile_conflict(r.db, lid, "accept_observed", actor(request).user_id,
+                                           actor(request).role, r.now())
             else:
                 saga.resolve_manually(r.db, execution_id, body.final_resolution or "COMPENSATED", r.adapters,
-                                      ACTOR, ROLE, r.now())
+                                      actor(request).user_id, actor(request).role, r.now())
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -464,8 +473,8 @@ def retry(execution_id: str, body: m.RecoveryBody, request: Request):
 
 
 # ---- Scenario Lab ---------------------------------------------------------------------------------------------------
-def _world_post(r: Runtime, path: str, body: dict, rid: str) -> None:
-    resp = r.client.post(path, json=body, headers={"X-Request-ID": rid, "X-Actor-ID": ACTOR})
+def _world_post(r: Runtime, path: str, body: dict, rid: str, actor_id: str) -> None:
+    resp = r.client.post(path, json=body, headers={"X-Request-ID": rid, "X-Actor-ID": actor_id})
     if resp.status_code >= 400:
         raise HTTPException(409 if resp.status_code == 409 else 502, detail=f"world: {resp.text[:300]}")
 
@@ -489,7 +498,8 @@ def sim_scenario(key: str, request: Request):
             if r.unresolved_executions():
                 raise HTTPException(409, detail="an execution is unresolved; resolve it before changing the world")
             now = r.now()
-            _world_post(r, "/control/scenario", {"key": key}, f"api-scenario-{key}-{now.isoformat()}")
+            _world_post(r, "/control/scenario", {"key": key}, f"api-scenario-{key}-{now.isoformat()}",
+                        actor(request).user_id)
             _log(r.db, "scenario", key, now)
     except HTTPException:
         raise
@@ -507,7 +517,8 @@ def sim_advance(request: Request, days: int = Query(1, ge=1, le=14)):
             if r.unresolved_executions():
                 raise HTTPException(409, detail="an execution is unresolved; world advance is blocked")
             now = r.now()
-            _world_post(r, "/control/advance", {"days": days}, f"api-advance-{now.isoformat()}-{days}")
+            _world_post(r, "/control/advance", {"days": days}, f"api-advance-{now.isoformat()}-{days}",
+                        actor(request).user_id)
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001
@@ -527,7 +538,8 @@ def sim_reset(request: Request, seed: int = Query(42)):
         with r.mutation():
             if not r.baseline_path.exists():
                 raise Busy("no workspace baseline: run `python -m adapt.api.runtime --bootstrap` first")
-            _world_post(r, "/control/reset", {"seed": seed}, f"api-reset-{seed}-{world.get('day')}")
+            _world_post(r, "/control/reset", {"seed": seed}, f"api-reset-{seed}-{world.get('day')}",
+                        actor(request).user_id)
             r.restore_baseline()
             request.app.state.db = r.db
             r._state_cache = None
@@ -545,7 +557,7 @@ def sim_fault(kind: str, request: Request):
         try:
             with r.mutation():
                 _world_post(r, "/control/fault", {"platform": "google", "fault": "unavailable", "count": 3},
-                            f"api-fault-{r.now().isoformat()}")
+                            f"api-fault-{r.now().isoformat()}", actor(request).user_id)
         except HTTPException:
             raise
         except Exception as exc:  # noqa: BLE001

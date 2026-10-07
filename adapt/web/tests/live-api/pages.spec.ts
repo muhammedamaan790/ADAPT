@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { signIn } from './signin';
 
 // Every page of the app against the REAL backend: no load error, no contract mismatch, no fixture data.
 const routes = [
@@ -15,6 +16,8 @@ const routes = [
   '/connection',
 ];
 
+test.beforeEach(async ({ page }) => signIn(page));
+
 for (const route of routes) {
   test(`page ${route} loads from the live API`, async ({ page }) => {
     await page.goto(route);
@@ -25,7 +28,9 @@ for (const route of routes) {
       `${route}: ${alerts.length ? alerts.join(' | ').replace(/\s+/g, ' ').slice(0, 300) : 'no alerts'}`,
     );
     await expect(page.getByText(/Response contract mismatch/)).toHaveCount(0);
-    await expect(page.getByText(/couldn.t load this view/i)).toHaveCount(0);
+    await expect(
+      page.getByText(/couldn.t load this view|view could not be displayed/i),
+    ).toHaveCount(0);
     await expect(page.getByText('FRONTEND FIXTURES', { exact: true })).toHaveCount(0);
   });
 }

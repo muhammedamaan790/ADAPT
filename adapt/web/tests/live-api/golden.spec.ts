@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { signIn, writeHeaders } from './signin';
 
 // Live Stage 1 journey against the REAL backend (API mode, world service + adapt-api running, seed 42 at day 0).
 async function jobStart(page: Page): Promise<string | null> {
@@ -21,6 +22,7 @@ async function waitForNewJob(page: Page, previousStart: string | null) {
 test('live golden journey: evidence → approve → verified → advance → outcome → S3 review → reset', async ({
   page,
 }) => {
+  await signIn(page);
   // Command Center on real data
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Command Center', exact: true })).toBeVisible();
@@ -82,7 +84,7 @@ test('live golden journey: evidence → approve → verified → advance → out
   const before2 = await jobStart(page);
   const adv = await page.request.post('/api/v1/sim/advance?days=2', {
     data: {},
-    headers: { 'X-Request-ID': 'live-s3', 'Idempotency-Key': 'live-s3' },
+    headers: await writeHeaders(page, 'live-s3'),
   });
   expect(adv.status()).toBe(200);
   await waitForNewJob(page, before2);

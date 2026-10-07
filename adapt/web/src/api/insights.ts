@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { api, dataMode, request, apiBase, ApiError } from './client';
+import { api, dataMode, request, apiBase, ApiError, writeHeaders } from './client';
 import { decisionSchema, type Decision } from './contracts';
 import { allocationErrors } from '../lib/allocation';
 import { importFields, type ImportType } from '../lib/csv';
@@ -490,12 +490,7 @@ export async function askCopilot(message: string, signal: AbortSignal): Promise<
       method: 'POST',
       credentials: 'include',
       signal: AbortSignal.any([signal, timeout.signal]),
-      headers: {
-        Accept: 'text/event-stream',
-        'Content-Type': 'application/json',
-        'X-Request-ID': crypto.randomUUID(),
-        'Idempotency-Key': crypto.randomUUID(),
-      },
+      headers: { Accept: 'text/event-stream', ...writeHeaders() },
       body: JSON.stringify({ message }),
     });
     if (!response.ok)
