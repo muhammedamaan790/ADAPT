@@ -1,22 +1,22 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-07T20:34:03.424533+00:00",
+  "generatedAt": "2026-10-07T21:52:42.697677+00:00",
   "title": "Design System: ADAPT",
   "extensions": {
     "colorMeta": {
       "canvas": {
         "role": "neutral",
         "displayName": "Canvas",
-        "canonical": "#f4f6f8",
+        "canonical": "#f3f6fa",
         "tonalRamp": [
-          "oklch(15.0% 0.0034 247.86)",
-          "oklch(26.43% 0.0034 247.86)",
-          "oklch(37.86% 0.0034 247.86)",
-          "oklch(49.29% 0.0034 247.86)",
-          "oklch(60.71% 0.0034 247.86)",
-          "oklch(72.14% 0.0034 247.86)",
-          "oklch(83.57% 0.0034 247.86)",
-          "oklch(95.0% 0.0034 247.86)"
+          "oklch(15% 0.0062 255.47)",
+          "oklch(26.43% 0.0062 255.47)",
+          "oklch(37.86% 0.0062 255.47)",
+          "oklch(49.29% 0.0062 255.47)",
+          "oklch(60.71% 0.0062 255.47)",
+          "oklch(72.14% 0.0062 255.47)",
+          "oklch(83.57% 0.0062 255.47)",
+          "oklch(95% 0.0062 255.47)"
         ]
       },
       "surface": {
@@ -37,61 +37,61 @@
       "ink": {
         "role": "neutral",
         "displayName": "Ink",
-        "canonical": "#222a35",
+        "canonical": "#152238",
         "tonalRamp": [
-          "oklch(15.0% 0.0233 256.42)",
-          "oklch(26.43% 0.0233 256.42)",
-          "oklch(37.86% 0.0233 256.42)",
-          "oklch(49.29% 0.0233 256.42)",
-          "oklch(60.71% 0.0233 256.42)",
-          "oklch(72.14% 0.0233 256.42)",
-          "oklch(83.57% 0.0233 256.42)",
-          "oklch(95.0% 0.0233 256.42)"
+          "oklch(15% 0.0458 260.46)",
+          "oklch(26.43% 0.0458 260.46)",
+          "oklch(37.86% 0.0458 260.46)",
+          "oklch(49.29% 0.0458 260.46)",
+          "oklch(60.71% 0.0458 260.46)",
+          "oklch(72.14% 0.0458 260.46)",
+          "oklch(83.57% 0.0458 260.46)",
+          "oklch(95% 0.0458 260.46)"
         ]
       },
       "muted": {
         "role": "neutral",
         "displayName": "Muted",
-        "canonical": "#586574",
+        "canonical": "#586a83",
         "tonalRamp": [
-          "oklch(15.0% 0.0288 252.11)",
-          "oklch(26.43% 0.0288 252.11)",
-          "oklch(37.86% 0.0288 252.11)",
-          "oklch(49.29% 0.0288 252.11)",
-          "oklch(60.71% 0.0288 252.11)",
-          "oklch(72.14% 0.0288 252.11)",
-          "oklch(83.57% 0.0288 252.11)",
-          "oklch(95.0% 0.0288 252.11)"
+          "oklch(15% 0.0453 256.65)",
+          "oklch(26.43% 0.0453 256.65)",
+          "oklch(37.86% 0.0453 256.65)",
+          "oklch(49.29% 0.0453 256.65)",
+          "oklch(60.71% 0.0453 256.65)",
+          "oklch(72.14% 0.0453 256.65)",
+          "oklch(83.57% 0.0453 256.65)",
+          "oklch(95% 0.0453 256.65)"
         ]
       },
       "rule": {
         "role": "neutral",
         "displayName": "Rule",
-        "canonical": "#dce2e8",
+        "canonical": "#dce4ee",
         "tonalRamp": [
-          "oklch(15.0% 0.0104 247.94)",
-          "oklch(26.43% 0.0104 247.94)",
-          "oklch(37.86% 0.0104 247.94)",
-          "oklch(49.29% 0.0104 247.94)",
-          "oklch(60.71% 0.0104 247.94)",
-          "oklch(72.14% 0.0104 247.94)",
-          "oklch(83.57% 0.0104 247.94)",
-          "oklch(95.0% 0.0104 247.94)"
+          "oklch(15% 0.0161 253.91)",
+          "oklch(26.43% 0.0161 253.91)",
+          "oklch(37.86% 0.0161 253.91)",
+          "oklch(49.29% 0.0161 253.91)",
+          "oklch(60.71% 0.0161 253.91)",
+          "oklch(72.14% 0.0161 253.91)",
+          "oklch(83.57% 0.0161 253.91)",
+          "oklch(95% 0.0161 253.91)"
         ]
       },
       "accent": {
         "role": "semantic",
         "displayName": "Accent",
-        "canonical": "#2459c4",
+        "canonical": "#135cec",
         "tonalRamp": [
-          "oklch(15.0% 0.1769 262.23)",
-          "oklch(26.43% 0.1769 262.23)",
-          "oklch(37.86% 0.1769 262.23)",
-          "oklch(49.29% 0.1769 262.23)",
-          "oklch(60.71% 0.1769 262.23)",
-          "oklch(72.14% 0.1769 262.23)",
-          "oklch(83.57% 0.1769 262.23)",
-          "oklch(95.0% 0.1769 262.23)"
+          "oklch(15% 0.2275 262.15)",
+          "oklch(26.43% 0.2275 262.15)",
+          "oklch(37.86% 0.2275 262.15)",
+          "oklch(49.29% 0.2275 262.15)",
+          "oklch(60.71% 0.2275 262.15)",
+          "oklch(72.14% 0.2275 262.15)",
+          "oklch(83.57% 0.2275 262.15)",
+          "oklch(95% 0.2275 262.15)"
         ]
       },
       "accent-soft": {
@@ -232,31 +232,31 @@
       "focus": {
         "role": "semantic",
         "displayName": "Focus",
-        "canonical": "#2459c4",
+        "canonical": "#135cec",
         "tonalRamp": [
-          "oklch(15.0% 0.1769 262.23)",
-          "oklch(26.43% 0.1769 262.23)",
-          "oklch(37.86% 0.1769 262.23)",
-          "oklch(49.29% 0.1769 262.23)",
-          "oklch(60.71% 0.1769 262.23)",
-          "oklch(72.14% 0.1769 262.23)",
-          "oklch(83.57% 0.1769 262.23)",
-          "oklch(95.0% 0.1769 262.23)"
+          "oklch(15% 0.2275 262.15)",
+          "oklch(26.43% 0.2275 262.15)",
+          "oklch(37.86% 0.2275 262.15)",
+          "oklch(49.29% 0.2275 262.15)",
+          "oklch(60.71% 0.2275 262.15)",
+          "oklch(72.14% 0.2275 262.15)",
+          "oklch(83.57% 0.2275 262.15)",
+          "oklch(95% 0.2275 262.15)"
         ]
       },
       "graphite": {
         "role": "neutral",
         "displayName": "Graphite",
-        "canonical": "#262b32",
+        "canonical": "#202833",
         "tonalRamp": [
-          "oklch(15.0% 0.0147 256.79)",
-          "oklch(26.43% 0.0147 256.79)",
-          "oklch(37.86% 0.0147 256.79)",
-          "oklch(49.29% 0.0147 256.79)",
-          "oklch(60.71% 0.0147 256.79)",
-          "oklch(72.14% 0.0147 256.79)",
-          "oklch(83.57% 0.0147 256.79)",
-          "oklch(95.0% 0.0147 256.79)"
+          "oklch(15% 0.0235 256.42)",
+          "oklch(26.43% 0.0235 256.42)",
+          "oklch(37.86% 0.0235 256.42)",
+          "oklch(49.29% 0.0235 256.42)",
+          "oklch(60.71% 0.0235 256.42)",
+          "oklch(72.14% 0.0235 256.42)",
+          "oklch(83.57% 0.0235 256.42)",
+          "oklch(95% 0.0235 256.42)"
         ]
       },
       "nav-ink": {
@@ -292,166 +292,166 @@
       "nav-hover": {
         "role": "neutral",
         "displayName": "Nav Hover",
-        "canonical": "#343c47",
+        "canonical": "#303c4c",
         "tonalRamp": [
-          "oklch(15.0% 0.0220 256.39)",
-          "oklch(26.43% 0.0220 256.39)",
-          "oklch(37.86% 0.0220 256.39)",
-          "oklch(49.29% 0.0220 256.39)",
-          "oklch(60.71% 0.0220 256.39)",
-          "oklch(72.14% 0.0220 256.39)",
-          "oklch(83.57% 0.0220 256.39)",
-          "oklch(95.0% 0.0220 256.39)"
+          "oklch(15% 0.0323 255.73)",
+          "oklch(26.43% 0.0323 255.73)",
+          "oklch(37.86% 0.0323 255.73)",
+          "oklch(49.29% 0.0323 255.73)",
+          "oklch(60.71% 0.0323 255.73)",
+          "oklch(72.14% 0.0323 255.73)",
+          "oklch(83.57% 0.0323 255.73)",
+          "oklch(95% 0.0323 255.73)"
         ]
       },
       "nav-selected": {
         "role": "neutral",
         "displayName": "Nav Selected",
-        "canonical": "#dce9ff",
+        "canonical": "#135cec",
         "tonalRamp": [
-          "oklch(15.0% 0.0330 261.03)",
-          "oklch(26.43% 0.0330 261.03)",
-          "oklch(37.86% 0.0330 261.03)",
-          "oklch(49.29% 0.0330 261.03)",
-          "oklch(60.71% 0.0330 261.03)",
-          "oklch(72.14% 0.0330 261.03)",
-          "oklch(83.57% 0.0330 261.03)",
-          "oklch(95.0% 0.0330 261.03)"
+          "oklch(15% 0.2275 262.15)",
+          "oklch(26.43% 0.2275 262.15)",
+          "oklch(37.86% 0.2275 262.15)",
+          "oklch(49.29% 0.2275 262.15)",
+          "oklch(60.71% 0.2275 262.15)",
+          "oklch(72.14% 0.2275 262.15)",
+          "oklch(83.57% 0.2275 262.15)",
+          "oklch(95% 0.2275 262.15)"
         ]
       },
       "nav-selected-ink": {
         "role": "neutral",
         "displayName": "Nav Selected Ink",
-        "canonical": "#173d85",
+        "canonical": "#ffffff",
         "tonalRamp": [
-          "oklch(15.0% 0.1287 261.61)",
-          "oklch(26.43% 0.1287 261.61)",
-          "oklch(37.86% 0.1287 261.61)",
-          "oklch(49.29% 0.1287 261.61)",
-          "oklch(60.71% 0.1287 261.61)",
-          "oklch(72.14% 0.1287 261.61)",
-          "oklch(83.57% 0.1287 261.61)",
-          "oklch(95.0% 0.1287 261.61)"
+          "oklch(15% 0.0000 89.88)",
+          "oklch(26.43% 0.0000 89.88)",
+          "oklch(37.86% 0.0000 89.88)",
+          "oklch(49.29% 0.0000 89.88)",
+          "oklch(60.71% 0.0000 89.88)",
+          "oklch(72.14% 0.0000 89.88)",
+          "oklch(83.57% 0.0000 89.88)",
+          "oklch(95% 0.0000 89.88)"
         ]
       },
       "primary-hover": {
         "role": "semantic",
         "displayName": "Primary Hover",
-        "canonical": "#1a479f",
+        "canonical": "#0c48c7",
         "tonalRamp": [
-          "oklch(15.0% 0.1516 261.92)",
-          "oklch(26.43% 0.1516 261.92)",
-          "oklch(37.86% 0.1516 261.92)",
-          "oklch(49.29% 0.1516 261.92)",
-          "oklch(60.71% 0.1516 261.92)",
-          "oklch(72.14% 0.1516 261.92)",
-          "oklch(83.57% 0.1516 261.92)",
-          "oklch(95.0% 0.1516 261.92)"
+          "oklch(15% 0.2054 262.64)",
+          "oklch(26.43% 0.2054 262.64)",
+          "oklch(37.86% 0.2054 262.64)",
+          "oklch(49.29% 0.2054 262.64)",
+          "oklch(60.71% 0.2054 262.64)",
+          "oklch(72.14% 0.2054 262.64)",
+          "oklch(83.57% 0.2054 262.64)",
+          "oklch(95% 0.2054 262.64)"
         ]
       },
       "dark-canvas": {
         "role": "semantic",
         "displayName": "Dark Canvas",
-        "canonical": "#161b22",
+        "canonical": "#151d28",
         "tonalRamp": [
-          "oklch(15.0% 0.0157 256.82)",
-          "oklch(26.43% 0.0157 256.82)",
-          "oklch(37.86% 0.0157 256.82)",
-          "oklch(49.29% 0.0157 256.82)",
-          "oklch(60.71% 0.0157 256.82)",
-          "oklch(72.14% 0.0157 256.82)",
-          "oklch(83.57% 0.0157 256.82)",
-          "oklch(95.0% 0.0157 256.82)"
+          "oklch(15% 0.0245 256.45)",
+          "oklch(26.43% 0.0245 256.45)",
+          "oklch(37.86% 0.0245 256.45)",
+          "oklch(49.29% 0.0245 256.45)",
+          "oklch(60.71% 0.0245 256.45)",
+          "oklch(72.14% 0.0245 256.45)",
+          "oklch(83.57% 0.0245 256.45)",
+          "oklch(95% 0.0245 256.45)"
         ]
       },
       "dark-surface": {
         "role": "semantic",
         "displayName": "Dark Surface",
-        "canonical": "#202730",
+        "canonical": "#1d2837",
         "tonalRamp": [
-          "oklch(15.0% 0.0196 254.83)",
-          "oklch(26.43% 0.0196 254.83)",
-          "oklch(37.86% 0.0196 254.83)",
-          "oklch(49.29% 0.0196 254.83)",
-          "oklch(60.71% 0.0196 254.83)",
-          "oklch(72.14% 0.0196 254.83)",
-          "oklch(83.57% 0.0196 254.83)",
-          "oklch(95.0% 0.0196 254.83)"
+          "oklch(15% 0.0320 256.29)",
+          "oklch(26.43% 0.0320 256.29)",
+          "oklch(37.86% 0.0320 256.29)",
+          "oklch(49.29% 0.0320 256.29)",
+          "oklch(60.71% 0.0320 256.29)",
+          "oklch(72.14% 0.0320 256.29)",
+          "oklch(83.57% 0.0320 256.29)",
+          "oklch(95% 0.0320 256.29)"
         ]
       },
       "dark-ink": {
         "role": "semantic",
         "displayName": "Dark Ink",
-        "canonical": "#edf2f7",
+        "canonical": "#edf3ff",
         "tonalRamp": [
-          "oklch(15.0% 0.0086 247.92)",
-          "oklch(26.43% 0.0086 247.92)",
-          "oklch(37.86% 0.0086 247.92)",
-          "oklch(49.29% 0.0086 247.92)",
-          "oklch(60.71% 0.0086 247.92)",
-          "oklch(72.14% 0.0086 247.92)",
-          "oklch(83.57% 0.0086 247.92)",
-          "oklch(95.0% 0.0086 247.92)"
+          "oklch(15% 0.0173 264.49)",
+          "oklch(26.43% 0.0173 264.49)",
+          "oklch(37.86% 0.0173 264.49)",
+          "oklch(49.29% 0.0173 264.49)",
+          "oklch(60.71% 0.0173 264.49)",
+          "oklch(72.14% 0.0173 264.49)",
+          "oklch(83.57% 0.0173 264.49)",
+          "oklch(95% 0.0173 264.49)"
         ]
       },
       "dark-muted": {
         "role": "semantic",
         "displayName": "Dark Muted",
-        "canonical": "#afbdcc",
+        "canonical": "#adbed6",
         "tonalRamp": [
-          "oklch(15.0% 0.0263 250.01)",
-          "oklch(26.43% 0.0263 250.01)",
-          "oklch(37.86% 0.0263 250.01)",
-          "oklch(49.29% 0.0263 250.01)",
-          "oklch(60.71% 0.0263 250.01)",
-          "oklch(72.14% 0.0263 250.01)",
-          "oklch(83.57% 0.0263 250.01)",
-          "oklch(95.0% 0.0263 250.01)"
+          "oklch(15% 0.0389 256.98)",
+          "oklch(26.43% 0.0389 256.98)",
+          "oklch(37.86% 0.0389 256.98)",
+          "oklch(49.29% 0.0389 256.98)",
+          "oklch(60.71% 0.0389 256.98)",
+          "oklch(72.14% 0.0389 256.98)",
+          "oklch(83.57% 0.0389 256.98)",
+          "oklch(95% 0.0389 256.98)"
         ]
       },
       "dark-rule": {
         "role": "semantic",
         "displayName": "Dark Rule",
-        "canonical": "#3b4655",
+        "canonical": "#35465b",
         "tonalRamp": [
-          "oklch(15.0% 0.0293 256.22)",
-          "oklch(26.43% 0.0293 256.22)",
-          "oklch(37.86% 0.0293 256.22)",
-          "oklch(49.29% 0.0293 256.22)",
-          "oklch(60.71% 0.0293 256.22)",
-          "oklch(72.14% 0.0293 256.22)",
-          "oklch(83.57% 0.0293 256.22)",
-          "oklch(95.0% 0.0293 256.22)"
+          "oklch(15% 0.0420 254.04)",
+          "oklch(26.43% 0.0420 254.04)",
+          "oklch(37.86% 0.0420 254.04)",
+          "oklch(49.29% 0.0420 254.04)",
+          "oklch(60.71% 0.0420 254.04)",
+          "oklch(72.14% 0.0420 254.04)",
+          "oklch(83.57% 0.0420 254.04)",
+          "oklch(95% 0.0420 254.04)"
         ]
       },
       "dark-accent": {
         "role": "semantic",
         "displayName": "Dark Accent",
-        "canonical": "#8db4ff",
+        "canonical": "#8ab4ff",
         "tonalRamp": [
-          "oklch(15.0% 0.1162 262.87)",
-          "oklch(26.43% 0.1162 262.87)",
-          "oklch(37.86% 0.1162 262.87)",
-          "oklch(49.29% 0.1162 262.87)",
-          "oklch(60.71% 0.1162 262.87)",
-          "oklch(72.14% 0.1162 262.87)",
-          "oklch(83.57% 0.1162 262.87)",
-          "oklch(95.0% 0.1162 262.87)"
+          "oklch(15% 0.1175 261.56)",
+          "oklch(26.43% 0.1175 261.56)",
+          "oklch(37.86% 0.1175 261.56)",
+          "oklch(49.29% 0.1175 261.56)",
+          "oklch(60.71% 0.1175 261.56)",
+          "oklch(72.14% 0.1175 261.56)",
+          "oklch(83.57% 0.1175 261.56)",
+          "oklch(95% 0.1175 261.56)"
         ]
       },
       "dark-accent-soft": {
         "role": "semantic",
         "displayName": "Dark Accent Soft",
-        "canonical": "#253653",
+        "canonical": "#273c60",
         "tonalRamp": [
-          "oklch(15.0% 0.0563 260.66)",
-          "oklch(26.43% 0.0563 260.66)",
-          "oklch(37.86% 0.0563 260.66)",
-          "oklch(49.29% 0.0563 260.66)",
-          "oklch(60.71% 0.0563 260.66)",
-          "oklch(72.14% 0.0563 260.66)",
-          "oklch(83.57% 0.0563 260.66)",
-          "oklch(95.0% 0.0563 260.66)"
+          "oklch(15% 0.0684 260.65)",
+          "oklch(26.43% 0.0684 260.65)",
+          "oklch(37.86% 0.0684 260.65)",
+          "oklch(49.29% 0.0684 260.65)",
+          "oklch(60.71% 0.0684 260.65)",
+          "oklch(72.14% 0.0684 260.65)",
+          "oklch(83.57% 0.0684 260.65)",
+          "oklch(95% 0.0684 260.65)"
         ]
       },
       "dark-success": {
@@ -547,16 +547,16 @@
       "dark-soft": {
         "role": "semantic",
         "displayName": "Dark Soft",
-        "canonical": "#262f3b",
+        "canonical": "#263347",
         "tonalRamp": [
-          "oklch(15.0% 0.0252 255.72)",
-          "oklch(26.43% 0.0252 255.72)",
-          "oklch(37.86% 0.0252 255.72)",
-          "oklch(49.29% 0.0252 255.72)",
-          "oklch(60.71% 0.0252 255.72)",
-          "oklch(72.14% 0.0252 255.72)",
-          "oklch(83.57% 0.0252 255.72)",
-          "oklch(95.0% 0.0252 255.72)"
+          "oklch(15% 0.0401 258.82)",
+          "oklch(26.43% 0.0401 258.82)",
+          "oklch(37.86% 0.0401 258.82)",
+          "oklch(49.29% 0.0401 258.82)",
+          "oklch(60.71% 0.0401 258.82)",
+          "oklch(72.14% 0.0401 258.82)",
+          "oklch(83.57% 0.0401 258.82)",
+          "oklch(95% 0.0401 258.82)"
         ]
       },
       "dark-forecast": {
@@ -577,16 +577,16 @@
       "dark-focus": {
         "role": "semantic",
         "displayName": "Dark Focus",
-        "canonical": "#a8c5ff",
+        "canonical": "#a9c8ff",
         "tonalRamp": [
-          "oklch(15.0% 0.0881 263.91)",
-          "oklch(26.43% 0.0881 263.91)",
-          "oklch(37.86% 0.0881 263.91)",
-          "oklch(49.29% 0.0881 263.91)",
-          "oklch(60.71% 0.0881 263.91)",
-          "oklch(72.14% 0.0881 263.91)",
-          "oklch(83.57% 0.0881 263.91)",
-          "oklch(95.0% 0.0881 263.91)"
+          "oklch(15% 0.0847 261.73)",
+          "oklch(26.43% 0.0847 261.73)",
+          "oklch(37.86% 0.0847 261.73)",
+          "oklch(49.29% 0.0847 261.73)",
+          "oklch(60.71% 0.0847 261.73)",
+          "oklch(72.14% 0.0847 261.73)",
+          "oklch(83.57% 0.0847 261.73)",
+          "oklch(95% 0.0847 261.73)"
         ]
       }
     },
@@ -747,7 +747,7 @@
   ],
   "narrative": {
     "northStar": "Evidence Studio",
-    "overview": "Evidence Studio uses graphite navigation and cool reading surfaces for sustained comparison. One self-hosted sans family, ruled financial rows and restrained semantic color keep the interface precise while allowing substantial evidence density. The approved two-form Forward Shift symbol is the identity asset; retain its geometry in light, graphite and monochrome applications.",
+    "overview": "Evidence Studio pairs a real daily budget proposal with campaign evidence, a full-width attention register and source health. Strong blue selection on graphite navigation, self-hosted IBM Plex Sans and ruled financial rows follow the supplied references. Phone users see readable stacked budgets before broader metrics. The approved Forward Shift symbol and guarded approval contracts remain intact.",
     "keyCharacteristics": [
       "Cool reading ground and graphite navigation.",
       "Tabular financial values and thin comparison rules.",

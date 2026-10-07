@@ -2,12 +2,12 @@
 name: ADAPT
 description: A precise advertising decision workspace with visible evidence and guarded budget approval.
 colors:
-  canvas: "#f4f6f8"
+  canvas: "#f3f6fa"
   surface: "#ffffff"
-  ink: "#222a35"
-  muted: "#586574"
-  rule: "#dce2e8"
-  accent: "#2459c4"
+  ink: "#152238"
+  muted: "#586a83"
+  rule: "#dce4ee"
+  accent: "#135cec"
   accent-soft: "#edf3ff"
   success: "#20704b"
   warning: "#87550c"
@@ -17,40 +17,40 @@ colors:
   danger-soft: "#fdf0f0"
   soft: "#f6f8fa"
   forecast: "#a66a0b"
-  focus: "#2459c4"
-  graphite: "#262b32"
+  focus: "#135cec"
+  graphite: "#202833"
   nav-ink: "#edf2f7"
   nav-muted: "#b5bfcb"
-  nav-hover: "#343c47"
-  nav-selected: "#dce9ff"
-  nav-selected-ink: "#173d85"
-  primary-hover: "#1a479f"
-  dark-canvas: "#161b22"
-  dark-surface: "#202730"
-  dark-ink: "#edf2f7"
-  dark-muted: "#afbdcc"
-  dark-rule: "#3b4655"
-  dark-accent: "#8db4ff"
-  dark-accent-soft: "#253653"
+  nav-hover: "#303c4c"
+  nav-selected: "#135cec"
+  nav-selected-ink: "#ffffff"
+  primary-hover: "#0c48c7"
+  dark-canvas: "#151d28"
+  dark-surface: "#1d2837"
+  dark-ink: "#edf3ff"
+  dark-muted: "#adbed6"
+  dark-rule: "#35465b"
+  dark-accent: "#8ab4ff"
+  dark-accent-soft: "#273c60"
   dark-success: "#8dd1ab"
   dark-warning: "#e7bd7c"
   dark-danger: "#f4a1a5"
   dark-success-soft: "#253b32"
   dark-warning-soft: "#3b3225"
   dark-danger-soft: "#402c32"
-  dark-soft: "#262f3b"
+  dark-soft: "#263347"
   dark-forecast: "#e7bd7c"
-  dark-focus: "#a8c5ff"
+  dark-focus: "#a9c8ff"
 typography:
   headline:
     fontFamily: "IBM Plex Sans, sans-serif"
-    fontSize: "30px"
+    fontSize: "32px"
     fontWeight: 600
     lineHeight: 1.25
     letterSpacing: "-0.025em"
   section:
     fontFamily: "IBM Plex Sans, sans-serif"
-    fontSize: "17px"
+    fontSize: "18px"
     fontWeight: 600
     lineHeight: 1.4
     letterSpacing: "-0.012em"
@@ -91,7 +91,7 @@ typography:
 rounded:
   chip: "4px"
   control: "6px"
-  panel: "12px"
+  panel: "8px"
   dialog: "14px"
 spacing:
   xs: "4px"
@@ -99,9 +99,9 @@ spacing:
   md: "12px"
   lg: "16px"
   xl: "20px"
-  panel: "22px"
+  panel: "20px"
   dialog: "24px"
-  page: "28px"
+  page: "24px"
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
@@ -126,7 +126,7 @@ components:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     rounded: "{rounded.panel}"
-    padding: "22px"
+    padding: "20px"
   badge:
     backgroundColor: "{colors.soft}"
     textColor: "{colors.muted}"
@@ -159,9 +159,11 @@ Evidence Studio uses graphite navigation and cool reading surfaces for sustained
 - Explicit evidence, forecast and execution-state labels.
 - Native dialogs, disclosures and keyboard-accessible charts.
 
-This is the implemented replacement world authorized by the frontend redesign request and delegated design selection. Its normative tokens come from the final overriding CSS and self-hosted font imports. Surface composition and workflow-specific decisions remain in the surface brief and `adapt/docs/frontend-redesign.md`.
+This is the implemented replacement world authorized by the frontend redesign request and delegated design selection. Its normative tokens come from the final overriding CSS and self-hosted font imports. The current reference-led home composition and responsive priorities are documented in `adapt/docs/frontend-reference-redesign.md`; the earlier redesign record remains historical.
 
 Review boundary: the final concept comparison reports 0.7226, `drift`; pixel certification is not claimed. The formal CLI plan-receipt gate remains pending because it does not encode the user's delegated selection. No human approval receipt or passed build phase is fabricated. Browser evidence covers desktop and emulated mobile; it is not a physical-device or complete accessibility certification.
+
+The reference-led home places the supplied budget proposal beside an expanded campaign chart, followed by a full-width attention register and source strip. Shared navigation uses saturated blue selection on graphite. Phone users see stacked current/proposed budgets before the attention register and financial metrics. Existing guarded decision workflows remain intact.
 
 ## Colors
 
@@ -240,7 +242,7 @@ Fields have visible labels, surface backgrounds, rule borders and control radii.
 
 ### Navigation
 
-Graphite navigation uses pale readable labels, a darker hover background and a pale-blue selected row. All routes retain meaningful names and grouped hierarchy. The mobile dialog traps focus, closes on navigation or Escape, and restores focus to its trigger. Native controls have accessible names even when their visible phone treatment is icon-only.
+Graphite navigation uses pale readable labels, a darker hover background and a saturated-blue selected row with white text. All routes retain meaningful names and grouped hierarchy. The mobile dialog traps focus, closes on navigation or Escape, and restores focus to its trigger. Native controls have accessible names even when their visible phone treatment is icon-only.
 
 API mode preserves the existing sign-in form and session controls from main. The sign-in page uses the same reading surfaces, labeled native fields and primary action; the top bar exposes the existing signed-in identity and sign-out control. Fixture mode retains its explicitly illustrative workspace.
 
@@ -251,6 +253,12 @@ Financial strips use tabular values separated by vertical rules. The campaign pl
 ### Approval and lineage
 
 Approval is a native dialog showing the exact proposal, immutable identity and required confirmation. Its wording distinguishes fixture interaction from connected execution. Lineage is a native, viewport-clamped popover with light dismissal and Escape support. Forecasts, likely drivers and accounting decomposition preserve their distinct certainty labels.
+
+### Decision and economics workbenches
+
+The decision inbox and campaign economics comparison use native disclosures with explicit chevrons, ruled rows and visible search/filter labels. They remain optional context around the active proposal; opening either never approves or edits budgets. The inbox pairs decision identity, status, policy blockers and the supplied horizon estimate. Campaign comparison exposes keyboard-sortable numeric columns with `aria-sort`; unknown marginal contribution sorts last in both directions. At narrow widths filters stack and the economics table scrolls internally rather than expanding the document.
+
+Daily budget movement uses paired horizontal bars on a shared zero-based scale, with exact current/proposed values and net allocation change. Current is neutral graphite and proposed is blue; spending more does not imply a successful outcome. Forecast/measured feedback uses a common signed scale with a marked zero, an amber dashed forecast and solid blue measurement. Zero values have no visible bar. Creative review uses ruled two-column evidence groups on desktop and one column on mobile, retaining CTR change, frequency, source-qualified explanations and textual review states. Stable creatives are neutral rather than success-colored. These additions bind to the existing theme tokens and do not introduce a second visual system.
 
 ## Do's and Don'ts
 

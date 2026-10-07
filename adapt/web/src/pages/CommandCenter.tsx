@@ -1,200 +1,244 @@
 import {
-  ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
   Check,
-  Circle,
   CircleAlert,
   Package,
   RotateCw,
   ShieldCheck,
   TrendingUp,
+  Database,
+  ShoppingBag,
+  ChartNoAxesCombined,
+  Boxes,
+  Tag,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQueryClient, useIsFetching } from '@tanstack/react-query';
-import { useOverview } from '../hooks/workspace';
-import { Badge, Empty, ErrorState, Loading, MetricTile, SectionTitle } from '../components/ui';
+import { useOverview, useDecisions } from '../hooks/workspace';
+import { Badge, Empty, ErrorState, Loading, MetricTile } from '../components/ui';
 import { TrendChart } from '../components/charts';
+import { HomeProposal, ChannelMark } from '../components/HomeProposal';
 import { dateTime, money } from '../lib/format';
 
 export function CommandCenter() {
   const { data, isPending, error, refetch } = useOverview();
+  const decisions = useDecisions();
   const cache = useQueryClient();
   const refreshing = useIsFetching({ queryKey: ['overview'] }) > 0;
+  const proposal =
+    decisions.data?.find((d) => d.status === 'PENDING_APPROVAL') || decisions.data?.[0];
   if (isPending) return <Loading />;
   if (error || !data)
     return (
       <ErrorState error={error || new Error('No overview returned')} retry={() => void refetch()} />
     );
   return (
-    <div className="command-center">
-      <div className="page-heading">
+    <div className="command-center command-workspace">
+      <div className="page-heading command-heading">
         <div>
           <h1>Command Center</h1>
-          <p>Your advertising decisions, with the evidence behind them.</p>
+          <p>Advertising decisions, with the evidence behind them.</p>
         </div>
-        <button
-          className="button secondary"
-          aria-label="Refresh data"
-          aria-busy={refreshing}
-          disabled={refreshing}
-          onClick={() => void cache.invalidateQueries()}
-        >
-          <RotateCw size={14} className={refreshing ? 'spin' : ''} />
-          {refreshing ? 'Refreshing…' : 'Refresh data'}
-        </button>
-      </div>
-      <div className="context-line">
-        <span>
-          <i className="status-dot" />
-          Last report {dateTime(data.decision_ts)}
-        </span>
-        <span>World day {data.world_day} · Financials: last 7 days</span>
-      </div>
-      <section className="brief">
-        <div>
-          <h2>Your morning brief</h2>
-          <p>{data.brief}</p>
+        <div className="command-refresh">
+          <button
+            className="button primary"
+            aria-label="Refresh data"
+            aria-busy={refreshing}
+            disabled={refreshing}
+            onClick={() => void cache.invalidateQueries()}
+          >
+            <RotateCw size={15} className={refreshing ? 'spin' : ''} />
+            {refreshing ? 'Refreshing…' : 'Refresh data'}
+          </button>
+          <span>Last report {dateTime(data.decision_ts)}</span>
         </div>
-        <Link to="/decisions" className="text-link">
-          Review decisions <ArrowRight size={16} />
-        </Link>
+      </div>
+      <section className="command-brief" aria-label="Morning brief">
+        <strong>Morning brief</strong>
+        <p>{data.brief}</p>
       </section>
       <section className="metrics" aria-label="Business metrics">
         {data.metrics.map((metric) => (
           <MetricTile key={metric.key} metric={metric} />
         ))}
       </section>
-      <div className="overview-grid">
-        <section className="panel performance-panel">
-          <SectionTitle title="Campaign efficiency">
-            <Badge>Reconciled</Badge>
-          </SectionTitle>
-          <p className="section-description">
-            Hero campaign · actual return vs the baseline forecast
-          </p>
-          <TrendChart data={data.series} small />
-          <div className="chart-insight">
-            <ArrowDownRight size={19} />
-            <p>
-              <strong>
-                {data.scenario === 'S7'
-                  ? 'Expected budget change.'
-                  : data.scenario === 'S5'
-                    ? 'Validate tracking before scaling.'
-                    : 'Investigate before scaling.'}
-              </strong>{' '}
-              {data.scenario === 'S7'
-                ? 'No efficiency incident is open.'
-                : 'The Decision Center shows accounting drivers and inventory limits.'}
-            </p>
+      <div className="command-analysis">
+        {decisions.isPending ? (
+          <section className="panel home-proposal">
+            <Loading label="Loading the current proposal" />
+          </section>
+        ) : decisions.error ? (
+          <section className="panel home-proposal">
+            <h2>Budget proposal unavailable</h2>
+            <ErrorState error={decisions.error} retry={() => void decisions.refetch()} />
+          </section>
+        ) : proposal ? (
+          <HomeProposal decision={proposal} />
+        ) : (
+          <section className="panel home-proposal">
+            <h2>Budget proposal</h2>
+            <Empty title="No allocation needs review">
+              No open proposal has been supplied for this workspace.
+            </Empty>
+            <Link className="button secondary" to="/scenarios">
+              Explore scenarios <ArrowRight size={15} />
+            </Link>
+          </section>
+        )}
+        <section className="panel home-performance">
+          <div className="home-section-heading">
+            <h2>Campaign efficiency</h2>
+            <Badge>ROAS</Badge>
           </div>
-          <Link to="/decisions" className="text-link">
-            Open the investigation <ArrowRight size={15} />
-          </Link>
-        </section>
-        <section className="panel attention-panel">
-          <SectionTitle title="What needs your attention">
-            <Badge>{data.attention.length} items</Badge>
-          </SectionTitle>
-          <p className="section-description">
-            Ranked by financial impact. Estimates remain model dependent.
+          <p className="home-section-description">
+            Hero campaign · {data.series.length} daily observations · actual vs baseline
           </p>
-          {data.attention.length ? (
-            <div className="attention-list">
-              {data.attention.map((item) => {
-                const Icon =
-                  item.kind === 'incident'
-                    ? CircleAlert
-                    : item.kind === 'inventory'
-                      ? Package
-                      : item.kind === 'outcome'
-                        ? Check
-                        : TrendingUp;
-                return (
+          <TrendChart data={data.series} presentation="overview" />
+          <div className="home-chart-footer">
+            <span>
+              {data.scenario === 'S7'
+                ? 'Expected budget change; no efficiency incident.'
+                : data.scenario === 'S5'
+                  ? 'Validate tracking before scaling.'
+                  : 'Review the funnel drivers before scaling.'}
+            </span>
+            <Link className="text-link" to="/decisions">
+              Investigate <ArrowRight size={14} />
+            </Link>
+          </div>
+        </section>
+      </div>
+      <section className="panel command-attention">
+        <div className="home-section-heading">
+          <div>
+            <h2>Attention register</h2>
+            <p>Signals requiring a decision, with the supplied impact and evidence.</p>
+          </div>
+          <Link className="text-link" to="/decisions">
+            Review decisions <ArrowRight size={15} />
+          </Link>
+        </div>
+        {data.attention.length ? (
+          <div className="attention-register" role="list">
+            <div className="register-columns" aria-hidden="true">
+              <span>Signal</span>
+              <span>Supporting evidence</span>
+              <span>Estimated impact</span>
+              <span>Action</span>
+            </div>
+            {data.attention.map((item) => {
+              const Icon =
+                item.kind === 'incident'
+                  ? CircleAlert
+                  : item.kind === 'inventory'
+                    ? Package
+                    : item.kind === 'outcome'
+                      ? Check
+                      : TrendingUp;
+              return (
+                <div role="listitem" key={item.id}>
                   <Link
-                    className={`attention-row attention-${item.kind}`}
-                    key={item.id}
-                    to={item.decision_id ? `/decisions/${item.decision_id}` : '/decisions'}
+                    className={`register-row register-${item.kind}`}
+                    to={
+                      item.decision_id
+                        ? `/decisions/${encodeURIComponent(item.decision_id)}`
+                        : '/decisions'
+                    }
                   >
-                    <span className="attention-icon">
-                      <Icon size={18} />
-                    </span>
-                    <div className="attention-copy">
+                    <div className="register-signal">
+                      <Icon size={21} aria-hidden="true" />
                       <strong>{item.title}</strong>
-                      <p>{item.description}</p>
-                      <small>
-                        {item.kind === 'incident'
-                          ? 'Needs investigation'
-                          : item.kind === 'outcome'
-                            ? 'Loop completed'
-                            : 'Review recommendation'}
-                      </small>
                     </div>
-                    <div className="attention-impact">
+                    <p>{item.description}</p>
+                    <div className="register-impact">
                       <strong>{money(item.impact)}</strong>
                       <small>{item.label}</small>
                     </div>
-                    <ArrowUpRight size={16} className="muted" />
+                    <span className="register-action">
+                      {item.kind === 'outcome' ? 'Inspect outcome' : 'Review'}
+                      <ArrowUpRight size={14} aria-hidden="true" />
+                    </span>
                   </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <Empty title="Nothing requires action">
-              No open incidents or allocation proposals. Expected budget changes are kept out of the
-              incident queue.
-            </Empty>
-          )}
-        </section>
-      </div>
-      <section className="panel source-panel">
-        <SectionTitle title="A unified view, from six sources">
-          <span className="muted small">Source health · provenance disclosed</span>
-        </SectionTitle>
-        <div className="source-grid">
-          {data.sources.map((source) => (
-            <div className="source-item" key={source.id}>
-              <div className="source-title">
-                <strong>{source.name}</strong>
-                <span className={`health-dot health-${source.status.toLowerCase()}`} />
-                <span className="sr-only">{source.status}</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <Empty title="Nothing requires action">
+            No open incidents or allocation proposals. Expected budget changes are kept out of the
+            incident queue.
+          </Empty>
+        )}
+      </section>
+      <section className="panel command-sources">
+        <div className="home-section-heading">
+          <h2>Data sources</h2>
+          <span>
+            Health score and provenance ·{' '}
+            <Link className="text-link" to="/data">
+              View source checks <ArrowRight size={13} />
+            </Link>
+          </span>
+        </div>
+        <div className="command-source-grid">
+          {data.sources.map((s) => {
+            const Icon =
+              s.id === 'store'
+                ? ShoppingBag
+                : s.id === 'ga4'
+                  ? ChartNoAxesCombined
+                  : s.id === 'erp'
+                    ? Boxes
+                    : s.id === 'econ'
+                      ? Tag
+                      : Database;
+            return (
+              <div className={`command-source source-${s.id}`} key={s.id}>
+                {s.id === 'meta' || s.id === 'google' ? (
+                  <ChannelMark platform={s.id === 'meta' ? 'Meta' : 'Google'} />
+                ) : (
+                  <span className="source-symbol">
+                    <Icon size={26} aria-hidden="true" />
+                  </span>
+                )}
+                <div>
+                  <strong>{s.name}</strong>
+                  <b className={s.status === 'RED' ? 'text-danger' : ''}>
+                    {s.score}
+                    <small>/100 health</small>
+                  </b>
+                  <span>
+                    {s.provenance}
+                    <i className={`health-dot health-${s.status.toLowerCase()}`} />
+                    <span className="sr-only">{s.status}</span>
+                  </span>
+                </div>
               </div>
-              <span>
-                {source.kind} · {source.freshness}
-              </span>
-              <div>
-                <b className={source.status === 'RED' ? 'text-danger' : ''}>{source.score}/100</b>
-                <Badge>{source.provenance}</Badge>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
-      <section className="panel loop-panel">
-        <SectionTitle title="The decision loop">
-          <span className="loop-mode">
-            <ShieldCheck size={15} />
-            Human approval required
+      <section className="command-loop" aria-label="The decision loop">
+        <div className="command-loop-label">
+          <ShieldCheck size={16} />
+          <span>
+            Human approval
+            <br />
+            <strong>before execution</strong>
           </span>
-        </SectionTitle>
-        <div className="loop-ribbon">
+        </div>
+        <ol>
           {data.loop.map((step, i) => (
-            <div key={step.label} className={`loop-step loop-${step.state}`}>
-              <span className="loop-node">
-                {step.state === 'complete' ? (
-                  <Check size={14} />
-                ) : step.state === 'current' ? (
-                  <Circle size={13} fill="currentColor" />
-                ) : (
-                  <Circle size={13} />
-                )}
+            <li className={`step-${step.state}`} key={step.label}>
+              <span className="command-step-number">
+                {step.state === 'complete' ? <Check size={14} /> : i + 1}
               </span>
               <strong>{step.label}</strong>
-              {i < data.loop.length - 1 && <ArrowRight size={14} className="loop-arrow" />}
-            </div>
+              {i < data.loop.length - 1 && <ArrowRight size={13} aria-hidden="true" />}
+            </li>
           ))}
-        </div>
+        </ol>
       </section>
     </div>
   );

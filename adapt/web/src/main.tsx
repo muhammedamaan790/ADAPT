@@ -9,6 +9,8 @@ import '@fontsource/ibm-plex-sans/latin-700.css';
 import { App } from './App';
 import { AuthGate } from './components/AuthGate';
 import './styles.css';
+import './components/evidence-workbench.css';
+import './components/command-workspace.css';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 1000 }, mutations: { retry: false } },

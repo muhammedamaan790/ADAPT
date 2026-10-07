@@ -21,15 +21,21 @@ import {
   ChartNoAxesCombined,
   Menu,
 } from 'lucide-react';
-import { CommandCenter } from './pages/CommandCenter';
-import { DecisionCenter } from './pages/DecisionCenter';
-import { ScenarioLab } from './pages/ScenarioLab';
 import { dataMode } from './api/client';
 import { Badge, Loading, Modal } from './components/ui';
 import { useOverview } from './hooks/workspace';
 import { ViewBoundary } from './components/ViewBoundary';
 import { SessionChip } from './components/AuthGate';
 
+const CommandCenter = lazy(() =>
+  import('./pages/CommandCenter').then((m) => ({ default: m.CommandCenter })),
+);
+const DecisionCenter = lazy(() =>
+  import('./pages/DecisionCenter').then((m) => ({ default: m.DecisionCenter })),
+);
+const ScenarioLab = lazy(() =>
+  import('./pages/ScenarioLab').then((m) => ({ default: m.ScenarioLab })),
+);
 const Anomalies = lazy(() => import('./pages/Anomalies').then((m) => ({ default: m.Anomalies })));
 const Optimizer = lazy(() => import('./pages/Optimizer').then((m) => ({ default: m.Optimizer })));
 const ExecutionLedger = lazy(() =>
@@ -123,7 +129,10 @@ export function App() {
     localStorage.setItem('adapt.theme', dark ? 'light' : 'dark');
   };
   return (
-    <div className={`app ${dark ? 'dark' : ''} ${collapsed ? 'compact-nav' : ''}`}>
+    <div
+      className={`app ${dark ? 'dark' : ''} ${collapsed ? 'compact-nav' : ''}`}
+      data-page={route === '/' ? 'command' : 'detail'}
+    >
       <a className="skip-link" href="#main">
         Skip to content
       </a>
@@ -142,7 +151,7 @@ export function App() {
           </span>
         </Link>
         <Link className="workspace" to="/data?section=workspaces" aria-label="Manage workspaces">
-          <span className="workspace-avatar">D</span>
+          <span className="workspace-avatar">D2C</span>
           <div>
             <strong>
               {overview.data?.workspace ||

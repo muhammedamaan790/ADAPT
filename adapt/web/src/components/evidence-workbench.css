@@ -1,0 +1,367 @@
+.decision-inbox,
+.campaign-economics {
+  margin: 0 0 20px;
+  border-block: 1px solid var(--rule);
+}
+.decision-inbox > summary,
+.campaign-economics > summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 4px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+.decision-inbox > summary svg,
+.campaign-economics > summary svg {
+  flex-shrink: 0;
+  transform: rotate(-90deg);
+}
+.decision-inbox[open] > summary svg,
+.campaign-economics[open] > summary svg {
+  transform: none;
+}
+.decision-inbox > summary span,
+.campaign-economics > summary span {
+  margin-left: 12px;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 12px;
+}
+.inbox-body,
+.economics-body {
+  padding: 4px 4px 18px;
+}
+.inbox-body .filter-bar,
+.economics-body .filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+}
+.decomposition-section > *,
+.waterfall {
+  min-width: 0;
+  max-width: 100%;
+}
+.inbox-list,
+.creative-signals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.inbox-list li + li {
+  border-top: 1px solid var(--rule);
+}
+.inbox-list a {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 12px;
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: 6px;
+}
+.inbox-list a:hover,
+.inbox-list a[aria-current='page'] {
+  background: var(--accent-soft);
+}
+.inbox-identity {
+  flex: 1;
+  min-width: 0;
+}
+.inbox-identity strong,
+.inbox-identity span,
+.inbox-estimate strong,
+.inbox-estimate span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.inbox-identity span,
+.inbox-estimate span {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.inbox-estimate {
+  min-width: 130px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 8px 0;
+  min-height: 40px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.table-sort:hover {
+  color: var(--accent);
+}
+.economics-table {
+  min-width: 860px;
+  font-variant-numeric: tabular-nums;
+}
+.economics-table td small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+.budget-movement {
+  margin: 20px 0 24px;
+  padding-block: 16px;
+  border-block: 1px solid var(--rule);
+}
+.budget-movement figcaption strong,
+.budget-movement figcaption span {
+  display: block;
+}
+.budget-movement figcaption span,
+.outcome-comparison figcaption span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 4px;
+}
+.comparison-legend {
+  display: flex;
+  gap: 16px;
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.comparison-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.comparison-legend i {
+  width: 12px;
+  height: 7px;
+  border-radius: 1px;
+}
+.current-key,
+.current-bar {
+  background: var(--muted);
+}
+.proposed-key,
+.proposed-bar,
+.measured-bar {
+  background: var(--accent);
+}
+.budget-movement-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 1.5fr);
+  gap: 20px;
+  align-items: center;
+  padding-block: 8px;
+}
+.budget-movement-label strong,
+.budget-movement-label span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.budget-movement-label strong {
+  font-size: 13px;
+}
+.budget-movement-label span {
+  color: var(--muted);
+  margin-top: 3px;
+  font-size: 12px;
+}
+.paired-bars > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px;
+  gap: 10px;
+  align-items: center;
+  min-height: 22px;
+}
+.paired-bars b {
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.allocation-track {
+  height: 7px;
+  background: var(--soft);
+  border-radius: 1px;
+}
+.allocation-track i {
+  display: block;
+  height: 100%;
+  border-radius: 1px;
+}
+.outcome-comparison {
+  margin: 12px 0 20px;
+  padding: 16px 0;
+  border-block: 1px solid var(--rule);
+}
+.outcome-comparison figcaption {
+  font-weight: 500;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.outcome-comparison figcaption span {
+  display: block;
+}
+.outcome-comparison-row {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 96px;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  font-size: 13px;
+}
+.outcome-comparison-row strong {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.signed-track {
+  position: relative;
+  height: 14px;
+  background: var(--soft);
+}
+.signed-track > i:not(.zero-line) {
+  position: absolute;
+  height: 8px;
+  top: 3px;
+}
+.forecast-bar {
+  background: var(--warning-soft);
+  border: 1px dashed var(--forecast);
+  box-sizing: border-box;
+}
+.zero-line {
+  position: absolute;
+  width: 1px;
+  height: 22px;
+  top: -4px;
+  background: var(--muted);
+  z-index: 1;
+}
+.creative-filter {
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+.creative-filter > p {
+  max-width: 65ch;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+.creative-filter .field {
+  min-width: 160px;
+  margin: 0;
+}
+.creative-signals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.creative-signals > li {
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  min-width: 0;
+}
+.creative-signals h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.creative-identity {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  margin: 8px 0 16px;
+}
+.creative-measures {
+  display: flex;
+  gap: 36px;
+  margin: 0 0 14px;
+}
+.creative-measures dt {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+.creative-measures dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.creative-measures small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.creative-reason {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+@media (max-width: 700px) {
+  .inbox-body .filter-bar,
+  .economics-body .filter-bar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .decision-inbox > summary span,
+  .campaign-economics > summary span {
+    flex-basis: 100%;
+    display: block;
+    margin: 6px 0 0 20px;
+  }
+  .inbox-list a {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    padding-inline: 4px;
+  }
+  .inbox-estimate {
+    min-width: 0;
+    text-align: left;
+  }
+  .inbox-list a > svg {
+    display: none;
+  }
+  .budget-movement-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding-block: 12px;
+  }
+  .budget-movement-label {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .budget-movement-label span {
+    text-align: right;
+  }
+  .creative-filter {
+    display: grid;
+    gap: 12px;
+  }
+  .creative-signals {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .outcome-comparison-row {
+    grid-template-columns: 66px minmax(0, 1fr) 80px;
+    gap: 8px;
+    font-size: 12px;
+  }
+}

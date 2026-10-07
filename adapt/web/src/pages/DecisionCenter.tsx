@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import { Link, useParams, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
@@ -36,10 +36,13 @@ const DecisionInsights = lazy(() =>
   import('../components/DecisionInsights').then((m) => ({ default: m.DecisionInsights })),
 );
 import { TrendChart, Waterfall } from '../components/charts';
+import { DecisionInbox } from '../components/DecisionInbox';
+import { BudgetMovement } from '../components/FinancialComparison';
 import { dateTime, humanStatus, money, percent, signedMoney } from '../lib/format';
 
 export function DecisionCenter() {
   const { id: routeId } = useParams();
+  const { hash } = useLocation();
   const decisions = useDecisions();
   const id = routeId || decisions.data?.[0]?.decision_id;
   const detail = useQuery({
@@ -56,6 +59,15 @@ export function DecisionCenter() {
   const executions = useExecutions();
   const outcomes = useOutcomes();
   const overview = useOverview();
+  useEffect(() => {
+    if (hash !== '#decision-review' || !detail.data) return;
+    const frame = requestAnimationFrame(() => {
+      const review = document.getElementById('decision-review');
+      review?.scrollIntoView({ block: 'start' });
+      review?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hash, detail.data?.decision_id]);
   const [dialog, setDialog] = useState<{ kind: 'approve' | 'reject'; decision: Decision } | null>(
     null,
   );
@@ -217,19 +229,7 @@ export function DecisionCenter() {
           . The original proposal remains in history.
         </p>
       )}
-      {(decisions.data?.length || 0) > 1 && (
-        <nav className="decision-switcher" aria-label="Decision selection">
-          {decisions.data!.map((x) => (
-            <Link
-              key={x.decision_id}
-              className={x.decision_id === id ? 'selected' : ''}
-              to={`/decisions/${x.decision_id}`}
-            >
-              {x.title}
-            </Link>
-          ))}
-        </nav>
-      )}
+      <DecisionInbox decisions={decisions.data || []} selected={id} />
       <nav className="section-nav" aria-label="Decision sections">
         <a href="#why">Why this decision</a>
         <a href="#allocation">Budget recommendation</a>
@@ -323,6 +323,7 @@ export function DecisionCenter() {
               <Badge tone="accent">Recommended</Badge>
             </SectionTitle>
             <p className="allocation-summary">{d.summary}</p>
+            {d.legs.length > 0 && <BudgetMovement legs={d.legs} />}
             {d.legs.length ? (
               <div className="table-scroll">
                 <table className="allocation-table">
@@ -345,7 +346,7 @@ export function DecisionCenter() {
                         </td>
                         <td>{money(leg.before)}</td>
                         <td className="proposed">{money(leg.after)}</td>
-                        <td className={leg.after > leg.before ? 'text-success' : 'text-warning'}>
+                        <td>
                           {signedMoney(leg.after - leg.before)}
                           <small>
                             {leg.before
@@ -388,7 +389,7 @@ export function DecisionCenter() {
                       </div>
                       <div>
                         <dt>Change</dt>
-                        <dd className={leg.after > leg.before ? 'text-success' : 'text-warning'}>
+                        <dd>
                           {signedMoney(leg.after - leg.before)}
                           <small>
                             {leg.before
@@ -588,7 +589,12 @@ export function DecisionCenter() {
             )}
           </section>
         </div>
-        <aside className="decision-review" id="decision-review" aria-label="Review action">
+        <aside
+          className="decision-review"
+          id="decision-review"
+          aria-label="Review action"
+          tabIndex={-1}
+        >
           <section className="panel review-card">
             <SectionTitle title="Review the proposal">
               <ShieldCheck size={19} />
