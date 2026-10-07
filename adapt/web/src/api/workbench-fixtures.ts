@@ -1,6 +1,6 @@
 import type { Decision, ScenarioKey } from './contracts';
 import type { Anomaly, OptimizerContext } from './workbench-contracts';
-import { FIXTURE_TS, fixtureEvidence } from './fixtures';
+import { FIXTURE_TS, fixtureEvidence } from './fixtures.ts';
 
 export function anomalyFixtures(key: ScenarioKey, decisions: Decision[]): Anomaly[] {
   const d = decisions.find((d) => !['SUPERSEDED', 'REJECTED'].includes(d.status)) || decisions[0];
@@ -92,6 +92,7 @@ export function optimizerFixture(d: Decision | undefined): OptimizerContext {
     decision_id: d?.decision_id || null,
     decision_hash: d?.decision_hash || null,
     supported_objectives: ['PROFIT'],
+    objective: d?.objective || 'PROFIT',
     budget_ceiling: d?.budget_ceiling || 100000,
     reserve_floor: d?.reserve_floor || 0,
     max_daily_change: 0.2,

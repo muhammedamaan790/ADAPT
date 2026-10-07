@@ -1,16 +1,25 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { decisionSchema, evidenceSchema, overviewSchema, scenarioKeys } from '../src/api/contracts';
+import {
+  decisionSchema,
+  evidenceSchema,
+  overviewSchema,
+  fixtureScenarioKeys,
+  type ScenarioKey,
+} from '../src/api/contracts';
 import { fixtureDecision, fixtureEvidence, fixtureOverview } from '../src/api/fixtures';
 import { fixtureService, resetFixtureForTests } from '../src/api/fixture-service';
 import { money } from '../src/lib/format';
 
 beforeEach(resetFixtureForTests);
 describe('Stage 1 UI contracts and lifecycle examples', () => {
-  it.each(scenarioKeys)('%s values satisfy the UI wire contract', (key) => {
-    expect(() => decisionSchema.parse(fixtureDecision(key))).not.toThrow();
-    expect(() => evidenceSchema.parse(fixtureEvidence(key))).not.toThrow();
-    expect(() => overviewSchema.parse(fixtureOverview(key, 0))).not.toThrow();
-  });
+  it.each(fixtureScenarioKeys as readonly ScenarioKey[])(
+    '%s values satisfy the UI wire contract',
+    (key) => {
+      expect(() => decisionSchema.parse(fixtureDecision(key))).not.toThrow();
+      expect(() => evidenceSchema.parse(fixtureEvidence(key))).not.toThrow();
+      expect(() => overviewSchema.parse(fixtureOverview(key, 0))).not.toThrow();
+    },
+  );
   it('golden allocation conserves the ceiling and leaves cash', () => {
     const d = fixtureDecision('DEMO_01');
     expect(d.legs.reduce((n, l) => n + l.after, 0) + d.unallocated).toBe(d.budget_ceiling);

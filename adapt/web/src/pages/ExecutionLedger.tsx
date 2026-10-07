@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { AutonomyPanel } from '../components/AutonomyPanel';
 import { RefreshCw, ShieldCheck, ArrowRight } from 'lucide-react';
 import { api, dataMode } from '../api/client';
 import type { Execution, Decision } from '../api/contracts';
@@ -26,6 +27,39 @@ const actionLabels: Record<RecoveryAction, string> = {
 };
 
 export function ExecutionLedger() {
+  const [params, setParams] = useSearchParams();
+  const view = params.get('section') === 'policy' ? 'policy' : 'records';
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <h1>Execution & Ledger</h1>
+          <p>
+            Verify budget changes, inspect the action trail and review channel execution policy.
+          </p>
+        </div>
+      </div>
+      <div className="report-tabs" role="group" aria-label="Execution views">
+        <button
+          className="button secondary"
+          aria-pressed={view === 'records'}
+          onClick={() => setParams({})}
+        >
+          Execution records
+        </button>
+        <button
+          className="button secondary"
+          aria-pressed={view === 'policy'}
+          onClick={() => setParams({ section: 'policy' })}
+        >
+          Policy & readiness
+        </button>
+      </div>
+      {view === 'policy' ? <AutonomyPanel /> : <ExecutionRecords />}
+    </>
+  );
+}
+function ExecutionRecords() {
   const executions = useExecutions();
   const decisions = useDecisions();
   const ledger = useLedger();
@@ -53,11 +87,7 @@ export function ExecutionLedger() {
     ) || [];
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <h1>Execution & Ledger</h1>
-          <p>Verify each budget leg, resolve uncertainty, and inspect the action trail.</p>
-        </div>
+      <div className="workbench-actions">
         <button
           className="button secondary"
           aria-label="Refresh execution and ledger"

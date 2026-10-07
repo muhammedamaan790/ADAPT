@@ -10,6 +10,8 @@ import type {
   AllocationEvaluation,
 } from '../api/workbench-contracts';
 import { allocationErrors } from '../lib/allocation';
+import { objectives } from '../lib/objectives';
+import type { Objective } from '../api/contracts';
 import {
   Badge,
   Empty,
@@ -39,6 +41,23 @@ export function Optimizer() {
     );
   const c = context.data!;
   const decision = decisions.data?.find((d) => d.decision_id === c.decision_id);
+  if (
+    decision &&
+    (decision.decision_hash !== c.decision_hash || decision.objective !== c.objective)
+  )
+    return (
+      <ErrorState
+        error={
+          new Error(
+            'The optimizer context does not match the current proposal. Refresh before evaluating or revising.',
+          )
+        }
+        retry={() => {
+          void context.refetch();
+          void decisions.refetch();
+        }}
+      />
+    );
   return (
     <>
       <div className="page-heading">
@@ -46,7 +65,7 @@ export function Optimizer() {
           <h1>Optimizer</h1>
           <p>Compare an allocation, inspect the constraints, and submit a separate revision.</p>
         </div>
-        <Badge tone="accent">PROFIT OBJECTIVE</Badge>
+        <Badge tone="accent">{c.objective.replaceAll('_', ' ')} PROPOSAL</Badge>
       </div>
       {!c.campaigns.length || !decision || decision.class !== 'OPTIMIZATION' ? (
         <section className="panel">
@@ -80,12 +99,13 @@ function AllocationEditor({
     Object.fromEntries(c.campaigns.map((l) => [l.budget_id, String(l.after)])),
   );
   const [evaluation, setEvaluation] = useState<AllocationEvaluation | null>(null);
+  const [objective, setObjective] = useState<Objective>(c.objective);
   const [confirm, setConfirm] = useState(false);
   const input: AllocationInput = {
     decision_id: c.decision_id!,
     decision_hash: c.decision_hash!,
     policy_version: c.policy_version,
-    objective: 'PROFIT',
+    objective,
     legs: c.campaigns.map((l) => ({
       budget_id: l.budget_id,
       after: budgets[l.budget_id]?.trim() === '' ? NaN : Number(budgets[l.budget_id]),
@@ -93,16 +113,16 @@ function AllocationEditor({
   };
   const errors = allocationErrors(c, input);
   const total = input.legs.reduce((n, l) => n + (Number.isFinite(l.after) ? l.after : 0), 0);
-  const changed = input.legs.some(
-    (l) => l.after !== c.campaigns.find((x) => x.budget_id === l.budget_id)?.after,
-  );
+  const changed =
+    objective !== c.objective ||
+    input.legs.some((l) => l.after !== c.campaigns.find((x) => x.budget_id === l.budget_id)?.after);
   const evaluate = useAction(async (v: AllocationInput) => {
     const result = await api.evaluateAllocation(v);
     setEvaluation(result);
     return result;
   });
   const revise = useAction(api.modify);
-  const run = useAction(api.runOptimizer);
+  const run = useAction((selected: Objective) => api.runOptimizer(selected));
   const editing = (id: string, value: string) => {
     setBudgets((b) => ({ ...b, [id]: value }));
     setEvaluation(null);
@@ -141,6 +161,35 @@ function AllocationEditor({
           <p className="section-description">
             Input checks run here. Profit, loss risk, inventory projections and executable policy
             gates belong to the backend.
+          </p>
+          <label className="field objective-picker">
+            Evaluation objective
+            <select
+              value={objective}
+              disabled={busy}
+              onChange={(e) => {
+                setObjective(e.target.value as Objective);
+                setEvaluation(null);
+                evaluate.reset();
+                revise.reset();
+                run.reset();
+              }}
+            >
+              {Object.entries(objectives).map(([id, o]) => (
+                <option
+                  key={id}
+                  value={id}
+                  disabled={!c.supported_objectives.includes(id as Objective)}
+                >
+                  {o.label}
+                  {c.supported_objectives.includes(id as Objective) ? '' : ' · backend unavailable'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="workbench-copy">
+            {objectives[objective].description} This selection applies to a what-if or new proposal;
+            it does not change the workspace default or execute budgets.
           </p>
           <div className="budget-editor">
             {c.campaigns.map((l) => (
@@ -243,7 +292,7 @@ function AllocationEditor({
             <dl className="constraint-list">
               <div>
                 <dt>Objective</dt>
-                <dd>PROFIT</dd>
+                <dd>{objectives[objective].label}</dd>
               </div>
               <div>
                 <dt>Daily change cap</dt>
@@ -259,16 +308,19 @@ function AllocationEditor({
               </div>
             </dl>
             <p className="caption">
-              Growth and inventory clearance objectives require later backend support.
+              Only objectives reported by the current backend are selectable. Constraints and
+              objective-specific values are calculated by the engine.
             </p>
             <button
               className="button secondary full-width"
-              disabled={busy || !canRevise}
+              disabled={busy || !canRevise || !c.supported_objectives.includes(objective)}
               onClick={() =>
-                run.mutate(undefined, { onSuccess: (d) => navigate(`/decisions/${d.decision_id}`) })
+                run.mutate(objective, { onSuccess: (d) => navigate(`/decisions/${d.decision_id}`) })
               }
             >
-              {dataMode === 'fixture' ? 'Inspect recorded recommendation' : 'Run PROFIT optimizer'}
+              {dataMode === 'fixture'
+                ? 'Inspect recorded recommendation'
+                : `Run ${objective.replaceAll('_', ' ')} optimizer`}
             </button>
             <InlineError error={run.error} />
           </section>
@@ -307,6 +359,21 @@ function AllocationEditor({
                   </dl>
                 )}
                 <p className="workbench-copy">{evaluation.explanation}</p>
+                {evaluation.objective_value ? (
+                  <p className="notice">
+                    {evaluation.objective_value.label}:{' '}
+                    {evaluation.objective_value.unit === 'INR'
+                      ? money(evaluation.objective_value.value)
+                      : `${evaluation.objective_value.value.toLocaleString('en-IN')} ${evaluation.objective_value.unit.toLowerCase()}`}
+                  </p>
+                ) : (
+                  objective !== 'PROFIT' && (
+                    <p className="notice">
+                      The selected objective value was not supplied. CAA above remains a financial
+                      risk measure, not a substitute objective score.
+                    </p>
+                  )
+                )}
                 {evaluation.checks.map((check) => (
                   <PolicyCheck key={check.id} {...check} />
                 ))}

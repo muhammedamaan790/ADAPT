@@ -3,6 +3,15 @@ import { z } from 'zod';
 // Provisional Stage 1 wire schemas. Replace/align with C6's OpenAPI when available.
 const finite = z.number().finite();
 const money = finite;
+export const objectiveSchema = z.enum([
+  'PROFIT',
+  'GROWTH',
+  'ACQUISITION',
+  'INVENTORY_CLEARANCE',
+  'MARGIN_PROTECTION',
+  'BALANCED',
+]);
+export type Objective = z.infer<typeof objectiveSchema>;
 export const provenanceSchema = z.enum(['PUBLIC-SAMPLE', 'CALIBRATED', 'SIMULATED', 'LIVE']);
 export const metricSchema = z.object({
   key: z.string(),
@@ -68,7 +77,7 @@ export const decisionSchema = z.object({
   summary: z.string(),
   class: z.enum(['OPTIMIZATION', 'SAFETY', 'OPERATIONAL', 'EXPLORATION']),
   type: z.string(),
-  objective: z.literal('PROFIT'),
+  objective: objectiveSchema,
   status: z.enum([
     'DRAFT',
     'PENDING_APPROVAL',
@@ -199,7 +208,30 @@ export const eventSchema = z.object({
   message: z.string(),
   decision_id: z.string().nullable(),
 });
-export const scenarioKeys = ['DEMO_01', 'S1', 'S2', 'S3', 'S4', 'S5', 'S7'] as const;
+export const scenarioKeys = [
+  'DEMO_01',
+  'S1',
+  'S2',
+  'S3',
+  'S4',
+  'S5',
+  'S6',
+  'S7',
+  'S8',
+  'S9',
+  'S10',
+  'S11',
+  'S12',
+] as const;
+export const fixtureScenarioKeys: readonly string[] = [
+  'DEMO_01',
+  'S1',
+  'S2',
+  'S3',
+  'S4',
+  'S5',
+  'S7',
+];
 export type ScenarioKey = (typeof scenarioKeys)[number];
 export type Overview = z.infer<typeof overviewSchema>;
 export type Decision = z.infer<typeof decisionSchema>;

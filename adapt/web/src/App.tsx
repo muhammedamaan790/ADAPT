@@ -155,11 +155,11 @@ export function App() {
           <div className="mode-box">
             <ShieldCheck size={20} />
             <div>
-              <strong>Human approval</strong>
+              <strong>{dataMode === 'fixture' ? 'Human approval' : 'Decision controls'}</strong>
               <p>
-                You remain in control.
+                {dataMode === 'fixture' ? 'You remain in control.' : 'Review channel policy.'}
                 <br />
-                PROFIT objective only.
+                {dataMode === 'fixture' ? 'PROFIT objective only.' : 'Backend capabilities apply.'}
               </p>
             </div>
           </div>
@@ -254,9 +254,9 @@ export function App() {
             <Activity size={13} /> ADAPT · Evidence before action
           </span>
           <span>
-            Approve mode ·{' '}
-            {dataMode === 'fixture' ? 'Illustrative values' : 'Backend-owned decisions'} · No
-            production autonomy
+            {dataMode === 'fixture'
+              ? 'Approve mode · Illustrative values · No production autonomy'
+              : 'Channel policy · Backend-owned decisions · Evidence-gated execution'}
           </span>
         </footer>
       </div>
