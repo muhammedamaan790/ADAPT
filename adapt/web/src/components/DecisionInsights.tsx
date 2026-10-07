@@ -8,6 +8,7 @@ import { useAction } from '../hooks/workspace';
 import { Badge, Disclosure, ErrorState, InlineError, Loading, Modal, SectionTitle } from './ui';
 import { dateTime, money, percent, signedMoney } from '../lib/format';
 import { downloadText } from '../lib/csv';
+import { ReplayArchive } from './ReplayArchive';
 
 export function DecisionInsights({ decision: d }: { decision: Decision }) {
   const navigate = useNavigate();
@@ -180,6 +181,7 @@ export function DecisionInsights({ decision: d }: { decision: Decision }) {
               ))}
             </ol>
           )}
+          <ReplayArchive decision={d} />
           <button
             className="button secondary"
             disabled={replay.isPending}

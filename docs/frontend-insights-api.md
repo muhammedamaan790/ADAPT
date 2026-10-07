@@ -1,6 +1,6 @@
 # Remaining frontend integration handoff
 
-The new pages use `adapt/web/src/api/insights.ts` and Zod contracts in `insight-contracts.ts`. These are **proposed view-model contracts**, not implemented backend endpoints. At this snapshot the HTTP backend exposes health only. Backend owners must align envelopes, pagination, authentication and mutation semantics with OpenAPI before enabling API mode. Existing decision-loop routes remain in `frontend-api.md`.
+The new pages use `adapt/web/src/api/insights.ts` and Zod contracts in `insight-contracts.ts`. Data Hub sources, mapping coverage and reconciliation are now implemented by A3 and match these shapes by source inspection; live canonical-data validation remains pending. Other routes below are **proposed view-model contracts**. Backend owners must align envelopes, pagination, authentication and mutation semantics with OpenAPI before enabling API mode. Existing decision-loop routes remain in `frontend-api.md`; workspace/model/report/archive contracts are in `frontend-management-api.md`.
 
 All paths below are relative to the configured `/api/v1` base. Every response is validated; API errors never select fixture data.
 

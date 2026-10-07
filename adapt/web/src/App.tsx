@@ -82,13 +82,16 @@ export function App() {
             ADAPT<span className="brand-sub">Advertising intelligence</span>
           </span>
         </Link>
-        <div className="workspace">
+        <Link className="workspace" to="/data?section=workspaces" aria-label="Manage workspaces">
           <span className="workspace-avatar">D</span>
           <div>
-            <strong>D2C workspace</strong>
+            <strong>
+              {overview.data?.workspace ||
+                (dataMode === 'fixture' ? 'D2C workspace' : 'Workspace unavailable')}
+            </strong>
             <small>Decision workspace · INR</small>
           </div>
-        </div>
+        </Link>
         <nav aria-label="Primary navigation">
           <NavLink to="/" end>
             <LayoutDashboard size={19} />

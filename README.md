@@ -37,6 +37,10 @@ $env:Path = 'C:\DataQuest\.runtime\node-v22.16.0-win-x64;' + $env:Path
 - Copilot: read-only, cited fixture templates; API mode validates completed SSE answers, supports cancellation and rejects unsupported evidence URLs. This is not a connected LLM in fixture mode.
 - Decision tools: recorded strategy comparisons, conservative/aggressive revision proposals, captured event timeline, snapshot export and explicit unavailable archived replay. Custom fixture revisions still require backend valuation.
 - Responsive desktop/mobile layout, dark/light theme, keyboard navigation, protected confirmation dialogs, loading/error/empty states, persisted fixture interactions.
+- Workspace management: create and switch isolated local demos, preserve separate decision/clock/calibration state, block switches during unresolved execution, and reload after a backend context acknowledgement in API mode.
+- Model controls: inspect backend artifact identities, baseline/champion metrics and gates; request an allowed promotion or recorded rollback with review/revision checks. Missing artifacts stay unavailable.
+- Head-to-Head: inspect/export precomputed backend or uploaded JSON reports, validate complete paired strategy/seed rows, filter seeds, and keep oracle results benchmark-only. No benchmark is generated in the browser.
+- Replay archive: inspect supplied manifest identities, artifact links and processing steps independently of replay verification; missing engine artifacts remain explicit.
 
 **Default mode is `fixture`.** All bundled values are illustrative frontend examples. They are not seed-42 world output, detection/optimizer calculations, real read-back verification or evaluation evidence. The app sends no requests to ad platforms in this mode. Fixture scenarios validate UI states, not analytical correctness. Do not present them to judges as the integrated engine.
 
@@ -46,7 +50,7 @@ Copy `adapt/web/.env.example` to `adapt/web/.env.local`, set `VITE_DATA_MODE=api
 
 The frontend **never switches to fixtures when API mode fails**. It validates responses with Zod and shows contract, network, permission and conflict errors. Authentication is owned by the backend team; the client includes session cookies, but this frontend does not implement a login/security system.
 
-The backend foundation currently exposes `/api/v1/health`; C6's decision-loop endpoints are not implemented yet. Frontend schemas remain provisional, hand-authored in `adapt/web/src/api/contracts.ts`, `workbench-contracts.ts` and `insight-contracts.ts`. The integration handoff is in [docs/frontend-api.md](docs/frontend-api.md) and [docs/frontend-insights-api.md](docs/frontend-insights-api.md). `npm run types:generate` generates OpenAPI types once FastAPI is running; align the adapter/schema rather than casting unvalidated JSON.
+The backend currently exposes `/api/v1/health` and Data Hub source/health/mapping/reconciliation reads. Their response shapes match the existing Data Hub frontend adapter by source inspection; live integration still needs validation against built canonical data. C6's decision-loop and management endpoints are not implemented yet. Frontend schemas remain provisional, hand-authored in `adapt/web/src/api/contracts.ts`, `workbench-contracts.ts`, `insight-contracts.ts` and `management-contracts.ts`. The integration handoff is in [docs/frontend-api.md](docs/frontend-api.md), [docs/frontend-insights-api.md](docs/frontend-insights-api.md) and [docs/frontend-management-api.md](docs/frontend-management-api.md). `npm run types:generate` generates OpenAPI types once FastAPI is running; align the adapter/schema rather than casting unvalidated JSON.
 
 ## Verification
 
@@ -59,9 +63,9 @@ npm run test:e2e
 npm run test:e2e:api
 ```
 
-These are frontend contract and interaction tests. Backend/world ground-truth and `test_e2e_stage1.py` remain the backend team's responsibility. Live ad APIs, fitted response/sensitivity models, autonomous modes, causal estimation, held-out evaluation execution, archived replay and LLM/SQL tools remain backend work. Workspace creation/switching, model promotion/rollback and richer head-to-head evaluation controls remain later frontend work after their contracts exist. The new pages expose read views and honest unavailable states; they do not establish the Stage 3 backend gate has passed.
+These are frontend contract and interaction tests. Backend/world ground-truth and `test_e2e_stage1.py` remain the backend team's responsibility. Live ad APIs, fitted response/sensitivity models, autonomous modes, causal estimation, held-out evaluation execution, archived replay execution and LLM/SQL tools remain backend work. Workspace, model, report and archive interfaces now exist against provisional contracts; their backend behavior remains pending. These controls do not establish that the Stage 3 backend gate has passed.
 
-On a machine with Chrome already installed, `CHROMIUM_EXECUTABLE_PATH` can point to its executable instead of downloading a test browser. The acceptance suites include the previous journeys plus CSV, insight and Copilot coverage; recorded results are in [docs/frontend-remaining-verification.md](docs/frontend-remaining-verification.md). CI runs the production build and these suites. Browser API tests use intercepted responses; they do not prove live backend integration.
+On a machine with Chrome already installed, `CHROMIUM_EXECUTABLE_PATH` can point to its executable instead of downloading a test browser. The acceptance suites include the previous journeys plus CSV, insight, Copilot and management coverage. Earlier results are in [docs/frontend-remaining-verification.md](docs/frontend-remaining-verification.md); this slice passes 46 unit tests, 19 fixture browser journeys and 15 intercepted API browser tests, documented in [docs/frontend-management-verification.md](docs/frontend-management-verification.md). CI runs the production build and these suites. Browser API tests use intercepted responses; they do not prove live backend integration.
 
 ## Team boundaries
 
