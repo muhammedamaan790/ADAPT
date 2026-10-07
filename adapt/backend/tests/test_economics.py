@@ -102,10 +102,10 @@ def portfolios(draw):
     for i in range(n_units):
         raw = [draw(st.floats(0, 1)) for _ in range(n_skus)]
         u = draw(st.floats(0, 0.5))
+        raw = [r if r > 1e-6 else 0.0 for r in raw]  # no subnormal weights that underflow to 0
         tot = sum(raw) or 1.0
         weights = {f"k{j}": (1 - u) * r / tot for j, r in enumerate(raw) if r > 0}
-        if not weights:
-            u = 1.0
+        u = 1.0 - sum(weights.values())  # the state invariant load_state guarantees: sum(w) + u = 1
         budget = draw(st.floats(500, 5000))
         if draw(st.booleans()):
             unit = curve_unit(f"u{i}", budget, draw(st.floats(0.5, 5)), draw(st.floats(0.5, 3)),

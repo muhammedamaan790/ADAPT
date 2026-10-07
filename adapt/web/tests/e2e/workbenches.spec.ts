@@ -90,7 +90,7 @@ test('connection checks real health and missing routes while frontend stays in f
   page,
 }) => {
   await page.route('**/api/v1/**', (route) =>
-    new URL(route.request().url()).pathname.endsWith('/health')
+    new URL(route.request().url()).pathname === '/api/v1/health'
       ? route.fulfill({
           json: {
             status: 'ok',
@@ -105,11 +105,11 @@ test('connection checks real health and missing routes while frontend stays in f
   );
   await page.goto('/connection');
   await expect(page.getByText('Backend ok', { exact: true })).toBeVisible();
-  await expect(page.getByText('1 / 7', { exact: true })).toBeVisible();
-  await expect(page.getByText('missing', { exact: true })).toHaveCount(6);
+  await expect(page.getByText('1 / 27', { exact: true })).toBeVisible();
+  await expect(page.getByText('missing', { exact: true })).toHaveCount(26);
   await expect(page.getByText('FRONTEND FIXTURES', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Check backend endpoints' }).click();
-  await expect(page.getByText('1 / 7', { exact: true })).toBeVisible();
+  await expect(page.getByText('1 / 27', { exact: true })).toBeVisible();
 });
 
 test('new workspaces fit mobile and preserve keyboard-accessible navigation', async ({ page }) => {

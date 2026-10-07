@@ -166,8 +166,9 @@ class LiveNotBuilt:
     set_budget = read  # type: ignore[assignment]
 
 
-def build_adapters(client: httpx.Client, base_url: str = "") -> dict:
-    modes = platforms_config()["execution_mode"]
+def build_adapters(client: httpx.Client, base_url: str = "", modes: dict[str, str] | None = None) -> dict:
+    """Adapters for the execution modes fixed at startup (settings / platforms.yaml); never a fallback."""
+    modes = modes or platforms_config()["execution_mode"]
     out = {}
     for platform, cls in (("google", MockGoogleAdapter), ("meta", MockMetaAdapter)):
         out[platform] = cls(client, base_url) if modes.get(platform) == "mock" else LiveNotBuilt(platform)

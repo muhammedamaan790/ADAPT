@@ -26,8 +26,9 @@ import { CommandCenter } from './pages/CommandCenter';
 import { DecisionCenter } from './pages/DecisionCenter';
 import { ScenarioLab } from './pages/ScenarioLab';
 import { dataMode } from './api/client';
-import { Badge, Loading } from './components/ui';
+import { Badge, Loading, Modal } from './components/ui';
 import { useOverview } from './hooks/workspace';
+import { ViewBoundary } from './components/ViewBoundary';
 
 const Anomalies = lazy(() => import('./pages/Anomalies').then((m) => ({ default: m.Anomalies })));
 const Optimizer = lazy(() => import('./pages/Optimizer').then((m) => ({ default: m.Optimizer })));
@@ -277,31 +278,33 @@ export function App() {
           </div>
         )}
         <main id="main" tabIndex={-1}>
-          <Suspense fallback={<Loading label="Loading workspace" />}>
-            <Routes>
-              <Route path="/" element={<CommandCenter />} />
-              <Route path="/decisions" element={<DecisionCenter />} />
-              <Route path="/decisions/:id" element={<DecisionCenter />} />
-              <Route path="/scenarios" element={<ScenarioLab />} />
-              <Route path="/anomalies" element={<Anomalies />} />
-              <Route path="/optimizer" element={<Optimizer />} />
-              <Route path="/executions" element={<ExecutionLedger />} />
-              <Route path="/connection" element={<Connection />} />
-              <Route path="/opportunities" element={<Opportunities />} />
-              <Route path="/outcomes" element={<Outcomes />} />
-              <Route path="/learning" element={<Learning />} />
-              <Route path="/data" element={<DataHub />} />
-              <Route
-                path="*"
-                element={
-                  <div className="empty">
-                    <h1>Page not found</h1>
-                    <Link to="/">Return to Command Center</Link>
-                  </div>
-                }
-              />
-            </Routes>
-          </Suspense>
+          <ViewBoundary key={route}>
+            <Suspense fallback={<Loading label="Loading workspace" />}>
+              <Routes>
+                <Route path="/" element={<CommandCenter />} />
+                <Route path="/decisions" element={<DecisionCenter />} />
+                <Route path="/decisions/:id" element={<DecisionCenter />} />
+                <Route path="/scenarios" element={<ScenarioLab />} />
+                <Route path="/anomalies" element={<Anomalies />} />
+                <Route path="/optimizer" element={<Optimizer />} />
+                <Route path="/executions" element={<ExecutionLedger />} />
+                <Route path="/connection" element={<Connection />} />
+                <Route path="/opportunities" element={<Opportunities />} />
+                <Route path="/outcomes" element={<Outcomes />} />
+                <Route path="/learning" element={<Learning />} />
+                <Route path="/data" element={<DataHub />} />
+                <Route
+                  path="*"
+                  element={
+                    <div className="empty">
+                      <h1>Page not found</h1>
+                      <Link to="/">Return to Command Center</Link>
+                    </div>
+                  }
+                />
+              </Routes>
+            </Suspense>
+          </ViewBoundary>
         </main>
         <footer className="app-footer">
           <span>
@@ -315,9 +318,28 @@ export function App() {
         </footer>
       </div>
       {copilot && (
-        <Suspense fallback={<Loading label="Opening Copilot" />}>
-          <Copilot close={() => setCopilot(false)} />
-        </Suspense>
+        <ViewBoundary
+          fallback={
+            <Modal title="Copilot unavailable" close={() => setCopilot(false)}>
+              <p className="modal-description">
+                The assistant could not be displayed. Close this dialog to continue reviewing the
+                workspace, or reload to retrieve the latest application.
+              </p>
+              <div className="modal-actions">
+                <button className="button secondary" onClick={() => setCopilot(false)}>
+                  Close assistant
+                </button>
+                <button className="button primary" onClick={() => window.location.reload()}>
+                  Reload workspace
+                </button>
+              </div>
+            </Modal>
+          }
+        >
+          <Suspense fallback={<Loading label="Opening Copilot" />}>
+            <Copilot close={() => setCopilot(false)} />
+          </Suspense>
+        </ViewBoundary>
       )}
     </div>
   );

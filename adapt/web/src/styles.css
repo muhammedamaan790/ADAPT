@@ -47,8 +47,10 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+.table-scroll:focus-visible {
   outline: 3px solid #8fb2ff;
+
   outline-offset: 3px;
 }
 ::selection {
@@ -151,6 +153,20 @@ summary {
 }
 summary::-webkit-details-marker {
   display: none;
+}
+.confidence-pool + .confidence-pool {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+}
+.sql-results {
+  max-height: 360px;
+  margin-top: 16px;
+}
+.sql-results td {
+  max-width: 32ch;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .app {
   --canvas: #f2f5f6;
@@ -2171,6 +2187,16 @@ summary::-webkit-details-marker {
   }
 }
 @media (max-width: 700px) {
+  .confidence-results table {
+    table-layout: fixed;
+  }
+  .confidence-results th,
+  .confidence-results td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding: 12px 6px;
+    text-align: left;
+  }
   .sidebar,
   .compact-nav .sidebar {
     position: static;

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AutonomyPanel } from '../components/AutonomyPanel';
+import { WorkspaceSettings } from '../components/WorkspaceSettings';
 import { RefreshCw, ShieldCheck, ArrowRight } from 'lucide-react';
 import { api, dataMode } from '../api/client';
 import type { Execution, Decision } from '../api/contracts';
@@ -28,7 +29,12 @@ const actionLabels: Record<RecoveryAction, string> = {
 
 export function ExecutionLedger() {
   const [params, setParams] = useSearchParams();
-  const view = params.get('section') === 'policy' ? 'policy' : 'records';
+  const view =
+    params.get('section') === 'policy'
+      ? 'policy'
+      : params.get('section') === 'settings'
+        ? 'settings'
+        : 'records';
   return (
     <>
       <div className="page-heading">
@@ -54,8 +60,21 @@ export function ExecutionLedger() {
         >
           Policy & readiness
         </button>
+        <button
+          className="button secondary"
+          aria-pressed={view === 'settings'}
+          onClick={() => setParams({ section: 'settings' })}
+        >
+          Workspace settings
+        </button>
       </div>
-      {view === 'policy' ? <AutonomyPanel /> : <ExecutionRecords />}
+      {view === 'policy' ? (
+        <AutonomyPanel />
+      ) : view === 'settings' ? (
+        <WorkspaceSettings />
+      ) : (
+        <ExecutionRecords />
+      )}
     </>
   );
 }
