@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-07T07:28:39Z",
+  "title": "Design System: ADAPT",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Warm Canvas"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "White Surface"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Operating Ink"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Quiet Slate"
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Fine Rule"
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Restrained Violet"
+      },
+      "accent-soft": {
+        "role": "primary",
+        "displayName": "Violet Wash"
+      },
+      "success": {
+        "role": "secondary",
+        "displayName": "Healthy Green"
+      },
+      "warning": {
+        "role": "secondary",
+        "displayName": "Review Amber"
+      },
+      "danger": {
+        "role": "secondary",
+        "displayName": "Blocked Red"
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page Heading",
+        "purpose": "Page titles; decision and mobile sizes are described in DESIGN.md."
+      },
+      "title": {
+        "displayName": "Section Heading",
+        "purpose": "Panel and section titles."
+      },
+      "body": {
+        "displayName": "Workspace Body",
+        "purpose": "Root family and size; dense component copy supplies smaller sizes."
+      },
+      "label": {
+        "displayName": "Action Label",
+        "purpose": "Compact semibold button text."
+      },
+      "badge": {
+        "displayName": "Status Label",
+        "purpose": "Explicit semantic state text."
+      }
+    },
+    "shadows": [
+      {
+        "name": "lineage-popover",
+        "value": "0 8px 24px #1112",
+        "purpose": "Floating source lineage details."
+      },
+      {
+        "name": "approval-dialog",
+        "value": "0 15px 60px #0003",
+        "purpose": "Approval dialog above the workspace."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-background",
+        "value": "background .15s ease",
+        "purpose": "Button state changes."
+      },
+      {
+        "name": "scenario-background",
+        "value": "background .15s",
+        "purpose": "Scenario hover response."
+      },
+      {
+        "name": "loading-rotation",
+        "value": "rotate 1.2s linear infinite",
+        "purpose": "Loading indicator only."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation:none!important;transition:none!important;scroll-behavior:auto!important",
+        "purpose": "All elements and pseudo-elements when reduced motion is requested."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide",
+        "value": "1600px",
+        "query": "min-width"
+      },
+      {
+        "name": "compact-desktop",
+        "value": "1200px",
+        "query": "max-width"
+      },
+      {
+        "name": "stacked-review",
+        "value": "900px",
+        "query": "max-width"
+      },
+      {
+        "name": "mobile",
+        "value": "700px",
+        "query": "max-width"
+      }
+    ],
+    "focus": {
+      "outline": "3px solid #a48ee6",
+      "offset": "3px"
+    },
+    "backdrop": {
+      "background": "#1118",
+      "filter": "blur(2px)"
+    },
+    "provenance": {
+      "sources": [
+        "PRODUCT.md",
+        "web/src/styles.css",
+        "web/src/main.tsx"
+      ],
+      "method": "Manual extraction from the first frontend implementation.",
+      "detectorRan": false,
+      "detectorReason": "Detector launcher unavailable."
+    }
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Explicit primary action with the implementation's fixed violet fill.",
+      "html": "<button class=\"ds-primary\">Review proposal</button>",
+      "css": ".ds-primary{font-family:'DM Sans Variable',sans-serif;font-size:11px;font-weight:600;line-height:1.4;background:#6550b9;color:#fff;border:1px solid #6550b9;border-radius:6px;padding:10px 13px;cursor:pointer;transition:background .15s ease}.ds-primary:hover:not(:disabled){background:#53409e}.ds-primary:focus-visible{outline:3px solid #a48ee6;outline-offset:3px}.ds-primary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-primary{transition:none}}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A quiet companion action with a fine border.",
+      "html": "<button class=\"ds-secondary\">Cancel</button>",
+      "css": ".ds-secondary{font-family:'DM Sans Variable',sans-serif;font-size:11px;font-weight:600;line-height:1.4;background:var(--surface,#fff);color:var(--ink,#202522);border:1px solid var(--rule,#e2e5de);border-radius:6px;padding:10px 13px;cursor:pointer;transition:background .15s ease}.ds-secondary:hover:not(:disabled){background:var(--soft,#f8f9f5);border-color:var(--muted,#626860)}.ds-secondary:focus-visible{outline:3px solid #a48ee6;outline-offset:3px}.ds-secondary:disabled{opacity:.5;cursor:not-allowed}@media(prefers-reduced-motion:reduce){.ds-secondary{transition:none}}"
+    },
+    {
+      "name": "Labelled Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "A surface field with a compact label and shared keyboard focus treatment.",
+      "html": "<label class=\"ds-field\">Decision hash<input class=\"ds-input\" value=\"illustrative-decision-hash\" /></label>",
+      "css": ".ds-field{display:flex;flex-direction:column;gap:9px;font-family:'DM Sans Variable',sans-serif;font-size:11px;font-weight:500;color:var(--ink,#202522)}.ds-input{font-family:'DM Sans Variable',sans-serif;font-size:12px;font-weight:400;border:1px solid var(--rule,#e2e5de);background:var(--surface,#fff);color:var(--ink,#202522);border-radius:6px;padding:10px 12px;min-height:38px;caret-color:#6550b9}.ds-input:focus-visible{outline:3px solid #a48ee6;outline-offset:3px}.ds-input[aria-invalid=true]{border-color:var(--danger,#ae3939)}"
+    },
+    {
+      "name": "Review Badge",
+      "kind": "chip",
+      "refersTo": "badge-warning",
+      "description": "An informational semantic state with explicit text.",
+      "html": "<span class=\"ds-review\">Needs review</span>",
+      "css": ".ds-review{display:inline-flex;align-items:center;font-family:'DM Sans Variable',sans-serif;font-size:9px;font-weight:600;letter-spacing:.2px;line-height:1.5;white-space:nowrap;border:1px solid transparent;border-radius:4px;padding:3px 7px;background:var(--warning-soft,#faf2e5);color:var(--warning,#8a5813)}"
+    },
+    {
+      "name": "Evidence Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Flat grouped evidence with a fine border and compact section title.",
+      "html": "<section class=\"ds-panel\"><h2>Policy checks</h2><p>Review the evidence before approval.</p></section>",
+      "css": ".ds-panel{background:var(--surface,#fff);color:var(--ink,#202522);border:1px solid var(--rule,#e2e5de);border-radius:9px;padding:22px}.ds-panel h2{font-family:'Manrope Variable',sans-serif;font-size:17px;line-height:1.4;font-weight:700;letter-spacing:-.025em;margin:0}.ds-panel p{font-family:'DM Sans Variable',sans-serif;font-size:11px;line-height:1.6;color:var(--muted,#626860);margin:7px 0 0}"
+    },
+    {
+      "name": "Primary Navigation",
+      "kind": "nav",
+      "description": "Ink navigation with a quiet hover and lavender selected route.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary\"><a class=\"ds-route ds-active\" href=\"#command\" aria-current=\"page\">Command Center</a><a class=\"ds-route\" href=\"#decision\">Decision Center</a><a class=\"ds-route\" href=\"#lab\">Scenario Lab</a></nav>",
+      "css": ".ds-nav{display:flex;flex-direction:column;gap:6px;background:#202522;padding:18px}.ds-route{font-family:'DM Sans Variable',sans-serif;display:flex;align-items:center;gap:12px;color:#bcc4b7;border-radius:6px;padding:12px 11px;font-size:12px;font-weight:500;text-decoration:none}.ds-route:hover{background:#2d342d;color:#fff}.ds-route.ds-active{background:#d4c8f2;color:#282032}.ds-route:focus-visible{outline:3px solid #a48ee6;outline-offset:3px}@media(max-width:700px){.ds-nav{flex-direction:row;gap:4px;justify-content:space-between}.ds-route{padding:11px 10px;font-size:10px;flex:1;justify-content:center;white-space:nowrap}}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Evidence Workspace",
+    "overview": "ADAPT's operate mode feels calm, precise and inspectable. A warm off-white workspace and an ink navigation rail frame compact financial information. Restrained violet identifies primary actions, selected states and model forecasts; status colors communicate health, review and blocked states alongside explicit text.\n\nFine rules, aligned numbers and grouped white surfaces keep the evidence readable. Approval remains a deliberate interaction connected to the proposal's evidence, policy checks and decision hash. Illustrative fixtures remain visibly labelled, and forecasts remain distinct from measured outcomes.",
+    "keyCharacteristics": [
+      "Warm neutral workspace with an ink navigation rail.",
+      "Restrained violet emphasis and text-labelled semantic status.",
+      "Compact typography, tabular financial numerals and fine dividers.",
+      "Evidence before explicit approval, with visible fixture provenance.",
+      "Locally bundled fonts, responsive navigation and reduced-motion support."
+    ],
+    "rules": [
+      {
+        "name": "The Status Text Rule",
+        "body": "Pair every semantic state color with a readable label or explanation; color alone cannot establish the state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Comparable Numbers Rule",
+        "body": "Use tabular numerals for financial metrics, review facts, chart labels and tables; align amounts consistently within their group.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Workspace Rule",
+        "body": "Keep ordinary panels and information rows flat; reserve elevation for floating details and modal decisions.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do pair health, review and blocked colors with readable state labels.",
+      "Do use local DM Sans and Manrope fonts and tabular numerals for comparisons.",
+      "Do keep evidence, policy checks and the decision hash available before explicit approval.",
+      "Do visibly label illustrative fixtures and distinguish forecasts from measured outcomes.",
+      "Do preserve horizontal primary navigation on mobile and respect reduced-motion preferences."
+    ],
+    "donts": [
+      "Don't use semantic color as the only explanation of a state.",
+      "Don't add shadows to ordinary panels or turn every information row into a separate card.",
+      "Don't present fixture values as engine output, evaluation results or measured simulator evidence.",
+      "Don't hide a failed API connection by silently showing fixtures.",
+      "Don't add remote font or image requests to the locally bundled visual system."
+    ]
+  }
+}
