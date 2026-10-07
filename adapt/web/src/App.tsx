@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
 import {
   Activity,
@@ -13,12 +13,14 @@ import {
   Radar,
   SlidersHorizontal,
   ListChecks,
+  Menu,
   PlugZap,
   MessageSquare,
   TrendingUp,
   BookOpen,
   Database,
   ChartNoAxesCombined,
+  X,
 } from 'lucide-react';
 import { CommandCenter } from './pages/CommandCenter';
 import { DecisionCenter } from './pages/DecisionCenter';
@@ -56,32 +58,66 @@ const routeNames: Record<string, string> = {
 };
 
 export function App() {
-  const [dark, setDark] = useState(() => localStorage.getItem('adapt.theme') === 'dark');
+  const [dark, setDark] = useState(() => {
+    const savedTheme = localStorage.getItem('adapt.theme');
+    return savedTheme
+      ? savedTheme === 'dark'
+      : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
   const [collapsed, setCollapsed] = useState(false);
-  const [morePages, setMorePages] = useState(false);
   const [copilot, setCopilot] = useState(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
   const overview = useOverview();
   const route = useLocation().pathname;
   const toggleTheme = () => {
-    setDark(!dark);
-    localStorage.setItem('adapt.theme', dark ? 'light' : 'dark');
+    setDark((current) => {
+      const next = !current;
+      localStorage.setItem('adapt.theme', next ? 'dark' : 'light');
+      return next;
+    });
   };
+
+  useEffect(() => setNavigationOpen(false), [route]);
+  useEffect(() => {
+    if (!navigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setNavigationOpen(false);
+    };
+    document.body.classList.add('navigation-locked');
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.classList.remove('navigation-locked');
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [navigationOpen]);
+
   return (
-    <div className={`app ${dark ? 'dark' : ''} ${collapsed ? 'compact-nav' : ''}`}>
+    <div
+      className={`app ${dark ? 'dark' : ''} ${collapsed ? 'compact-nav' : ''} ${navigationOpen ? 'mobile-navigation-open' : ''}`}
+    >
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <aside className="sidebar">
-        <Link to="/" className="brand" aria-label="ADAPT Command Center">
-          <span className="brand-mark">
-            <svg viewBox="0 0 32 32" aria-hidden="true">
-              <path d="M5 25 16 6 27 25M10 19h12" />
-            </svg>
-          </span>
-          <span>
-            ADAPT<span className="brand-sub">Advertising intelligence</span>
-          </span>
-        </Link>
+      <aside className="sidebar" id="primary-navigation" aria-label="Application navigation">
+        <div className="sidebar-header">
+          <Link to="/" className="brand" aria-label="ADAPT Command Center">
+            <span className="brand-mark">
+              <svg viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M5 25 16 6 27 25M10 19h12" />
+              </svg>
+            </span>
+            <span>
+              ADAPT<span className="brand-sub">Advertising intelligence</span>
+            </span>
+          </Link>
+          <button
+            className="icon-button mobile-navigation-close"
+            aria-label="Close navigation"
+            onClick={() => setNavigationOpen(false)}
+          >
+            <X size={19} />
+          </button>
+        </div>
         <Link className="workspace" to="/data?section=workspaces" aria-label="Manage workspaces">
           <span className="workspace-avatar">D</span>
           <div>
@@ -93,46 +129,42 @@ export function App() {
           </div>
         </Link>
         <nav aria-label="Primary navigation">
-          <NavLink to="/" end>
-            <LayoutDashboard size={19} />
-            <span>Command Center</span>
-          </NavLink>
-          <NavLink to="/decisions">
-            <Workflow size={19} />
-            <span>Decision Center</span>
-          </NavLink>
-          <NavLink to="/scenarios">
-            <FlaskConical size={19} />
-            <span>Scenario Lab</span>
-          </NavLink>
-          <NavLink to="/anomalies">
-            <Radar size={19} />
-            <span>Anomalies</span>
-          </NavLink>
-          <NavLink to="/optimizer">
-            <SlidersHorizontal size={19} />
-            <span>Optimizer</span>
-          </NavLink>
-          <NavLink to="/executions">
-            <ListChecks size={19} />
-            <span>Execution & Ledger</span>
-          </NavLink>
-          <NavLink to="/connection">
-            <PlugZap size={19} />
-            <span>Backend Connection</span>
-          </NavLink>
-          <button
-            className="more-pages"
-            aria-expanded={morePages}
-            aria-controls="insight-navigation"
-            onClick={() => setMorePages(!morePages)}
-          >
-            More pages
-          </button>
-          <div
-            id="insight-navigation"
-            className={`insight-navigation ${morePages ? 'expanded' : ''}`}
-          >
+          <div className="nav-cluster">
+            <span className="nav-label">Workspace</span>
+            <NavLink to="/" end>
+              <LayoutDashboard size={19} />
+              <span>Command Center</span>
+            </NavLink>
+            <NavLink to="/decisions">
+              <Workflow size={19} />
+              <span>Decision Center</span>
+            </NavLink>
+            <NavLink to="/scenarios">
+              <FlaskConical size={19} />
+              <span>Scenario Lab</span>
+            </NavLink>
+          </div>
+          <div className="nav-cluster">
+            <span className="nav-label">Operations</span>
+            <NavLink to="/anomalies">
+              <Radar size={19} />
+              <span>Anomalies</span>
+            </NavLink>
+            <NavLink to="/optimizer">
+              <SlidersHorizontal size={19} />
+              <span>Optimizer</span>
+            </NavLink>
+            <NavLink to="/executions">
+              <ListChecks size={19} />
+              <span>Execution & Ledger</span>
+            </NavLink>
+            <NavLink to="/connection">
+              <PlugZap size={19} />
+              <span>Backend Connection</span>
+            </NavLink>
+          </div>
+          <div className="nav-cluster">
+            <span className="nav-label">Intelligence</span>
             <NavLink to="/opportunities">
               <TrendingUp size={19} />
               <span>Opportunity Map</span>
@@ -182,16 +214,36 @@ export function App() {
           </div>
         </div>
       </aside>
+      <button
+        className="navigation-backdrop"
+        aria-label="Close navigation"
+        onClick={() => setNavigationOpen(false)}
+      />
       <div className="workspace-main">
         <header className="topbar">
-          <div className="breadcrumb">
-            Workspace <span>/</span>{' '}
-            <strong>{routeNames[route.split('/')[1]] || 'Command Center'}</strong>
+          <div className="topbar-leading">
+            <button
+              className="icon-button mobile-navigation-trigger"
+              aria-label="Open navigation"
+              aria-controls="primary-navigation"
+              aria-expanded={navigationOpen}
+              onClick={() => setNavigationOpen(true)}
+            >
+              <Menu size={19} />
+            </button>
+            <span className="mobile-route-name">
+              {routeNames[route.split('/')[1]] || 'Command Center'}
+            </span>
+            <div className="breadcrumb">
+              Workspace <span>/</span>{' '}
+              <strong>{routeNames[route.split('/')[1]] || 'Command Center'}</strong>
+            </div>
           </div>
           <div className="topbar-actions">
             <button
               className="icon-button"
               aria-label="Open Copilot"
+              title="Open Copilot"
               onClick={() => setCopilot(true)}
             >
               <MessageSquare size={18} />
@@ -203,6 +255,8 @@ export function App() {
               className="icon-button"
               onClick={toggleTheme}
               aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+              aria-pressed={dark}
+              title={dark ? 'Switch to light theme' : 'Switch to dark theme'}
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>

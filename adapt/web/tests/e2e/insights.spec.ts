@@ -89,7 +89,7 @@ test('comparison, replay and sensitivity revisions remain separate from executio
 test('new pages have accessible mobile navigation and no document overflow', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'More pages' }).click();
+  await page.getByRole('button', { name: 'Open navigation' }).click();
   await page.getByRole('link', { name: 'Opportunity Map', exact: true }).click();
   for (const [path, name] of [
     ['/opportunities', 'Opportunity Map'],
