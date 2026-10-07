@@ -1,0 +1,90 @@
+# Metric catalog (spec §4 lineage, §6 transforms, §22.6 ImpactCBA). Ratios are built from window totals of the
+# numerator and denominator columns of marts.campaign_daily (never averaged from daily ratios).
+#
+# transform: how the daily series is stabilised before STL
+#   logit  rates in (0,1), continuity-corrected p = (num + 0.5) / (den + 1)
+#   log    positive ratios; num gets `pseudo` (in numerator units) so a zero day stays finite
+#   none   signed metrics (POAS can be <= 0): raw scale
+#   log1p  counts and currency levels
+# eligible: minimum PRE-window totals (spec §6); post-window volume never gates (that is the COLLAPSE path).
+
+campaign_metrics:
+  CTR:
+    label: Click-through rate
+    num: clicks
+    den: impressions
+    transform: logit
+    eligible: {impressions: 5000}
+    lever: CTR
+  CPM:
+    label: Cost per 1,000 impressions
+    num: spend
+    den: impressions
+    scale: 1000
+    transform: log
+    eligible: {impressions: 5000}
+    lever: CPM
+  CVR:
+    label: Conversion rate (orders / clicks)
+    num: attributed_orders
+    den: clicks
+    transform: logit
+    eligible: {clicks: 200, attributed_orders: 10}
+    lever: CVR
+  AOV:
+    label: Average order value (net)
+    num: attributed_net_revenue
+    den: attributed_orders
+    transform: log
+    eligible: {attributed_orders: 20}
+    lever: AOV
+  ROAS:
+    label: Reconciled ROAS (last-click net revenue / spend)
+    num: attributed_net_revenue
+    den: spend
+    transform: log
+    pseudo: half_order_value   # + half an average order of revenue per day
+    eligible: {spend: 10000, attributed_orders: 10}
+  POAS:
+    label: POAS (attributed contribution before ads / spend)
+    num: attributed_cba
+    den: spend
+    transform: none
+    signed: true
+    eligible: {spend: 10000, attributed_orders: 10}
+  CPA:
+    label: Cost per attributed order
+    num: spend
+    den: attributed_orders
+    transform: log
+    pseudo_den: 0.5            # + half an order per day
+    eligible: {attributed_orders: 15}
+  SESSION_CLICK:
+    label: GA4 sessions per platform click (tracking health)
+    num: ga_sessions
+    den: clicks
+    transform: log
+    pseudo: 0.5
+    eligible: {clicks: 300}
+  SPEND:
+    label: Spend
+    level: spend
+    transform: log1p
+    eligible: {spend: 10000}
+    classifier_only: true      # spend changes route to the classifier, never efficiency materiality
+
+creative_metrics:               # spec §6 entities include creatives: fatigue lives here and is diluted at campaign level
+  CTR:
+    label: Creative click-through rate
+    num: clicks
+    den: impressions
+    transform: logit
+    eligible: {impressions: 40000}   # ~1,400/day (about the median creative): smaller ones swing +/-40% by chance
+    lever: CTR
+
+sku_metrics:
+  SKU_UNITS:
+    label: Units sold
+    level: units
+    transform: log1p
+    eligible: {units: 50}

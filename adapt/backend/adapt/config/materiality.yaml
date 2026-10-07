@@ -1,0 +1,45 @@
+# Business materiality + detector parameters (spec §6). These are policy choices about what is worth a manager's
+# attention, not statistically learned values. z1, z2 and beta are tuned on tuning seeds 1-20 only (Stage 2 eval);
+# the values below are the pre-tuning defaults.
+
+relative_floor:                # |relative change| must exceed this (per metric) to be MATERIAL
+  ROAS: 0.15
+  POAS: 0.15
+  CVR: 0.15
+  CPA: 0.20
+  CTR: 0.15
+  CPM: 0.15
+  AOV: 0.10
+  SKU_UNITS: 0.20
+  SESSION_CLICK: 0.30
+  SPEND: 0.25
+
+absolute_direction_floor:      # signed / near-zero metrics: direction tolerance on the original scale
+  POAS: 0.02
+
+impact:
+  min_inr: 2000                # |signed_impact| >= max(min_inr, share x trailing-28-day average daily CBA)
+  share_of_daily_cba: 0.05
+
+direction_tolerance: 0.01      # FLAT if |delta| <= 1% of |expected| (positive metrics)
+
+detector:
+  fit_days: 56                 # STL fit window before the evaluated window (never includes it)
+  pre_days: 28                 # baseline window for eligibility, relative change and cm
+  post_windows: [3, 7]         # evaluated windows ending at the last complete day
+  trend_points: 14             # linear trend extrapolated from the last 14 fitted trend values
+  backtest_origins: 6          # z / PELT scale = MAD of out-of-sample errors from 6 weekly backtest origins
+  z1: 3.5                      # single-day |robust z|
+  z2: 2.5                      # ... or this for `consecutive` days in a row, same sign
+  consecutive: 3
+  shift_days: 28               # PELT window
+  beta: 8.0                    # PELT penalty on the MAD-standardised series
+  min_segment: 3
+  group_share: 0.70            # >= 70% of a platform's campaigns flagging the same metric -> one platform incident
+  reopen_days: 7               # a new detection within this many days of an open anomaly updates it
+
+classifier:
+  budget_spend_change: 0.25    # |delta ln spend| >= ln(1.25)
+  efficiency_band_z: 2.0       # efficiency metrics within this |z| -> spend change is a budget change
+  tracking_clicks_stable: 0.15 # |delta ln clicks| <= ln(1.15) while sessions/click falls -> tracking issue
+  holidays: []                 # dates labelled seasonal_expected (none configured for the simulated brand)
