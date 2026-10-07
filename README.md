@@ -2,12 +2,14 @@
 
 Stage 1 frontend for the user-supplied **ADAPT v2.4.3** plan, on branch `frontend`.
 
+The application lives under `adapt/`: frontend in `adapt/web`, backend in `adapt/backend`, world service in `adapt/world`. Backend setup and run commands are in [adapt/README.md](adapt/README.md).
+
 ## Run
 
 Requires Node 22.12+ (Node 24 also works). The app uses React + TypeScript + Vite, with self-hosted fonts.
 
 ```powershell
-cd web
+cd adapt/web
 npm ci
 npm run dev
 ```
@@ -31,16 +33,16 @@ $env:Path = 'C:\DataQuest\.runtime\node-v22.16.0-win-x64;' + $env:Path
 
 ## Connect the backend
 
-Copy `web/.env.example` to `web/.env.local`, set `VITE_DATA_MODE=api`, and restart Vite. The development proxy forwards `/api` to `http://127.0.0.1:8000`. Set `VITE_API_BASE_URL` for another deployment and configure its CORS/cookie policies. Keep all secrets on the backend; Vite variables are public.
+Copy `adapt/web/.env.example` to `adapt/web/.env.local`, set `VITE_DATA_MODE=api`, and restart Vite. The development proxy forwards `/api` to `http://127.0.0.1:8000`. Set `VITE_API_BASE_URL` for another deployment and configure its CORS/cookie policies. Keep all secrets on the backend; Vite variables are public.
 
 The frontend **never switches to fixtures when API mode fails**. It validates responses with Zod and shows contract, network, permission and conflict errors. Authentication is owned by the backend team; the client includes session cookies, but this frontend does not implement a login/security system.
 
-The empty repository did not contain C6's OpenAPI, so schemas are provisional, hand-authored in `web/src/api/contracts.ts`. The exact integration handoff, including the few unresolved endpoint contracts, is in [docs/frontend-api.md](docs/frontend-api.md). `npm run types:generate` generates OpenAPI types once FastAPI is running; align the adapter/schema rather than casting unvalidated JSON.
+The backend foundation currently exposes `/api/v1/health`; C6's decision-loop endpoints are not implemented yet. Frontend schemas remain provisional, hand-authored in `adapt/web/src/api/contracts.ts`. The exact integration handoff, including the unresolved endpoint contracts, is in [docs/frontend-api.md](docs/frontend-api.md). `npm run types:generate` generates OpenAPI types once FastAPI is running; align the adapter/schema rather than casting unvalidated JSON.
 
 ## Verification
 
 ```powershell
-cd web
+cd adapt/web
 npm run build
 npm test
 npx playwright install chromium
@@ -54,4 +56,4 @@ On a machine with Chrome already installed, `CHROMIUM_EXECUTABLE_PATH` can point
 
 ## Team boundaries
 
-Frontend owns `web/`, `docs/frontend-api.md`, `PRODUCT.md` and `DESIGN.md`. Backend and world teams can create `backend/`, `world/` and `evalharness/` independently. No backend implementation, deployment, commit or push is implied by this scaffold.
+Frontend owns `adapt/web/`, `docs/frontend-api.md`, `PRODUCT.md` and `DESIGN.md`. Backend/world/evaluation packages live in `adapt/backend/`, `adapt/world/` and `adapt/evalharness/`. This frontend change preserves the existing backend foundation and its CI workflow.

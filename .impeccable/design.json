@@ -134,8 +134,8 @@
     "provenance": {
       "sources": [
         "PRODUCT.md",
-        "web/src/styles.css",
-        "web/src/main.tsx"
+        "adapt/web/src/styles.css",
+        "adapt/web/src/main.tsx"
       ],
       "method": "Manual extraction from the first frontend implementation.",
       "detectorRan": false,

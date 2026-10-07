@@ -1,8 +1,8 @@
 # Stage 1 frontend API handoff
 
-Specification: ADAPT v2.4.3 §§0.5, 12, 13, 22.4–22.5. Wire schemas: `web/src/api/contracts.ts`. Client: `web/src/api/client.ts`.
+Specification: ADAPT v2.4.3 §§0.5, 12, 13, 22.4–22.5. Wire schemas: `adapt/web/src/api/contracts.ts`. Client: `adapt/web/src/api/client.ts`.
 
-**Status:** provisional frontend contract, not generated OpenAPI. C6 must agree/align it before API mode is considered integrated. Do not change engine mathematics to match illustrative UI fixtures. Use the repository root directly (`web/`, `backend/`, `world/`) rather than nesting another `adapt/` repository.
+**Status:** provisional frontend contract, not generated OpenAPI. The current backend foundation exposes only `/api/v1/health`; C6 must implement/align the decision-loop endpoints before API mode is integrated. Do not change engine mathematics to match illustrative UI fixtures. The application root is `adapt/`, with sibling `web/`, `backend/` and `world/` directories, matching the existing backend layout.
 
 ## Endpoint contracts
 
