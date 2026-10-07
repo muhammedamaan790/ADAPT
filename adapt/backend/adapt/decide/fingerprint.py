@@ -22,7 +22,8 @@ from adapt.economics.state import guardrails_config, inputs_manifest, objectives
 
 AVAILABLE_TOLERANCE = 0.10
 HEALTH_RANK = {"GREEN": 0, "YELLOW": 1, "RED": 2}
-DEPENDENCY_SOURCES = ("meta_ads", "google_ads", "store", "erp", "finance")
+DEPENDENCY_SOURCES = ("meta_ads", "google_ads", "store", "erp", "finance", "tiktok_ads", "amazon_ads",
+                      "amazon_marketplace")
 
 
 def _health(db, at: datetime) -> dict[str, str]:
@@ -43,9 +44,12 @@ def _incidents(db, campaign_ids: set[str]) -> list[str]:
     return sorted(a for a, ids in rows if set(json.loads(ids)) & campaign_ids)
 
 
-def fingerprint(db, state: PortfolioState, policy_version: str, kill_switch: bool, at: datetime) -> dict:
+def fingerprint(db, state: PortfolioState, policy_version: str, kill_switch: bool, at: datetime,
+                objective: str = "PROFIT") -> dict:
     g = guardrails_config()
-    exact = {"inputs": inputs_manifest(state), "objective": "PROFIT", "lambda": objectives_config()["PROFIT"]["lambda"],
+    oc = objectives_config()
+    exact = {"inputs": inputs_manifest(state), "objective": objective, "objective_config": oc.get(objective, {}),
+             "lambda": oc.get(objective, {}).get("lambda", oc["PROFIT"]["lambda"]),
              "guardrails": g, "policy_version": policy_version, "autonomy_mode": "APPROVE",
              "kill_switch": kill_switch}
     fe = FastEval(Portfolio(state, search_draws(state)), g["inventory_gate"])

@@ -16,6 +16,7 @@ warehouse_skus: [OTHER-ASSORTED]   # store SKUs outside any promoted product set
 utm_channels:
   - {source: email, medium: email, channel: email}
   - {source: google, medium: organic, channel: organic}
+  - {source: amazon, medium: marketplace, channel: amazon}   # the separate marketplace order population (Stage 2)
   - {source: null, medium: null, channel: direct}
 
 inventory:                      # TheLook / ERP have no lead times: configured per DC (spec §4)

@@ -1,0 +1,20 @@
+# Narrator + guard (Stage 2 *, spec §11). Versioned with the policy: a change is a narrative-contract change.
+llm:
+  base_url: https://api.groq.com/openai/v1
+  models: [openai/gpt-oss-120b, openai/gpt-oss-20b]   # fallback chain; an empty available chain -> offline templates
+  timeout_s: 20
+  max_retries_429: 2
+  backoff_s: 1.0
+  max_tokens: 900
+  temperature: 0.2
+  schema_version: narrative-v1
+guard:
+  relative_tolerance: 0.005        # a number matches an atom within +-0.5% or at its displayed rounding
+  negation_scope_tokens: 3         # a direction word within 3 tokens after a negator is inverted (NOT_<dir>)
+  qualifier_bands_pct:             # intensity words allowed only when the cited |change| is in the band
+    slight: [0, 5]
+    moderate: [5, 15]
+    sharp: [15, 35]
+    severe: [35, 1000000]
+  hedges: [associated with, evidence points to, points to, probable, probably, likely, consistent with, suggests]
+  evaluative_allowlist: [material, materially, notable, notably]

@@ -18,3 +18,12 @@ inventory_gate:                   # exposure x_i = sum_k w_ik 1[at_risk_k after 
   block_above: 0.50
 mix_uncertain_unmapped_share: 0.20  # u_i above this -> MIX_UNCERTAIN: no autonomous / optimizer increase
 roas_floor: null                  # optional reconciled-ROAS floor for any unit receiving an increase
+safety:                           # automatic emergency safety monitor (Stage 2, spec §9.1, §9.3)
+  cpa_guardrail_multiple: 1.0     # guardrail CPA = this x the treated units' pre-action CPA (28 days before)
+  cpa_fire: 1.25                  # fire at CPA > 1.25 x guardrail ...
+  cpa_clear: 1.10                 # ... clear below 1.10 x guardrail (hysteresis)
+  p10_consecutive_checks: 2       # cumulative realized dCAA < cumulative P10 path on 2 consecutive daily checks
+  cooldown_days: 5                # SAFETY_COOLDOWN after a safety action: optimization may not increase the entity
+  recovery_days: 3                # clearing also needs 3 consecutive days of CPA back in band + inventory recovered
+  max_reversals_7d: 2             # automated reversals per entity per 7 days, then pinned to Approve mode
+  min_window_days: 1

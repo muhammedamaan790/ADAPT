@@ -140,7 +140,8 @@ def hash_payload(content: dict, snap: dict) -> dict:
                                 "code_sha", "replay_environment_fingerprint", "seed", "tz")}}
 
 
-def _content(cls: str, prop: dict, state: PortfolioState, checks: list[dict], factor: float) -> dict:
+def _content(cls: str, prop: dict, state: PortfolioState, checks: list[dict], factor: float,
+             objective: str = "PROFIT") -> dict:
     legs = prop["legs"]
     exp = prop["expected"]
     raw = exp.get("raw_pred", exp["E"])
@@ -148,7 +149,7 @@ def _content(cls: str, prop: dict, state: PortfolioState, checks: list[dict], fa
     skus = {k for u in state.units if u.unit_id in involved for k in u.sku_weights}
     risk = prop.get("inventory_risk_after") or {"kind": "PROJECTED_SHORTFALL", "by_sku": {}}
     return {
-        "class": cls, "type": _type(legs), "objective": "PROFIT",
+        "class": cls, "type": _type(legs), "objective": prop.get("objective") or objective,
         "legs": [{k: leg[k] for k in ("unit_id", "platform", "channel", "budget_id", "campaign_ids", "before", "after")}
                  for leg in legs],
         "expected": {"p10": exp["P10"], "p50": exp["P50"], "p90": exp["P90"], "E": exp["E"],
@@ -157,12 +158,15 @@ def _content(cls: str, prop: dict, state: PortfolioState, checks: list[dict], fa
         "inventory_risk_after": {"kind": risk["kind"],
                                  "by_sku": {k: v for k, v in sorted(risk["by_sku"].items()) if k in skus}},
         "unallocated": prop.get("unallocated", 0.0), "reserve_floor": prop.get("reserve_floor", 0.0),
-        "cost_of_inaction_7d": None, "alternatives": [],
+        "cost_of_inaction_7d": None, "alternatives": prop.get("alternatives", []) if cls == "OPTIMIZATION" else [],
+        "risk_preference": prop.get("risk_preference"),
         "why_not": [w for w in prop.get("why_not", []) if w["unit_id"] in involved or cls == "OPTIMIZATION"],
         "checks": checks,
         "trigger": ({"sku": prop.get("sku"), "kind": prop.get("trigger")} if cls == "SAFETY"
                     else {"kind": "OPTIMIZATION_RUN"}),
         "remaining_shortfall": prop.get("remaining_shortfall") if cls == "SAFETY" else None,
+        "remaining_risk": ({"kind": prop.get("risk_kind"), "value": prop.get("remaining_risk")}
+                           if cls == "SAFETY" and prop.get("risk_kind") else None),
     }
 
 
@@ -170,16 +174,20 @@ def _model_hashes(db, state: PortfolioState) -> dict:
     if not db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'models' "
                     "AND table_name = 'response_curves'"):
         return {u.unit_id: None for u in state.units}
-    rows = dict(db.query("""SELECT unit_id, artifact_sha256 FROM models.response_curves
-                            WHERE fit_ts = (SELECT max(fit_ts) FROM models.response_curves)"""))
+    from adapt.predict.fit_curves import champion_fit_ts
+
+    rows = dict(db.query("SELECT unit_id, artifact_sha256 FROM models.response_curves WHERE fit_ts = ?",
+                         [champion_fit_ts(db)]))
     return {u.unit_id: rows.get(u.unit_id) for u in state.units}
 
 
 def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: datetime,
-                     actor: str = "ADAPT", follows: str | None = None) -> list[str]:
+                     actor: str = "ADAPT", supersedes: str | None = None,
+                     follows: str | None = None) -> list[str]:
     """Turn an optimizer run (decide.run.run_optimizer) into decision objects. Returns the new decision ids.
     A run carrying `manual_allocation` (a user modification) snapshots that allocation, so replay values it
-    instead of re-optimizing; `follows` links the modification to the decision it supersedes."""
+    instead of re-optimizing. `supersedes` (the frontend calls it `follows`) links a modification or a chosen
+    risk preference to the decision it replaces."""
     ensure(db)
     pol = current_policy(db, at)
     ks = kill_switch_active(db)
@@ -193,7 +201,8 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
         proposals.append(("SAFETY", cand["decision_id"], cand))
     if not proposals:
         return []
-    fp = fingerprint(db, state, pol["policy_version"], ks, at)
+    objective = (r.get("objective") if r.get("status") == "OK" else None) or "PROFIT"
+    fp = fingerprint(db, state, pol["policy_version"], ks, at, objective)
     obj_cfg, g_cfg = pol["config"]["objectives"], pol["config"]["guardrails"]
     manifest = {"state": put_artifact(db, state_to_dict(state)), "flags": put_artifact(db, flags),
                 "policy": put_artifact(db, pol["config"]), "calibration": put_artifact(db, {"factor": factor}),
@@ -222,19 +231,20 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
                 continue  # idempotent per run
             alloc = {u.unit_id: u.budget for u in state.units} | {leg["unit_id"]: leg["after"] for leg in prop["legs"]}
             checks = validate(state, alloc, flags, cls, g_cfg, cool, ks)
-            content = _content(cls, prop, state, checks, factor)
+            content = _content(cls, prop, state, checks, factor, objective)
             payload = hash_payload(content, snap_common)
             h = sha256_hex(canonical_bytes(payload))       # raises on NaN / Inf: no decision is created (T20)
             snap_id = f"SNAP-{sha256_hex(f'{did}|{h}')[:16]}"  # same content in two runs: same hash, two snapshots
             cur.execute("INSERT INTO intel.decisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
-                        [did, run["run_id"], cls, content["type"], "PROFIT", at,
-                         json.dumps({"decision_id": did, **normalize(content)}), h, snap_id, follows])
+                        [did, run["run_id"], cls, content["type"], content["objective"], at,
+                         json.dumps({"decision_id": did, **normalize(content)}), h, snap_id, supersedes or follows])
             cur.execute("INSERT INTO ops.decision_snapshots VALUES "
                         "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                         [snap_id, did, run["run_id"], manifest_sha, json.dumps(manifest), fp["economics_hash"],
                          json.dumps(snap_common["model_artifact_hashes"]), OPTIMIZER_VERSION,
                          json.dumps(obj_cfg["economics"]), pol["policy_version"], pol["policy_config_hash"],
-                         snap_common["config_hash"], "PROFIT", 0, env["code_sha"], env["uv_lock_hash"], env_id,
+                         snap_common["config_hash"], content["objective"], 0, env["code_sha"], env["uv_lock_hash"],
+                         env_id,
                          env["replay_environment_fingerprint"], "Asia/Kolkata", h])
             cur.execute("INSERT INTO ops.decision_fingerprints VALUES (?, ?, ?, ?)",
                         [did, fp["economics_hash"], json.dumps(fp, default=float), at])
@@ -246,6 +256,12 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
                 add_event(cur, did, "blocked", at, "policy", {**result, **signal})
             else:
                 _supersede_overlapping(cur, did, cls, {leg["budget_id"] for leg in prop["legs"]}, at)
+                if supersedes:  # Modify / choose a risk preference: the explicit predecessor, even without overlap
+                    last = cur.execute("SELECT event FROM ops.decision_events WHERE decision_id = ? ORDER BY seq DESC "
+                                       "LIMIT 1", [supersedes]).fetchone()
+                    if last and EVENT_STATUS.get(last[0]) in ACTIONABLE:
+                        add_event(cur, supersedes, "superseded", at, actor,
+                                  {"superseded_by": did, "invalidation_reason": "replaced by an explicit choice"})
                 add_event(cur, did, "submitted", at, "policy", result)
             created.append(did)
 
@@ -363,11 +379,22 @@ def replay(db, decision_id: str) -> dict:
     factor = get_artifact(db, manifest["calibration"])["factor"]
     cool = set(get_artifact(db, manifest["cooldown"]))
     ks = get_artifact(db, manifest["kill_switch"])["active"]
-    cls = db.query("SELECT class FROM intel.decisions WHERE decision_id = ?", [decision_id])[0][0]
-    if "manual_allocation" in manifest:
+    cls, objective, payload = db.query("SELECT class, objective, payload FROM intel.decisions WHERE decision_id = ?",
+                                       [decision_id])[0]
+    stored = json.loads(payload)
+    if stored.get("risk_preference"):
+        return {"decision_id": decision_id, "match": None, "reason": "CHOSEN_SCENARIO",
+                "detail": "replay its source decision; this one is that decision's stored sensitivity scenario"}
+    from adapt.decide.alternatives import objectives_for, sensitivity
+
+    oc = objectives_for(objective or "PROFIT", policy["objectives"])
+    if "manual_allocation" in manifest:  # a user modification: value the snapshotted allocation, never re-optimize
         prop = manual_proposal(state, get_artifact(db, manifest["manual_allocation"]), policy)
     elif cls == "OPTIMIZATION":
-        prop = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=policy["objectives"]).solve()
+        opt = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=oc)
+        prop = opt.solve()
+        if stored.get("alternatives"):  # recomputed exactly when the decision carried them (bound by the hash)
+            prop["alternatives"] = sensitivity(state, flags, policy["guardrails"], oc, (opt.pf, opt.full), cool, ks)
     else:
         opt = Optimizer(state, flags, guardrails=policy["guardrails"], objectives=policy["objectives"])
         sku = json.loads(db.query("SELECT payload FROM intel.decisions WHERE decision_id = ?",
@@ -377,7 +404,7 @@ def replay(db, decision_id: str) -> dict:
             return {"decision_id": decision_id, "match": False, "reason": "SAFETY_CANDIDATE_NOT_REPRODUCED"}
     alloc = {u.unit_id: u.budget for u in state.units} | {leg["unit_id"]: leg["after"] for leg in prop["legs"]}
     checks = validate(state, alloc, flags, cls, policy["guardrails"], cool, ks)
-    content = _content(cls, prop, state, checks, factor)
+    content = _content(cls, prop, state, checks, factor, objective or "PROFIT")
     snap_common = {"manifest_sha256": msha, "economics_hash": ehash, "model_artifact_hashes": json.loads(mh),
                    "optimizer_version": ov, "solver_config": json.loads(sc), "policy_version": pv,
                    "policy_config_hash": pch, "config_hash": ch, "lock_hash": lh, "code_sha": cs,

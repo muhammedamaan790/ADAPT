@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS faults_state (
 );
 """
 
-PLATFORMS = frozenset({"google", "meta"})
+PLATFORMS = frozenset({"google", "meta", "tiktok", "amazon"})
 # Faults a mock platform can be told to produce on its next N mutations (spec §9.4: 429/400/503/timeout-after-success).
 FAULTS = frozenset({"rate_limit", "unavailable", "bad_request", "timeout_after_success"})
 

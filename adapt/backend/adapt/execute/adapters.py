@@ -150,8 +150,91 @@ class MockMetaAdapter:
                           redact(body), redact(resp))
 
 
+class MockTikTokAdapter:
+    """TikTok Business API v1.3 (Stage 2 SIMULATED channel): campaign budget in USD (2 decimals) via
+    campaign/update/, read-back through a separate campaign/get/ call."""
+    platform, mode = "tiktok", "MOCK"
+
+    def __init__(self, client: httpx.Client, base_url: str = ""):
+        cfg = _sources()
+        self.client, self.base = client, base_url.rstrip("/")
+        self.adv = cfg["sources"]["tiktok_ads"]["advertiser_id"]
+        self.ver = cfg["sources"]["tiktok_ads"]["api_version"]
+        self.fx = float(cfg["fx"][cfg["sources"]["tiktok_ads"]["currency"]])
+
+    def tolerance(self) -> float:
+        return self.fx / 100 + 1e-6
+
+    def read(self, budget_id: str) -> dict:
+        try:
+            r = self.client.get(f"{self.base}/tiktok/{self.ver}/campaign/get/", params={"advertiser_id": self.adv})
+        except httpx.HTTPError as exc:
+            raise ReadError(f"tiktok read failed: {exc}") from exc
+        if r.status_code != 200 or r.json().get("code") != 0:
+            raise ReadError(f"tiktok read HTTP {r.status_code}")
+        c = next((x for x in r.json()["data"]["list"] if x["campaign_id"] == budget_id), None)
+        if c is None:
+            raise ReadError(f"tiktok campaign {budget_id} not found")
+        return {"amount_inr": float(c["budget"]) * self.fx,
+                "status": "ENABLED" if c["operation_status"] == "ENABLE" else "PAUSED"}
+
+    def set_budget(self, budget_id: str, amount_inr: float, request_id: str | None = None) -> SendResult:
+        body = {"advertiser_id": self.adv, "campaign_id": budget_id, "budget": round(amount_inr / self.fx, 2)}
+        try:
+            r = self.client.post(f"{self.base}/tiktok/{self.ver}/campaign/update/", json=body,
+                                 headers={"X-Request-ID": request_id or f"adapt-{uuid.uuid4()}"})
+        except httpx.TimeoutException:
+            return SendResult(False, None, "TIMEOUT", True, True, redact(body))
+        except httpx.HTTPError as exc:
+            return SendResult(False, None, f"NETWORK: {exc}", True, True, redact(body))
+        resp = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"text": r.text}
+        if r.status_code == 200 and resp.get("code") == 0:
+            return SendResult(True, 200, None, False, False, redact(body), redact(resp))
+        return SendResult(False, r.status_code, str(resp.get("code")), r.status_code in (429, 500, 502, 503, 504),
+                          r.status_code in (500, 502, 504), redact(body), redact(resp))
+
+
+class MockAmazonAdapter:
+    """Amazon Ads Sponsored Products v3 (Stage 2 SIMULATED channel): campaign daily budget in INR via PUT
+    /sp/campaigns, read-back through a separate GET with campaignIdFilter."""
+    platform, mode = "amazon", "MOCK"
+
+    def __init__(self, client: httpx.Client, base_url: str = ""):
+        self.client, self.base = client, base_url.rstrip("/")
+
+    def tolerance(self) -> float:
+        return 0.01 + 1e-6
+
+    def read(self, budget_id: str) -> dict:
+        try:
+            r = self.client.get(f"{self.base}/amazon/v3/sp/campaigns", params={"campaignIdFilter": budget_id})
+        except httpx.HTTPError as exc:
+            raise ReadError(f"amazon read failed: {exc}") from exc
+        rows = r.json().get("campaigns", []) if r.status_code == 200 else []
+        if not rows:
+            raise ReadError(f"amazon campaign {budget_id} not found (HTTP {r.status_code})")
+        return {"amount_inr": float(rows[0]["budget"]["budget"]), "status": rows[0]["state"]}
+
+    def set_budget(self, budget_id: str, amount_inr: float, request_id: str | None = None) -> SendResult:
+        body = {"campaigns": [{"campaignId": budget_id, "budget": {"budget": round(amount_inr, 2),
+                                                                   "budgetType": "DAILY"}}]}
+        try:
+            r = self.client.put(f"{self.base}/amazon/v3/sp/campaigns", json=body,
+                                headers={"X-Request-ID": request_id or f"adapt-{uuid.uuid4()}"})
+        except httpx.TimeoutException:
+            return SendResult(False, None, "TIMEOUT", True, True, redact(body))
+        except httpx.HTTPError as exc:
+            return SendResult(False, None, f"NETWORK: {exc}", True, True, redact(body))
+        resp = r.json() if r.headers.get("content-type", "").startswith("application/json") else {"text": r.text}
+        if r.status_code == 200 and resp.get("campaigns", {}).get("success"):
+            return SendResult(True, 200, None, False, False, redact(body), redact(resp))
+        return SendResult(False, r.status_code, resp.get("code"), r.status_code in (429, 500, 502, 503, 504),
+                          r.status_code in (500, 502, 504), redact(body), redact(resp))
+
+
 class LiveNotBuilt:
-    """Live mode configured for a platform whose live adapter is not built: every leg is BLOCKED (no fallback)."""
+    """Live mode configured for a platform without a live adapter (Meta: sandbox out of scope), or Google live without a
+    workspace to read its live mapping from: every leg is BLOCKED (no fallback)."""
 
     def __init__(self, platform: str):
         self.platform, self.mode = platform, "LIVE"
@@ -160,16 +243,54 @@ class LiveNotBuilt:
         return 0.0
 
     def read(self, budget_id: str) -> dict:
-        raise AdapterUnavailable(f"{self.platform} live adapter not built (Stage 2); execution mode is fixed, "
+        raise AdapterUnavailable(f"{self.platform} live adapter unavailable; execution mode is fixed, "
                                  "no mock fallback")
 
     set_budget = read  # type: ignore[assignment]
 
 
-def build_adapters(client: httpx.Client, base_url: str = "", modes: dict[str, str] | None = None) -> dict:
-    """Adapters for the execution modes fixed at startup (settings / platforms.yaml); never a fallback."""
-    modes = modes or platforms_config()["execution_mode"]
+def build_adapters(client: httpx.Client, base_url: str = "", settings=None, db=None,
+                   live_http: httpx.Client | None = None, env: dict | None = None,
+                   modes: dict[str, str] | None = None) -> dict:
+    """Execution mode is fixed here, once, per platform (explicit `modes`, then the settings env override, else
+    platforms.yaml); never an automatic fallback. Google `live` = the v25 test-account adapter, mirrored into the
+    world service after verification."""
+    modes = {**platforms_config()["execution_mode"], **(modes or {})}
+    if settings is not None:
+        modes["google"] = settings.google_execution_mode
     out = {}
-    for platform, cls in (("google", MockGoogleAdapter), ("meta", MockMetaAdapter)):
-        out[platform] = cls(client, base_url) if modes.get(platform) == "mock" else LiveNotBuilt(platform)
+    for platform, cls in (("google", MockGoogleAdapter), ("meta", MockMetaAdapter), ("tiktok", MockTikTokAdapter),
+                          ("amazon", MockAmazonAdapter)):
+        if modes.get(platform) == "mock":
+            out[platform] = cls(client, base_url)
+        elif platform == "google" and db is not None:
+            from adapt.execute.google_ads_live import (
+                GoogleAdsCredentials,
+                GoogleAdsLiveAdapter,
+                load_mapping,
+                world_mirror,
+            )
+
+            version = platforms_config().get("api_versions", {}).get("google", "v25")
+            kw = {"http": live_http} if live_http is not None else {}
+            out[platform] = GoogleAdsLiveAdapter(GoogleAdsCredentials.from_env(env), load_mapping(db), version,
+                                                 mirror=world_mirror(client, base_url), **kw)
+        else:
+            out[platform] = LiveNotBuilt(platform)
+    return out
+
+
+def platform_health(adapters: dict) -> dict:
+    """GET /platforms/health (spec §9.4): per platform, the fixed execution mode and whether it can execute. In live
+    mode a failing check disables Approve for that platform's legs, with the reason."""
+    out = {}
+    for platform, ad in sorted(adapters.items()):
+        mode = getattr(ad, "mode", "MOCK")
+        if hasattr(ad, "health"):
+            out[platform] = ad.health()
+        elif mode == "MOCK":
+            out[platform] = {"ok": True, "mode": "MOCK", "label": f"MOCK · {platform} (simulated platform API)"}
+        else:
+            out[platform] = {"ok": False, "mode": mode, "reason": f"{platform} live adapter unavailable; no mock "
+                                                                  "fallback"}
     return out

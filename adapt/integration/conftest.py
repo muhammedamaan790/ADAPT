@@ -60,3 +60,20 @@ def db(tmp_path):
     d = Database(tmp_path / "workspace.duckdb")
     yield d
     d.close()
+
+
+@pytest.fixture(scope="session")
+def seeded_world_channels(tmp_path_factory) -> Path:
+    """Stage 2 SIMULATED channels: TikTok + Amazon Sponsored Products + the marketplace order population."""
+    root = tmp_path_factory.mktemp("integration_channels")
+    bb = make_backbone(root / "backbone")
+    ga = make_global_ads(root / "global_ads.csv")
+    return seed_fixture_world(root / "world", bb, ga, extra_channels=("tiktok", "amazon_sp"))
+
+
+@pytest.fixture
+def world_channels(seeded_world_channels, tmp_path):
+    d = tmp_path / "world_channels"
+    shutil.copytree(seeded_world_channels, d)
+    with TestClient(create_app(world_dir=d)) as client:
+        yield client

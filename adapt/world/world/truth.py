@@ -43,6 +43,7 @@ class WorldConfig:
     global_ads_csv: Path | None = None
     brand_scale: float = 10.0
     history_end_date: date = date(2026, 9, 30)
+    extra_channels: tuple[str, ...] = ()   # Stage 2 SIMULATED channels: "tiktok", "amazon_sp" (opt-in at seeding)
 
     def world_date(self, day: int) -> date:
         """World day -1 is history_end_date; day 0 is the first live day."""
@@ -274,12 +275,21 @@ def _draw_campaign(rng: np.random.Generator, c, pool: RatePool, bench: dict, tar
 
 
 CHANNEL_SOURCE = {"google_search": "Adwords", "google_video": "YouTube", "meta_prospecting": "Facebook",
-                  "meta_retargeting": "Facebook"}
+                  "meta_retargeting": "Facebook", "tiktok": "(simulated)", "amazon_sp": "(simulated marketplace)"}
+
+
+def marketplace_propensity(category_name: str) -> float:
+    """p(category) from marketplace_propensity.yaml (spec §1; an assumption, labelled as such)."""
+    import yaml
+
+    cfg = yaml.safe_load((Path(__file__).with_name("marketplace_propensity.yaml")).read_text(encoding="utf-8"))
+    low = category_name.lower()
+    return float(next((v for kw, v in cfg["by_category_keyword"].items() if kw in low), cfg["default"]))
 
 
 def build_truth(cfg: WorldConfig, catalog: Catalog | None = None, pools: dict[str, RatePool] | None = None) -> Truth:
     bench = benchmarks()
-    catalog = catalog or build_catalog(cfg.backbone_dir)
+    catalog = catalog or build_catalog(cfg.backbone_dir, extra_channels=tuple(cfg.extra_channels))
     pools = pools or load_priors(cfg.global_ads_csv)
     daily, shares, warehouse, window = _backbone_frames(Path(cfg.backbone_dir))
     codes = [c.code for c in catalog.categories]
@@ -301,6 +311,15 @@ def build_truth(cfg: WorldConfig, catalog: Catalog | None = None, pools: dict[st
         row = {"category_code": code, "units_mean": units_mean[code]}
         for ch in ("google_search", "google_video", "meta_prospecting", "meta_retargeting"):
             row[f"paid_{ch}"] = k * units_mean[code] * channel_share(ch)
+        # Stage 2 SIMULATED demand: ADDITIONAL to the backbone (TikTok sessions / a separate marketplace population)
+        ex = bench.get("extra_channels", {})
+        if "tiktok" in cfg.extra_channels:
+            row["paid_tiktok"] = k * units_mean[code] * float(ex["tiktok"]["purchase_share"])
+        if "amazon_sp" in cfg.extra_channels:
+            cat_name = next(c.name for c in catalog.categories if c.code == code)
+            market = k * units_mean[code] * marketplace_propensity(cat_name)
+            row["paid_amazon_sp"] = market * float(ex["amazon_sp"]["sp_share"])
+            row["unpaid_amazon_organic"] = market * (1 - float(ex["amazon_sp"]["sp_share"]))
         row["unpaid_email"] = k * units_mean[code] * shares.get("Email", 0.0)
         row["unpaid_organic"] = k * units_mean[code] * shares.get("Organic", 0.0)
         rate_rows.append(row)
@@ -452,7 +471,8 @@ def write_truth(truth: Truth, path: str | Path, overwrite: bool = False) -> None
         meta = {**truth.meta, "source_shares": truth.source_shares, "warehouse": truth.warehouse,
                 "config": {"seed": cfg.seed, "backbone_dir": str(cfg.backbone_dir),
                            "global_ads_csv": str(cfg.global_ads_csv) if cfg.global_ads_csv else None,
-                           "brand_scale": cfg.brand_scale, "history_end_date": cfg.history_end_date.isoformat()},
+                           "brand_scale": cfg.brand_scale, "history_end_date": cfg.history_end_date.isoformat(),
+                           "extra_channels": list(cfg.extra_channels)},
                 "fingerprint": truth_fingerprint(truth)}
         con.executemany("INSERT INTO meta VALUES (?, ?)", [(k, json.dumps(v, default=str)) for k, v in meta.items()])
         con.execute(GT_INCIDENTS_DDL)
@@ -484,7 +504,8 @@ def load_truth(path: str | Path) -> Truth:
     c = meta["config"]
     cfg = WorldConfig(seed=int(c["seed"]), backbone_dir=Path(c["backbone_dir"]),
                       global_ads_csv=Path(c["global_ads_csv"]) if c["global_ads_csv"] else None,
-                      brand_scale=float(c["brand_scale"]), history_end_date=date.fromisoformat(c["history_end_date"]))
+                      brand_scale=float(c["brand_scale"]), history_end_date=date.fromisoformat(c["history_end_date"]),
+                      extra_channels=tuple(c.get("extra_channels") or ()))
     truth = build_truth(cfg)
     got = truth_fingerprint(truth)
     if got != meta["fingerprint"]:

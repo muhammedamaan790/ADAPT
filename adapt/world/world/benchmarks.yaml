@@ -56,6 +56,8 @@ step:                            # world.step behaviour (no empirical source)
   delivery_optimization: 0.5     # impressions split across live creatives ~ quality^this (1 = instant optimisation,
                                  # 0 = even split); platforms re-optimise gradually, so a fatigued creative keeps reach
   view_through_rate:             # platform-claimed extra conversions per click-through purchase (over-attribution)
+    tiktok: [0.30, 0.60]
+    amazon_sp: [0.00, 0.05]
     google_search: [0.05, 0.15]
     google_video: [0.15, 0.35]
     meta_prospecting: [0.20, 0.45]
@@ -67,6 +69,9 @@ step:                            # world.step behaviour (no empirical source)
     meta_retargeting: 0.15
     email: 0.10
     organic: 0.50
+    tiktok: 0.75
+    amazon_sp: 0.55
+    amazon_organic: 0.50
   ga_record_rate: 0.95           # GA4 records this share of sessions/purchases (consent, blockers); S5 lowers it
   unpaid_session_cvr: 0.03       # unpaid sessions = unpaid orders / this
   return_lag_days: [3, 21]
@@ -85,3 +90,11 @@ fallback_rates:                  # USD CPM; used only when a channel has too few
   google_search: {ctr: 0.040, cvr: 0.046, cpm_usd: 72.0}
   google_video: {ctr: 0.038, cvr: 0.045, cpm_usd: 76.0}
   meta: {ctr: 0.024, cvr: 0.045, cpm_usd: 29.0}
+  tiktok: {ctr: 0.012, cvr: 0.020, cpm_usd: 9.0}
+  amazon_sp: {ctr: 0.004, cvr: 0.100, cpm_usd: 2.5}   # CPC ~ $0.6, ACOS ~ 25-35% at the catalog's prices
+
+extra_channels:                  # Stage 2 SIMULATED channels (spec §1): additional demand, never relabelled TheLook
+  tiktok:
+    purchase_share: 0.06         # TikTok-driven purchases per day as a share of the category's backbone units (x k)
+  amazon_sp:
+    sp_share: 0.35               # share of the marketplace order population driven by Sponsored Products ads

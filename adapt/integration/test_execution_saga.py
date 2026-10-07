@@ -244,7 +244,7 @@ def test_live_mode_never_falls_back_to_mock(world, db):
     out = saga.execute_decision(db, did, adapters(world) | {"google": LiveNotBuilt("google")}, "maria", T0, copy(st),
                                 NOSLEEP)
     assert out["state"] == "BLOCKED" and out["legs"][0]["state"] == "PLANNED"
-    assert "live adapter not built" in out["legs"][0]["error"]
+    assert "no mock fallback" in out["legs"][0]["error"]
     assert len(mutations(world, G2)) == 0 and dec.get_decision(db, did)["status"] == "BLOCKED"
 
 

@@ -1,0 +1,7 @@
+# Cannibalization (Stage 2, spec §8.1 step 2). Stage switch: enabled: false gives Stage 1 (T = 0, booked = curve
+# increment). Changing a value is an EXACT staleness input (the generated T matrix is in economics_hash).
+enabled: true
+coefficients:                 # c_ij for budget units i != j that sell a common category
+  same_category_same_channel_stage: 0.30
+  same_category: 0.15         # across channels, or the same channel at a different stage
+max_row_sum: 0.5              # T = alpha C with ONE global alpha = min(1, max_row_sum / max_i sum_j C_ij)

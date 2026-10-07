@@ -25,3 +25,21 @@ response_curve:
   coverage_band: [0.70, 0.90] # P10-P90 predictive coverage on the holdout
   pooled_min_campaigns: 3
   baseline_trend_days: 14     # forecast baseline = mean of the last 14 baseline values
+demand:                       # Stage 2 (spec §7.3, §22.2): LightGBM quantile P10 / P50 / P90 over all SKUs
+  train_days: 120
+  holdout_days: 28            # P: promotion holdout
+  diagnostic_days: 14         # D
+  min_train_rows: 500
+  min_improvement_vs_naive: 0.05   # (a) beat seasonal-naive WAPE by >= 5%
+  coverage_band: [0.70, 0.90]      # (c) P10-P90 coverage on the holdout
+  seed: 20261003
+  rounds: 200
+  lightgbm: {learning_rate: 0.05, num_leaves: 15, min_data_in_leaf: 20, feature_fraction: 0.9, lambda_l2: 1.0}
+  refit_days: 7               # weekly refresh (spec §2)
+  calibration_days: 28        # CQR: the last 28 days of each training window calibrate the P10-P90 width
+  interval_alpha: 0.2         # 80% nominal interval (P10-P90)
+governance:                   # champion / challenger (spec §10.2 (b))
+  noninferiority_tolerance: 0.02   # paired moving-block bootstrap 95% upper bound of the relative error difference
+  bootstrap: 1000
+  block_days: 7
+  seed: 20261004

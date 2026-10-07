@@ -352,6 +352,9 @@ def _sha(a: CurveArtifact) -> str:
 
 
 def _persist(db, as_of: datetime, artifacts: dict[str, CurveArtifact], results: dict) -> None:
+    version = hashlib.sha256("".join(sorted(_sha(a) for a in artifacts.values())).encode()).hexdigest()[:16]
+    metrics = {"units": len(artifacts), "ok": sum(a.status == "OK" for a in artifacts.values())}
+
     def work(cur):
         cur.execute(DDL)
         draws_rows = []
@@ -374,17 +377,34 @@ def _persist(db, as_of: datetime, artifacts: dict[str, CurveArtifact], results: 
                 cur.execute("INSERT OR REPLACE INTO models.curve_draws BY NAME SELECT * FROM _draws")
             finally:
                 cur.unregister("_draws")
-        version = hashlib.sha256("".join(sorted(_sha(a) for a in artifacts.values())).encode()).hexdigest()[:16]
-        metrics = {"units": len(artifacts), "ok": sum(a.status == "OK" for a in artifacts.values())}
         cur.execute("UPDATE models.registry SET role = 'retired' WHERE model = 'response_curve' AND role = 'champion'")
         cur.execute("INSERT OR REPLACE INTO models.registry VALUES ('response_curve', ?, 'champion', ?, ?, ?, ?)",
                     [version, as_of, json.dumps(metrics), as_of, "Stage 1: first fit (criteria a + c)"])
 
     db.write(work)
+    # Stage 2 governance record: a weekly refit of the same specification (per-unit acceptance a + c happens inside
+    # the fit, with pooled / MODEL_UNAVAILABLE fallbacks); rollback restores the previous fit's artifacts
+    from adapt.learn import governance
+
+    spec = curve_config()
+    spec_hash = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()[:16]
+    governance.register_champion(db, "response_curve", as_of.isoformat(), as_of, "HILL_ADSTOCK",
+                                 "refit of the champion specification (per-unit acceptance a + c inside the fit)",
+                                 feature_hash=spec_hash, spec=spec, validation=metrics, artifact_sha256=version)
+
+
+def champion_fit_ts(db) -> datetime | None:
+    """The fit_ts of the champion curves: the governance registry's champion (rollback-aware), else the latest fit."""
+    if db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'learn' AND table_name = "
+                "'model_registry'"):
+        row = db.query("SELECT version FROM learn.model_registry WHERE model = 'response_curve' AND role = 'champion'")
+        if row:
+            return datetime.fromisoformat(row[0][0])
+    return db.query("SELECT max(fit_ts) FROM models.response_curves")[0][0]
 
 
 def load_curves(db, fit_ts: datetime | None = None) -> dict[str, CurveArtifact]:
-    ts = fit_ts or db.query("SELECT max(fit_ts) FROM models.response_curves")[0][0]
+    ts = fit_ts or champion_fit_ts(db)
     out = {}
     draws = {}
     for unit, kind, _d, *p in db.query("SELECT unit_id, kind, draw, beta, K, S, theta, gamma FROM models.curve_draws "

@@ -19,11 +19,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from world import assets
-from world.mutations import google, meta
+from world.mutations import amazon, google, meta, tiktok
+from world.reporting import amazon as amazon_reporting
 from world.reporting import ga4_erp
 from world.reporting import google as google_reporting
 from world.reporting import meta as meta_reporting
 from world.reporting import store as store_reporting
+from world.reporting import tiktok as tiktok_reporting
 from world.seed import BASELINE_NAME
 from world.state import CommitResult, WorldStateConflict, WorldStore
 from world.step import make_store
@@ -42,20 +44,20 @@ class AdvanceRequest(BaseModel):
 
 
 class FaultRequest(BaseModel):
-    platform: Literal["google", "meta"]
+    platform: Literal["google", "meta", "tiktok", "amazon"]
     fault: Literal["rate_limit", "unavailable", "bad_request", "timeout_after_success"]
     count: int = Field(default=1, ge=1, le=100)
 
 
 class BudgetRequest(BaseModel):
-    platform: Literal["google", "meta"]
+    platform: Literal["google", "meta", "tiktok", "amazon"]
     budget_id: str = Field(min_length=1)
     amount: float = Field(ge=0)
     status: Literal["ENABLED", "PAUSED"] = "ENABLED"
 
 
 class ScenarioRequest(BaseModel):
-    key: Literal["S1", "S2", "S3", "S4", "S5", "S7", "DEMO_01"]
+    key: Literal["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S10", "S11", "S12", "DEMO_01"]
     start_day: int | None = None  # default: the current clock day
     params: dict = Field(default_factory=dict)
 
@@ -222,6 +224,10 @@ def create_app(state_path: str | Path | None = None, world_dir: str | Path | Non
 
     app.include_router(google.router)
     app.include_router(meta.router)
+    app.include_router(tiktok.router)
+    app.include_router(amazon.router)
+    app.include_router(tiktok_reporting.router)
+    app.include_router(amazon_reporting.router)
     app.include_router(google_reporting.router)
     app.include_router(meta_reporting.router)
     app.include_router(store_reporting.router)

@@ -29,3 +29,10 @@ def world_copy(seeded_world_dir, tmp_path) -> Path:
     dst = tmp_path / "world"
     shutil.copytree(seeded_world_dir, dst)
     return dst
+
+
+@pytest.fixture(scope="session")
+def seeded_world_channels(backbone_dir, global_ads_csv, tmp_path_factory) -> Path:
+    """A fixture world with the Stage 2 SIMULATED channels (TikTok + Amazon Sponsored Products + marketplace)."""
+    return seed_fixture_world(tmp_path_factory.mktemp("seeded_channels"), backbone_dir, global_ads_csv,
+                              extra_channels=("tiktok", "amazon_sp"))
