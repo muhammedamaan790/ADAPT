@@ -62,7 +62,9 @@ export function DecisionCenter() {
   const reject = useAction((v: { d: Decision; reason: string }) =>
     api.reject(v.d.decision_id, v.d.decision_hash, v.reason),
   );
-  const advance = useAction(() => api.advance(3));
+  const advance = useAction(async () => {
+    await api.advance(3);
+  });
   const close = () => {
     setDialog(null);
     setConfirmed(false);
@@ -134,6 +136,7 @@ export function DecisionCenter() {
     ].includes(execution.state);
   const lossLabel = d.class === 'SAFETY' ? 'Model-estimated avoided loss' : 'Model-estimated ΔCAA';
   const isOperational = d.class === 'OPERATIONAL';
+  const valuationMissing = d.valuation_status === 'NOT_ESTIMABLE';
   const absenceMessage: Record<Decision['status'], { title: string; detail: string }> = {
     PENDING_APPROVAL: {
       title: 'Waiting for your approval',
@@ -199,6 +202,15 @@ export function DecisionCenter() {
         </div>
         <Badge tone="accent">PROFIT · APPROVE MODE</Badge>
       </div>
+      {d.follows && (
+        <p className="notice">
+          Separate revision of{' '}
+          <Link className="text-link" to={`/decisions/${d.follows}`}>
+            {d.follows}
+          </Link>
+          . The original proposal remains in history.
+        </p>
+      )}
       {(decisions.data?.length || 0) > 1 && (
         <nav className="decision-switcher" aria-label="Decision selection">
           {decisions.data!.map((x) => (
@@ -366,7 +378,7 @@ export function DecisionCenter() {
                 ))}
               </div>
             )}
-            {!isOperational && (
+            {!isOperational && !valuationMissing && (
               <>
                 <div className="reserve-callout">
                   <div>
@@ -397,28 +409,35 @@ export function DecisionCenter() {
               </>
             )}
           </section>
-          <section className="panel">
-            <SectionTitle title="Why not the obvious alternative?" />
-            <div className="why-not-list">
-              {d.why_not.map((item) => (
-                <article key={item.entity}>
-                  <div className="why-not-title">
-                    <h3>{item.entity}</h3>
-                    <Badge tone="warning">Not selected</Badge>
-                  </div>
-                  <p>{item.reason}</p>
-                  <div className="why-not-footer">
-                    <span>{item.metric}</span>
-                    <code>{item.rule_id}</code>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
+          {!valuationMissing && (
+            <section className="panel">
+              <SectionTitle title="Why not the obvious alternative?" />
+              <div className="why-not-list">
+                {d.why_not.map((item) => (
+                  <article key={item.entity}>
+                    <div className="why-not-title">
+                      <h3>{item.entity}</h3>
+                      <Badge tone="warning">Not selected</Badge>
+                    </div>
+                    <p>{item.reason}</p>
+                    <div className="why-not-footer">
+                      <span>{item.metric}</span>
+                      <code>{item.rule_id}</code>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
           <section className="panel" id="execution">
             <SectionTitle title="Execution & verification">
               {execution && <Status value={execution.state} />}
             </SectionTitle>
+            {execution && (
+              <Link className="text-link" to="/executions">
+                Open recovery controls & ledger <ArrowRight size={14} />
+              </Link>
+            )}
             {executions.isError ? (
               <ErrorState error={executions.error!} retry={() => void executions.refetch()} />
             ) : executions.isPending ? (
@@ -465,6 +484,9 @@ export function DecisionCenter() {
                           {money(leg.before)} <ArrowRight size={12} />
                           {money(leg.after)}
                         </span>
+                        {leg.read_back_budget !== undefined && (
+                          <small>Latest read-back: {money(leg.read_back_budget)}</small>
+                        )}
                       </div>
                       <div className="leg-badges">
                         <Badge tone={leg.mode === 'LIVE' ? 'accent' : 'neutral'}>{leg.mode}</Badge>
@@ -544,7 +566,15 @@ export function DecisionCenter() {
             <SectionTitle title="Review the proposal">
               <ShieldCheck size={19} />
             </SectionTitle>
-            {isOperational ? (
+            {valuationMissing ? (
+              <div className="operational-review">
+                <h3>Awaiting backend valuation</h3>
+                <p>
+                  This draft has no forecast, updated inventory projection or executable approval.
+                  Connect the engine to revalue the revised allocation.
+                </p>
+              </div>
+            ) : isOperational ? (
               <div className="operational-review">
                 <LockKeyhole size={22} />
                 <h3>Resolve tracking first</h3>
@@ -613,6 +643,11 @@ export function DecisionCenter() {
             >
               Reject with a reason
             </button>
+            {d.class === 'OPTIMIZATION' && d.status === 'PENDING_APPROVAL' && (
+              <Link className="button secondary full" to="/optimizer">
+                Modify allocation
+              </Link>
+            )}
             <div className="approval-footnote">
               <LockKeyhole size={13} />
               <span>
@@ -637,7 +672,7 @@ export function DecisionCenter() {
               </div>
             </Disclosure>
           </section>
-          {!isOperational && (
+          {!isOperational && !valuationMissing && (
             <div className="inaction-note">
               <h3>What if we do nothing?</h3>
               <strong>{money(d.cost_of_inaction_7d)}</strong>

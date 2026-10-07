@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
 import {
   Activity,
@@ -10,13 +10,26 @@ import {
   ShieldCheck,
   Sun,
   Workflow,
+  Radar,
+  SlidersHorizontal,
+  ListChecks,
+  PlugZap,
 } from 'lucide-react';
 import { CommandCenter } from './pages/CommandCenter';
 import { DecisionCenter } from './pages/DecisionCenter';
 import { ScenarioLab } from './pages/ScenarioLab';
 import { dataMode } from './api/client';
-import { Badge } from './components/ui';
+import { Badge, Loading } from './components/ui';
 import { useOverview } from './hooks/workspace';
+
+const Anomalies = lazy(() => import('./pages/Anomalies').then((m) => ({ default: m.Anomalies })));
+const Optimizer = lazy(() => import('./pages/Optimizer').then((m) => ({ default: m.Optimizer })));
+const ExecutionLedger = lazy(() =>
+  import('./pages/ExecutionLedger').then((m) => ({ default: m.ExecutionLedger })),
+);
+const Connection = lazy(() =>
+  import('./pages/Connection').then((m) => ({ default: m.Connection })),
+);
 
 export function App() {
   const [dark, setDark] = useState(() => localStorage.getItem('adapt.theme') === 'dark');
@@ -47,7 +60,7 @@ export function App() {
           <span className="workspace-avatar">D</span>
           <div>
             <strong>D2C workspace</strong>
-            <small>Stage 1 · INR</small>
+            <small>Decision workspace · INR</small>
           </div>
         </div>
         <nav aria-label="Primary navigation">
@@ -62,6 +75,22 @@ export function App() {
           <NavLink to="/scenarios">
             <FlaskConical size={19} />
             <span>Scenario Lab</span>
+          </NavLink>
+          <NavLink to="/anomalies">
+            <Radar size={19} />
+            <span>Anomalies</span>
+          </NavLink>
+          <NavLink to="/optimizer">
+            <SlidersHorizontal size={19} />
+            <span>Optimizer</span>
+          </NavLink>
+          <NavLink to="/executions">
+            <ListChecks size={19} />
+            <span>Execution & Ledger</span>
+          </NavLink>
+          <NavLink to="/connection">
+            <PlugZap size={19} />
+            <span>Backend Connection</span>
           </NavLink>
         </nav>
         <div className="sidebar-bottom">
@@ -104,7 +133,15 @@ export function App() {
                 ? 'Decision Center'
                 : route.startsWith('/scenarios')
                   ? 'Scenario Lab'
-                  : 'Command Center'}
+                  : route.startsWith('/anomalies')
+                    ? 'Anomalies'
+                    : route.startsWith('/optimizer')
+                      ? 'Optimizer'
+                      : route.startsWith('/executions')
+                        ? 'Execution & Ledger'
+                        : route.startsWith('/connection')
+                          ? 'Backend Connection'
+                          : 'Command Center'}
             </strong>
           </div>
           <div className="topbar-actions">
@@ -135,21 +172,27 @@ export function App() {
           </div>
         )}
         <main id="main" tabIndex={-1}>
-          <Routes>
-            <Route path="/" element={<CommandCenter />} />
-            <Route path="/decisions" element={<DecisionCenter />} />
-            <Route path="/decisions/:id" element={<DecisionCenter />} />
-            <Route path="/scenarios" element={<ScenarioLab />} />
-            <Route
-              path="*"
-              element={
-                <div className="empty">
-                  <h1>Page not found</h1>
-                  <Link to="/">Return to Command Center</Link>
-                </div>
-              }
-            />
-          </Routes>
+          <Suspense fallback={<Loading label="Loading workspace" />}>
+            <Routes>
+              <Route path="/" element={<CommandCenter />} />
+              <Route path="/decisions" element={<DecisionCenter />} />
+              <Route path="/decisions/:id" element={<DecisionCenter />} />
+              <Route path="/scenarios" element={<ScenarioLab />} />
+              <Route path="/anomalies" element={<Anomalies />} />
+              <Route path="/optimizer" element={<Optimizer />} />
+              <Route path="/executions" element={<ExecutionLedger />} />
+              <Route path="/connection" element={<Connection />} />
+              <Route
+                path="*"
+                element={
+                  <div className="empty">
+                    <h1>Page not found</h1>
+                    <Link to="/">Return to Command Center</Link>
+                  </div>
+                }
+              />
+            </Routes>
+          </Suspense>
         </main>
         <footer className="app-footer">
           <span>

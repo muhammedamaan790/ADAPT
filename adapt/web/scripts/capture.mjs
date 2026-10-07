@@ -49,7 +49,10 @@ for (const [name, viewport] of [
     await page.getByRole('button', { name: 'Confirm load', exact: true }).click();
     await page.goto('http://127.0.0.1:5173/decisions');
     await page.getByText('Resolve tracking first', { exact: true }).waitFor();
-    await page.screenshot({ path: '../../.impeccable/review/desktop-tracking.png', fullPage: true });
+    await page.screenshot({
+      path: '../../.impeccable/review/desktop-tracking.png',
+      fullPage: true,
+    });
   } else {
     await page.goto('http://127.0.0.1:5173/decisions');
     await page.locator('.allocation-mobile').waitFor();

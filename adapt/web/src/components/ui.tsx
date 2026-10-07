@@ -13,7 +13,16 @@ export function Badge({
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 export function Status({ value }: { value: string }) {
-  const tone = ['EXECUTED', 'SUCCEEDED', 'VERIFIED', 'SUCCESS', 'GREEN'].includes(value)
+  const tone = [
+    'EXECUTED',
+    'SUCCEEDED',
+    'VERIFIED',
+    'SUCCESS',
+    'GREEN',
+    'RESOLVED',
+    'COMPENSATED',
+    'RESOLVED_MANUALLY',
+  ].includes(value)
     ? 'success'
     : [
           'BLOCKED',
@@ -25,7 +34,9 @@ export function Status({ value }: { value: string }) {
           'HUMAN_RESOLUTION_REQUIRED',
         ].includes(value)
       ? 'danger'
-      : ['PENDING_APPROVAL', 'APPROVED', 'PARTIAL', 'YELLOW'].includes(value)
+      : ['PENDING_APPROVAL', 'APPROVED', 'PARTIAL', 'YELLOW', 'OPEN', 'ACKNOWLEDGED'].includes(
+            value,
+          )
         ? 'warning'
         : 'neutral';
   return (

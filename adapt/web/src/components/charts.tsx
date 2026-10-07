@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Evidence } from '../api/contracts';
 
 type Point = Evidence['chart'][number];
@@ -6,14 +6,26 @@ export function TrendChart({
   data,
   title = 'Reconciled ROAS',
   small = false,
+  responsive = false,
 }: {
   data: Point[];
   title?: string;
   small?: boolean;
+  responsive?: boolean;
 }) {
   const [active, setActive] = useState<number | null>(null);
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(680);
+  useEffect(() => {
+    if (!responsive || !chartRef.current) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setWidth(Math.max(280, Math.min(680, entry.contentRect.width))),
+    );
+    observer.observe(chartRef.current);
+    return () => observer.disconnect();
+  }, [responsive, data.length]);
   if (data.length === 0) return <p className="muted">No time-series observations yet.</p>;
-  const w = 680,
+  const w = responsive ? width : 680,
     h = small ? 170 : 210,
     left = 38,
     right = 12,
@@ -28,7 +40,7 @@ export function TrendChart({
     data.map((d, i) => `${x(i)},${y(d[key])}`).join(' ');
   const selected = active === null ? data[data.length - 1] : data[active];
   return (
-    <div className="trend-chart">
+    <div className="trend-chart" ref={chartRef}>
       <div className="chart-meta">
         <span>
           <i className="legend-line actual" />

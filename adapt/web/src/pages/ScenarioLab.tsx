@@ -34,9 +34,15 @@ export function ScenarioLab() {
   const [seed, setSeed] = useState('42');
   const [resetDialog, setResetDialog] = useState(false);
   const [scenarioDialog, setScenarioDialog] = useState(false);
-  const scenario = useAction((key: ScenarioKey) => api.scenario(key));
-  const advance = useAction((n: number) => api.advance(n));
-  const reset = useAction((n: number) => api.reset(n));
+  const scenario = useAction(async (key: ScenarioKey) => {
+    await api.scenario(key);
+  });
+  const advance = useAction(async (n: number) => {
+    await api.advance(n);
+  });
+  const reset = useAction(async (n: number) => {
+    await api.reset(n);
+  });
   if (overview.isPending) return <Loading label="Loading Scenario Lab" />;
   if (overview.error || !overview.data)
     return (
