@@ -122,20 +122,22 @@ class Runtime:
 
     def snapshot_baseline(self) -> None:
         path = self.settings.workspace_db_path
-        self.db.close()
-        shutil.copyfile(path, self.baseline_path)
-        self.db = Database(path)
+        self.db.swap_file(lambda: shutil.copyfile(path, self.baseline_path))
 
     def restore_baseline(self) -> None:
+        """Copy the baseline over the workspace in place: requests arriving meanwhile wait (about a second) instead
+        of failing on a closed connection."""
         if not self.baseline_path.exists():
             raise Busy("no workspace baseline: run `python -m adapt.api.runtime --bootstrap` first")
         path = self.settings.workspace_db_path
-        self.db.close()
-        shutil.copyfile(self.baseline_path, path)
-        wal = path.with_name(path.name + ".wal")
-        if wal.exists():
-            wal.unlink()
-        self.db = Database(path)
+
+        def restore():
+            shutil.copyfile(self.baseline_path, path)
+            wal = path.with_name(path.name + ".wal")
+            if wal.exists():
+                wal.unlink()
+
+        self.db.swap_file(restore)
 
 
 def bootstrap(settings: Settings | None = None, world_client: httpx.Client | None = None) -> dict:

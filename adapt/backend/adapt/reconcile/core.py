@@ -59,6 +59,8 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
         CREATE OR REPLACE TABLE core.campaigns AS
         SELECT entity_id AS campaign_id, platform,
                CASE WHEN platform = 'meta' THEN 'meta'
+                    WHEN platform = 'tiktok' THEN 'tiktok'
+                    WHEN platform = 'amazon' THEN 'amazon_sp'
                     WHEN channel_type = 'SEARCH' THEN 'google_search'
                     WHEN channel_type = 'VIDEO' THEN 'google_video'
                     ELSE platform || '_other' END AS channel_id,
@@ -87,12 +89,14 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
                CASE WHEN platform = 'google' THEN 'average_daily' ELSE 'daily' END AS delivery_semantics,
                coalesce(budget_is_shared, false) AS is_shared, budget_amount_inr AS current_amount_inr, status
         FROM snap
-        WHERE (platform = 'google' AND entity_type = 'budget') OR (platform = 'meta' AND entity_type = 'campaign')
+        WHERE (platform = 'google' AND entity_type = 'budget')
+           OR (platform IN ('meta', 'tiktok', 'amazon') AND entity_type = 'campaign')
         ORDER BY budget_id
     """)
     for table, value, entity_filter in (
         ("budget_history", "budget_amount_inr",
-         "(platform = 'google' AND entity_type = 'budget') OR (platform = 'meta' AND entity_type = 'campaign')"),
+         "(platform = 'google' AND entity_type = 'budget') "
+         "OR (platform IN ('meta', 'tiktok', 'amazon') AND entity_type = 'campaign')"),
         ("campaign_state_history", "status", "entity_type = 'campaign'"),
     ):
         key = "coalesce(budget_id, entity_id)" if table == "budget_history" else "entity_id"
@@ -124,13 +128,27 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
         FROM stg.sku_economics WHERE available_at <= {asof}
         QUALIFY row_number() OVER (PARTITION BY sku ORDER BY snapshot_date DESC) = 1
     """)
+    # web store lines + (Stage 2) the separate Amazon marketplace order population; refunds likewise
     cur.execute(f"""
         CREATE OR REPLACE TEMP TABLE refunds AS
-        SELECT order_id, line_item_id, sum(amount_ex_tax) AS realized, sum(quantity) AS qty
-        FROM stg.store_refund_lines WHERE available_at <= {asof} GROUP BY 1, 2
+        SELECT order_id, line_item_id, sum(realized) AS realized, sum(qty) AS qty FROM (
+            SELECT order_id, line_item_id, amount_ex_tax AS realized, quantity AS qty, date
+            FROM stg.store_refund_lines WHERE available_at <= {asof}
+            UNION ALL
+            SELECT order_id, line_item_id, amount, 1, date FROM stg.amazon_returns WHERE available_at <= {asof})
+        GROUP BY 1, 2
     """)
     cur.execute(f"""
-        CREATE OR REPLACE TEMP TABLE lines AS SELECT * FROM stg.store_order_lines WHERE available_at <= {asof}
+        CREATE OR REPLACE TEMP TABLE lines AS
+        SELECT order_id, line_item_id, created_at, date, customer_id, is_new_customer, sku, qty, unit_price,
+               line_discount, line_subtotal_ex_tax, utm_source, utm_medium, utm_campaign, utm_content, available_at,
+               ingested_at, provenance, 'web' AS sales_channel
+        FROM stg.store_order_lines WHERE available_at <= {asof}
+        UNION ALL
+        SELECT order_id, line_item_id, created_at, date, -order_id, NULL, sku, qty, unit_price, 0.0,
+               line_subtotal_ex_tax, 'amazon', 'marketplace', NULL, NULL, available_at, ingested_at, provenance,
+               'amazon'
+        FROM stg.amazon_order_lines WHERE available_at <= {asof}
     """)
     cur.execute(f"""
         CREATE OR REPLACE TABLE core.sku_return_rates AS
@@ -147,7 +165,9 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
     cur.execute(f"""
         CREATE OR REPLACE TABLE core.return_lag_cdf AS
         WITH lag AS (SELECT r.date - l.date AS lag_days
-                     FROM lines l JOIN stg.store_refund_lines r USING (order_id, line_item_id)
+                     FROM lines l JOIN (SELECT order_id, line_item_id, date, available_at FROM stg.store_refund_lines
+                                        UNION ALL SELECT order_id, line_item_id, date, available_at
+                                        FROM stg.amazon_returns) r USING (order_id, line_item_id)
                      WHERE r.available_at <= {asof} AND l.date >= {rr_from} AND l.date < {matured_before}),
              n AS (SELECT count(*) AS n FROM lag)
         SELECT a.age, CASE WHEN n.n = 0 THEN 0.0
@@ -187,7 +207,7 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
                    CASE WHEN camp.campaign_id IS NOT NULL THEN camp.channel_id {utm_cases}
                         ELSE 'direct' END AS channel_id,
                    l.utm_source, l.utm_medium, l.utm_campaign, l.utm_content,
-                   l.available_at, l.ingested_at, l.provenance
+                   l.available_at, l.ingested_at, l.provenance, l.sales_channel
             FROM lines l
             LEFT JOIN sku_costs c USING (sku)
             LEFT JOIN refunds r USING (order_id, line_item_id)
@@ -209,7 +229,8 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
         CREATE OR REPLACE TABLE core.orders AS
         SELECT order_id, any_value(event_ts) AS order_ts, any_value(analysis_date) AS analysis_date,
                any_value(customer_id) AS customer_id, bool_or(is_new_customer) AS is_new_customer,
-               any_value(channel_id) AS channel_id, any_value(campaign_id) AS campaign_id, 'web' AS sales_channel,
+               any_value(channel_id) AS channel_id, any_value(campaign_id) AS campaign_id,
+               any_value(sales_channel) AS sales_channel,
                sum(gross) AS gmv, sum(discount) AS discount, sum(refund) AS refund, sum(net_revenue) AS net_revenue,
                sum(cogs) AS cogs, sum(ship_cost) AS ship_cost, sum(payment_fee) AS payment_fee, sum(cba) AS cba,
                any_value(available_at) AS available_at
@@ -234,7 +255,29 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
                g.impressions, g.clicks, g.cost_inr, g.platform_conversions, g.platform_conversion_value_inr,
                g.available_at, g.provenance
         FROM stg.google_ad_daily g LEFT JOIN core.campaigns c USING (campaign_id) WHERE g.available_at <= {asof}
+        UNION ALL
+        SELECT date, 'tiktok', 'tiktok', campaign_id, adgroup_id, ad_id, impressions, clicks, spend_inr,
+               platform_conversions::DOUBLE, platform_conversion_value_inr, available_at, provenance
+        FROM stg.tiktok_ad_daily WHERE available_at <= {asof}
+        UNION ALL
+        SELECT date, 'amazon', 'amazon_sp', campaign_id, ad_group_id, coalesce(ad_id, ad_group_id), impressions,
+               clicks, cost_inr, purchases7d::DOUBLE, sales7d_inr, available_at, provenance
+        FROM stg.amazon_sp_daily WHERE available_at <= {asof}
         ORDER BY date, platform, ad_id
+    """)
+    # Amazon SP has no click path to an order (marketplace orders carry no UTM): its attributed sales are the
+    # platform's purchased-product report (Amazon's own attribution, platform-claimed), converted to net revenue with
+    # the SKU's expected return rate and to contribution with the SKU economics (spec §1; stated in the contract).
+    cur.execute(f"""
+        CREATE OR REPLACE TABLE core.platform_attributed_daily AS
+        SELECT p.date AS analysis_date, p.campaign_id, p.sku, p.purchases7d AS orders, p.purchases7d AS units,
+               p.sales7d_inr AS gross, p.sales7d_inr * coalesce(rr.return_rate, 0) AS refund,
+               p.sales7d_inr * (1 - coalesce(rr.return_rate, 0)) AS net_revenue,
+               p.sales7d_inr * (1 - coalesce(rr.return_rate, 0)) - p.purchases7d * (coalesce(c.cogs, 0)
+                 + coalesce(c.ship_cost, 0)) - coalesce(c.fee_pct, 0) * p.sales7d_inr AS cba,
+               'amazon_purchased_product' AS method, p.available_at
+        FROM stg.amazon_purchased_product p LEFT JOIN sku_costs c USING (sku)
+        LEFT JOIN core.sku_return_rates rr USING (sku) WHERE p.available_at <= {asof}
     """)
     cur.execute(f"""
         CREATE OR REPLACE TABLE core.campaign_reach_daily AS
@@ -274,7 +317,8 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
     counts = {}
     for t in ("campaigns", "ad_sets", "ads", "budgets", "budget_history", "campaign_state_history", "skus",
               "sku_return_rates", "return_lag_cdf", "pricing_snapshots", "order_items", "orders", "attribution",
-              "ad_metrics_daily", "campaign_reach_daily", "ga_daily", "inventory_daily", "campaign_sku"):
+              "ad_metrics_daily", "campaign_reach_daily", "ga_daily", "inventory_daily", "campaign_sku",
+              "platform_attributed_daily"):
         counts[f"core.{t}"] = cur.execute(f"SELECT count(*) FROM core.{t}").fetchone()[0]
     counts["_last_complete_day"] = last.isoformat()
     return counts
@@ -283,7 +327,9 @@ def build_core(cur, as_of: datetime) -> dict[str, int]:
 def build_campaign_sku(cur, today: date) -> None:
     """campaign_sku weights (spec §4): allocation = equal share of the product set; attribution = smoothed observed
     share of the campaign's attributed net revenue over the trailing window, with __unmapped__ absorbing revenue on
-    SKUs outside the product set. Weights sum to 1 per campaign; R = 0 falls back to the allocation weights."""
+    SKUs outside the product set. Weights sum to 1 per campaign; R = 0 falls back to the allocation weights.
+    Revenue is summed as exact DECIMAL (order-independent), since the weights feed every decision (see
+    adapt.core.db.DSUM_MACRO)."""
     cfg = reconcile_config()
     s = float(cfg["attribution_smoothing"])
     lo = d_literal(today - timedelta(days=cfg["attribution_window_days"]))
@@ -294,13 +340,17 @@ def build_campaign_sku(cur, today: date) -> None:
                     JOIN core.skus k ON k.category = c.product_set AND k.promoted),
              n AS (SELECT c.campaign_id, count(ps.sku) AS n FROM core.campaigns c LEFT JOIN ps USING (campaign_id)
                    GROUP BY 1),
-             rev AS (SELECT campaign_id, sku, sum(net_revenue) AS rev FROM core.order_items
-                     WHERE campaign_id IS NOT NULL AND analysis_date BETWEEN {lo} AND {hi} GROUP BY 1, 2),
-             tot AS (SELECT c.campaign_id, coalesce(sum(rev.rev), 0) AS r FROM core.campaigns c
+             rev AS (SELECT campaign_id, sku, sum(CAST(rev AS DECIMAL(38, 6))) AS rev FROM (
+                         SELECT campaign_id, sku, net_revenue AS rev FROM core.order_items
+                         WHERE campaign_id IS NOT NULL AND analysis_date BETWEEN {lo} AND {hi}
+                         UNION ALL
+                         SELECT campaign_id, sku, net_revenue FROM core.platform_attributed_daily
+                         WHERE analysis_date BETWEEN {lo} AND {hi}) GROUP BY 1, 2),
+             tot AS (SELECT c.campaign_id, CAST(coalesce(sum(rev.rev), 0) AS DOUBLE) AS r FROM core.campaigns c
                      LEFT JOIN rev USING (campaign_id) GROUP BY 1),
-             mapped AS (SELECT ps.campaign_id, ps.sku, 1.0 / n.n AS a, coalesce(rev.rev, 0) AS r
+             mapped AS (SELECT ps.campaign_id, ps.sku, 1.0 / n.n AS a, CAST(coalesce(rev.rev, 0) AS DOUBLE) AS r
                         FROM ps JOIN n USING (campaign_id) LEFT JOIN rev USING (campaign_id, sku)),
-             unm AS (SELECT c.campaign_id, coalesce(sum(rev.rev) FILTER (WHERE ps.sku IS NULL), 0) AS r,
+             unm AS (SELECT c.campaign_id, CAST(coalesce(sum(rev.rev) FILTER (WHERE ps.sku IS NULL), 0) AS DOUBLE) AS r,
                             CASE WHEN n.n = 0 THEN 1.0 ELSE 0.0 END AS a
                      FROM core.campaigns c JOIN n USING (campaign_id) LEFT JOIN rev USING (campaign_id)
                      LEFT JOIN ps ON ps.campaign_id = rev.campaign_id AND ps.sku = rev.sku

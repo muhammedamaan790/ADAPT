@@ -144,3 +144,14 @@ def test_s3_safety_candidate_removes_the_projected_shortfall():
 
 def test_objective_config_is_profit_only():
     assert objectives_config()["PROFIT"]["lambda"] == 0.5
+
+
+def test_fast_p10_is_bit_identical_to_numpy_percentile():
+    """The greedy search's P10 must equal np.percentile(d, 10) exactly: decision hashes depend on every float."""
+    from adapt.decide.optimizer import p10
+
+    rng = np.random.default_rng(7)
+    for n in [*range(1, 70), 200, 201]:
+        for d in (rng.normal(0, 1e5, n), rng.integers(-3, 3, n).astype(float), rng.standard_cauchy(n) * 1e7,
+                  np.round(rng.normal(0, 1e4, n), 2)):
+            assert p10(d) == float(np.percentile(d, 10))

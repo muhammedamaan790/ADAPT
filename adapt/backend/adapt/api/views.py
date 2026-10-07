@@ -242,6 +242,28 @@ def ledger_list(db) -> list[dict]:
     return out
 
 
+def calibration_note(cls: str, verdict: str, cal: dict | None) -> str:
+    """Why the optimism correction factor did or did not move for this outcome, in the manager's words."""
+    if cal and cal.get("applied"):
+        return "This outcome updated the optimism correction factor once."
+    if cls != "OPTIMIZATION":
+        return (f"{cls.title()} outcomes are measured as avoided loss and do not change response-curve "
+                "calibration.")
+    reason = (cal or {}).get("reason", "")
+    if reason.startswith("CONTAMINATED_BY_SAFETY"):
+        return ("A safety action touched these campaigns during the window, so this outcome is excluded from "
+                "calibration.")
+    if verdict not in ("SUCCESS", "NEUTRAL", "FAILED"):
+        return (f"{verdict.title()} outcomes are counted separately and do not change the optimism correction "
+                "factor.")
+    if reason.startswith("raw prediction"):
+        return ("The raw forecast was not a positive, material gain, so it is tracked in the cut-accuracy "
+                "statistic instead of the factor.")
+    if reason.startswith("already applied"):
+        return "This outcome was already applied to the factor once; it is never counted twice."
+    return "This outcome did not change the optimism correction factor."
+
+
 def outcome_list(db) -> list[dict]:
     if not has(db, "learn", "outcomes"):
         return []
@@ -258,7 +280,8 @@ def outcome_list(db) -> list[dict]:
                     "predicted": float(raw_w * f_dec if raw_w > 0 else raw_w), "measured": float(realized),
                     "counterfactual": float(cf_caa), "factor_before": float(before), "factor_after": float(after),
                     "matured_at": at.isoformat(), "method": method,
-                    "calibration_applied": bool(cal and cal.get("applied"))})
+                    "calibration_applied": bool(cal and cal.get("applied")),
+                    "calibration_note": calibration_note(cls, verdict, cal)})
     return out
 
 
@@ -377,7 +400,7 @@ def _rel(now, prev):
 
 
 def overview_view(db, workspace: str, world: dict, scenario: str) -> dict:
-    from adapt.api.routers.data import SOURCE_META, _freshness_text
+    from adapt.api.routers.data import _freshness_text, source_meta
     from adapt.ingest.connectors.base import sources_config
 
     run = latest_run(db)
@@ -417,7 +440,7 @@ def overview_view(db, workspace: str, world: dict, scenario: str) -> dict:
         for src, newest, age, score, st in db.query(
                 """SELECT source, newest_date, age_hours, score, status FROM ops.data_health
                    WHERE as_of = (SELECT max(as_of) FROM ops.data_health) ORDER BY source"""):
-            sources.append({"id": src, "name": SOURCE_META[src][0], "kind": SOURCE_META[src][1], "score": score,
+            sources.append({"id": src, "name": source_meta(src)[0], "kind": source_meta(src)[1], "score": score,
                             "status": st, "freshness": _freshness_text(newest, age),
                             "provenance": cfg[src]["provenance"]})
     decisions = decision_list(db)
@@ -463,13 +486,11 @@ def overview_view(db, workspace: str, world: dict, scenario: str) -> dict:
 
 
 def _run_opt_id(db, pipeline_run_id: str) -> str | None:
-    """The optimizer run produced by a pipeline run (its decide step summary)."""
-    row = db.query("SELECT detail FROM ops.pipeline_steps WHERE run_id = ? AND step = 'decide'", [pipeline_run_id])
-    if row:
-        created = json.loads(row[0][0]).get("created") or []
-        if created:
-            return created[0].split(":")[0]
-    row = db.query("SELECT run_id FROM intel.optimizer_runs ORDER BY as_of DESC LIMIT 1") \
-        if has(db, "intel", "optimizer_runs") else []
+    """The optimizer run produced by a pipeline run: same logical as_of (never parsed out of decision ids)."""
+    if not has(db, "intel", "optimizer_runs"):
+        return None
+    row = db.query("""SELECT o.run_id FROM intel.optimizer_runs o JOIN ops.pipeline_runs p ON p.as_of = o.as_of
+                      WHERE p.run_id = ? ORDER BY o.run_id LIMIT 1""", [pipeline_run_id])
+    if not row:
+        row = db.query("SELECT run_id FROM intel.optimizer_runs ORDER BY as_of DESC LIMIT 1")
     return row[0][0] if row else None
-

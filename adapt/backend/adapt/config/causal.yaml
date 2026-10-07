@@ -1,0 +1,15 @@
+# Gated synthetic control (Stage 2 *, spec §7.1 level 3, §22.9 "Causal"). Changing a value is a model-version change.
+synthetic_control:
+  fit_days: 21                # pre days 1-21: control selection, weights and lambda
+  holdout_days: 7             # pre days 22-28: untouched holdout, used only for the pre-fit sMAPE gate
+  placebo_offset_days: 14     # in-time placebo: the identical procedure with a fake start 14 days earlier
+  top_k: 10                   # controls kept: top K by Pearson correlation over the fit days (ties: entity id)
+  min_controls: 3
+  ridge: 0.01                 # lambda = ridge x trace(X'X) / n_controls
+  level: demeaned             # weights fit the series' deviations from their own fit-window means (see contract)
+  smape_max: 0.15             # pre-fit sMAPE on the 7-day holdout
+  bootstrap_draws: 500        # moving-block bootstrap of pre-period residuals for the effect interval
+  block_days: 7
+  ci: 0.90
+  min_post_conversions: 50    # attributed orders of the treated units in the post window
+  seed: 20261002

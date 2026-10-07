@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from adapt.core import parallel
 from adapt.detect.stats import (
     backtest_residuals,
     expected_numerator,
@@ -313,31 +314,41 @@ CREATE TABLE IF NOT EXISTS intel.anomalies (
 """
 
 
+def _evaluate_entities(jobs: list[tuple], windows: list[int]) -> list[MetricFlag]:
+    """Every metric x post window of each entity, in the serial loop's order (a pool task)."""
+    out = []
+    for entity_type, entity_id, platform, frame, metrics, cba_col in jobs:
+        cache: dict = {}
+        for metric, spec in metrics.items():
+            for w in windows:
+                kw = {"cba_col": cba_col} if cba_col else {}
+                out.append(evaluate(entity_type, entity_id, platform, metric, spec, frame, w, scale_cache=cache, **kw))
+    return out
+
+
 def run_detection(db, as_of: datetime, run_id: str) -> dict:
     cat, det = catalog(), materiality()["detector"]
     last = as_of.date() - timedelta(days=1)
     camps = _campaign_frames(db, last)
-    flags: list[MetricFlag] = []
     spend_change, clicks_change = {}, {}
-    cache: dict = {}
+    jobs: list[tuple] = []  # (entity_type, entity_id, platform, frame, metric specs, cba_col), in the serial order
     for cid, (platform, frame) in camps.items():
         frame = frame[frame["date"] <= last].reset_index(drop=True)
-        for metric, spec in cat["campaign_metrics"].items():
-            for w in det["post_windows"]:
-                flags.append(evaluate("campaign", cid, platform, metric, spec, frame, w, scale_cache=cache))
+        jobs.append(("campaign", cid, platform, frame, cat["campaign_metrics"], None))
         w = min(det["post_windows"])
         spend_change[cid] = _log_change(frame, "spend", w, det["pre_days"]) if len(frame) > w + det["pre_days"] else 0
         clicks_change[cid] = _log_change(frame, "clicks", w, det["pre_days"]) if len(frame) > w + det["pre_days"] else 0
     parent: dict[str, str] = {}
     for ad, (cid, platform, frame) in _creative_frames(db, last).items():
         parent[ad] = cid
-        for metric, spec in cat["creative_metrics"].items():
-            for w in det["post_windows"]:
-                flags.append(evaluate("creative", ad, platform, metric, spec, frame, w, scale_cache=cache))
+        jobs.append(("creative", ad, platform, frame, cat["creative_metrics"], None))
     for sku, frame in _sku_frames(db, last).items():
-        for metric, spec in cat["sku_metrics"].items():
-            for w in det["post_windows"]:
-                flags.append(evaluate("sku", sku, None, metric, spec, frame, w, cba_col="cba", scale_cache=cache))
+        jobs.append(("sku", sku, None, frame, cat["sku_metrics"], "cba"))
+    # entities are independent and evaluate() is pure: spread them over the shared pool in chunks (same results, same
+    # order as the serial loop; the backtest-scale cache is per (entity, metric), so it stays inside one task)
+    size = max(1, -(-len(jobs) // (4 * max(parallel.workers(), 1))))
+    chunks = [(jobs[k:k + size], det["post_windows"]) for k in range(0, len(jobs), size)]
+    flags: list[MetricFlag] = [f for part in parallel.pmap(_evaluate_entities, chunks) for f in part]
 
     # one row per (entity, metric): the flagged window with the largest |impact|, else the shortest window
     best: dict[tuple, MetricFlag] = {}

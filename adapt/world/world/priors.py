@@ -22,6 +22,8 @@ CHANNEL_SOURCES: dict[str, tuple[str, tuple[str, ...] | None]] = {
     "google_search": ("Google Ads", ("Search",)),
     "google_video": ("Google Ads", ("Video",)),
     "meta": ("Meta Ads", None),
+    "tiktok": ("TikTok Ads", None),        # Stage 2 SIMULATED channel
+    "amazon_sp": ("Amazon Ads", None),     # not in Global Ads: the benchmarks fallback (ACOS-calibrated)
 }
 
 

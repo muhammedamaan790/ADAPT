@@ -242,6 +242,8 @@ Fields have visible labels, surface backgrounds, rule borders and control radii.
 
 Graphite navigation uses pale readable labels, a darker hover background and a pale-blue selected row. All routes retain meaningful names and grouped hierarchy. The mobile dialog traps focus, closes on navigation or Escape, and restores focus to its trigger. Native controls have accessible names even when their visible phone treatment is icon-only.
 
+API mode preserves the existing sign-in form and session controls from main. The sign-in page uses the same reading surfaces, labeled native fields and primary action; the top bar exposes the existing signed-in identity and sign-out control. Fixture mode retains its explicitly illustrative workspace.
+
 ### Financial comparison and charts
 
 Financial strips use tabular values separated by vertical rules. The campaign plot is mathematically drawn SVG with a solid actual series and dashed amber baseline. Exact values are available through a labeled range input and an HTML data-table disclosure. Pointer and touch input supplement keyboard controls; they are not the sole means of reading data. Plot geometry responds to container width while labels remain legible.

@@ -12,7 +12,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { api, dataMode } from '../api/client';
-import type { Decision } from '../api/contracts';
+import type { Decision, Outcome } from '../api/contracts';
 import {
   useAction,
   useDecisions,
@@ -561,7 +561,7 @@ export function DecisionCenter() {
                   <p>
                     {outcome.calibration_applied
                       ? `Factor updated once: ${outcome.factor_before.toFixed(2)} → ${outcome.factor_after.toFixed(2)}. For the same raw forecast ${money(d.expected.raw_pred)}, the next calibrated forecast is ${money(d.expected.raw_pred * outcome.factor_after)}.`
-                      : 'Safety outcomes are excluded from response-curve calibration.'}
+                      : outcome.calibration_note || calibrationSkipReason(outcome)}
                   </p>
                 </Disclosure>
               </div>
@@ -815,6 +815,15 @@ export function DecisionCenter() {
     </>
   );
 }
+/** Why an outcome left the optimism correction factor unchanged, when the API gives no note. */
+function calibrationSkipReason(outcome: Outcome): string {
+  if (outcome.class !== 'OPTIMIZATION')
+    return 'Safety and operational outcomes do not change response-curve calibration.';
+  if (outcome.verdict === 'INCONCLUSIVE')
+    return 'Inconclusive outcomes are counted separately and do not change the optimism correction factor.';
+  return 'This outcome did not change the optimism correction factor.';
+}
+
 function PackageIcon() {
   return (
     <svg

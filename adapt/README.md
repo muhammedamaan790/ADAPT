@@ -59,3 +59,11 @@ Run exactly **one** process: the workspace DuckDB file allows a single writer, a
 
 - Health: `GET http://127.0.0.1:8000/api/v1/health`
 - OpenAPI contract for the frontend: `GET http://127.0.0.1:8000/openapi.json` (interactive docs at `/docs`)
+
+## Stage 2 (see `docs/STAGE2.md`)
+- Seed a world with the simulated TikTok + Amazon channels: `python -m world.seed --seed 42 --overwrite --demo --channels tiktok,amazon_sp`
+- Narratives use Groq when `GROQ_API_KEY` is set (strict JSON, guarded), deterministic templates otherwise.
+- Google Ads test account: `uv run python scripts/google_oauth_token.py`, sync once, `uv run python scripts/google_ads_setup.py`, then `ADAPT_GOOGLE_EXECUTION_MODE=live`.
+- Evaluation: `uv run python scripts/run_eval.py --bench`, then `uv run python scripts/run_eval.py --seeds eval --days 60 -j 8` (overnight) → `evidence/eval.json`.
+- Replay a decision in its archived code + lock environment: `uv run python scripts/replay.py <decision_id>`.
+- macOS only: LightGBM needs OpenMP (`brew install libomp`); without it the demand champion stays seasonal-naive.

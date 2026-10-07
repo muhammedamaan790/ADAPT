@@ -200,6 +200,7 @@ export const outcomeSchema = z.object({
   matured_at: z.string(),
   method: z.string(),
   calibration_applied: z.boolean(),
+  calibration_note: z.string().optional(),
 });
 export const eventSchema = z.object({
   id: z.string(),

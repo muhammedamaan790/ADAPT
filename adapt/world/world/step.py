@@ -37,7 +37,11 @@ SOURCE_MEDIUM = {
     "meta_retargeting": ("facebook", "paid_social"),
     "email": ("email", "email"),
     "organic": ("google", "organic"),
+    "tiktok": ("tiktok", "paid_social"),            # Stage 2 SIMULATED channels
+    "amazon_sp": ("amazon", "sponsored_products"),  # marketplace orders: never in the web store or GA4
+    "amazon_organic": ("amazon", "organic"),
 }
+MARKETPLACE = ("amazon_sp", "amazon_organic")
 SOURCE_RANK = {k: i for i, k in enumerate(SOURCE_MEDIUM)}
 
 STEP_SCHEMA = """
@@ -327,7 +331,9 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
         skus = cat.skus_of(c.code)
         cdf = np.cumsum([s.mix_weight for s in skus])
         cdf[-1] = 1.0
-        for src in ("email", "organic"):
+        unpaid_sources = ("email", "organic") + (("amazon_organic",) if "unpaid_amazon_organic" in rates.columns
+                                                  else ())
+        for src in unpaid_sources:
             entity = f"unpaid:{c.code}:{src}"
             n = int(generator(seed, day, entity, "count").poisson(rates.loc[c.code, f"unpaid_{src}"] * idx))
             k = np.minimum(np.searchsorted(cdf, uniforms(seed, day, entity, "sku", n), side="right"), len(skus) - 1)
@@ -434,6 +440,8 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
         if row.impressions == 0:
             continue
         ch = cat.campaign(row.campaign_id).channel
+        if ch in MARKETPLACE:
+            continue  # Amazon traffic never reaches the brand's GA4 property
         rate = ga_rate * eff.ga_mult.get(ch, 1.0)
         g = generator(seed, day, row.campaign_id, "ga")
         n_orders = int(row.orders)

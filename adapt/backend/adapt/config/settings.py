@@ -28,6 +28,12 @@ class Settings(BaseSettings):
 
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
 
+    # session login, roles and CSRF (spec §9.5; adapt/api/auth.py). Off only for in-process tests and fixture work.
+    auth_enabled: bool = True
+    session_secret: str | None = None  # random per process when unset: sessions end on restart
+    seed_password: str | None = None  # first-boot password for seeded users; else random, written to data/auth
+    secure_cookie: bool = False  # set true behind HTTPS
+
     # strict CORS: only the web app's origins (spec §9.5); the Vite dev proxy needs none
     web_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174",
                               "http://127.0.0.1:5174"]

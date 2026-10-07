@@ -13,16 +13,26 @@ export function Badge({
   return <span className={`badge badge-${tone}`}>{children}</span>;
 }
 export function Status({ value }: { value: string }) {
+  const status = value.toUpperCase();
   const tone = [
     'EXECUTED',
     'SUCCEEDED',
     'VERIFIED',
     'SUCCESS',
     'GREEN',
+    'APPROVED',
+    'ONLINE',
+    'READY',
+    'HEALTHY',
+    'AVAILABLE',
+    'APPLIED',
+    'FEASIBLE',
+    'COMPLETE',
+    'COMPLETED',
     'RESOLVED',
     'COMPENSATED',
     'RESOLVED_MANUALLY',
-  ].includes(value)
+  ].includes(status)
     ? 'success'
     : [
           'BLOCKED',
@@ -32,16 +42,25 @@ export function Status({ value }: { value: string }) {
           'CONFLICT',
           'COMPENSATION_FAILED',
           'HUMAN_RESOLUTION_REQUIRED',
-        ].includes(value)
+        ].includes(status)
       ? 'danger'
-      : ['PENDING_APPROVAL', 'APPROVED', 'PARTIAL', 'YELLOW', 'OPEN', 'ACKNOWLEDGED'].includes(
-            value,
-          )
+      : [
+            'PENDING',
+            'PENDING_APPROVAL',
+            'PARTIAL',
+            'YELLOW',
+            'OPEN',
+            'ACKNOWLEDGED',
+            'EXECUTING',
+            'COMPENSATING',
+          ].includes(status)
         ? 'warning'
-        : 'neutral';
+        : ['ACTIVE', 'INFO', 'INFORMATIONAL'].includes(status)
+          ? 'accent'
+          : 'neutral';
   return (
     <Badge tone={tone}>
-      {value === 'PENDING_APPROVAL' ? 'Needs approval' : humanStatus(value)}
+      {status === 'PENDING_APPROVAL' ? 'Needs approval' : humanStatus(value)}
     </Badge>
   );
 }
@@ -56,7 +75,7 @@ export function Empty({ title, children }: { title: string; children: ReactNode 
 }
 export function Loading({ label = 'Loading workspace' }: { label?: string }) {
   return (
-    <div className="loading" role="status">
+    <div className="loading" role="status" aria-live="polite">
       <Loader2 className="spin" size={22} />
       {label}
     </div>

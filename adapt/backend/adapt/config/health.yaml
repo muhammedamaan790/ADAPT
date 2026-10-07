@@ -10,6 +10,9 @@ sla_hours:
   finance: 168
   ga4: 30
   erp: 24
+  tiktok_ads: 24
+  amazon_ads: 36
+  amazon_marketplace: 24
 
 completeness:
   row_count_band: 0.40           # |today's rows / trailing-7-day mean - 1| beyond this is penalised

@@ -1,0 +1,9 @@
+# Inventory risk predicate (spec §0.5, §5, §8.1, §22.9 NB2). Stage switch:
+#   PROJECTED_SHORTFALL    Stage 1: deterministic projected shortfall over H (safety stock included)
+#   STOCKOUT_PROBABILITY   Stage 2: NB2 P(stockout over H) from the champion demand model's P50 + effective delta units
+predicate: STOCKOUT_PROBABILITY
+p_unsafe: 0.30              # gate: SKU at risk if P(stockout) > p_unsafe (spec §8.1)
+evidence_threshold: 0.50    # evidence module + safety monitor: P(stockout) > 0.5 (spec §22.1 #4, §9.3)
+recovery_threshold: 0.20    # hysteresis: re-scaling needs P(stockout) < 0.2 (spec §9.1)
+dispersion_window_days: 56  # NB2 r by method of moments on the trailing 56 days of observed daily demand counts
+r_cap: 1000000.0            # r capped (~ Poisson)

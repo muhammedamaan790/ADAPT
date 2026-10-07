@@ -14,8 +14,32 @@ health, ledger, optimizer context) all pass the frontend's own zod schemas under
 1. Start the world service: `WORLD_DIR=data/world/seed42 uv run uvicorn world.main:app --app-dir world --port 8100`
 2. Bootstrap the workspace once (sync + day-0 cycle + baseline): `uv run python -m adapt.api.runtime --bootstrap`
 3. Start the API: `uv run uvicorn adapt.api.main:app --app-dir backend --port 8000`
+   (set `ADAPT_SEED_PASSWORD` the first time, or read the generated `data/auth/initial_credentials.txt`)
 
 The Vite dev server proxies `/api` to it.
+
+## Login, roles and CSRF (spec §9.5; `backend/adapt/api/auth.py`)
+- **Users**: `viewer` (viewer), `maria` (manager), `admin` (admin), with Argon2 hashes in `data/auth/users.json`.
+  They live outside the workspace file, so `/sim/reset` keeps them. The first boot takes the password from
+  `ADAPT_SEED_PASSWORD`; without it, random passwords are written once to `data/auth/initial_credentials.txt`.
+- **Session**: `POST /auth/login {user_id, password}` sets the HttpOnly, SameSite=Lax `adapt_session` cookie (12 h,
+  signed with `ADAPT_SESSION_SECRET`; random per process when unset, so a restart signs everyone out). It returns
+  `{auth_enabled, user, csrf_token}`. `GET /auth/me` returns the same for the current cookie, or 401.
+  `POST /auth/logout` clears the cookie.
+- **CSRF**: every POST/PUT except login sends `X-CSRF-Token: <csrf_token>` (403 `CSRF_FAILED` otherwise). The token
+  is kept in memory by the frontend and is never readable from a cookie.
+- **Roles**: every GET needs viewer. Read-only computations sent as POST (simulate, what-if, creative score, Copilot)
+  need viewer. Every state change needs manager. Policy, objective, model promote/rollback and new workspaces need
+  admin. Denials are 403 `FORBIDDEN: this action needs the <role> role`.
+- **Actor**: approvals, rejections, executions, rollbacks, anomaly status changes and world control calls record the
+  signed-in user (no more `demo-manager`).
+- **Audit**: every write (allowed or denied) is appended to `data/auth/audit.jsonl` with request id, actor, role,
+  method, path and status.
+- **Throttling**: 5 failed logins for one user name within 5 minutes lock that name (429) until the window passes.
+- **Off switch**: `ADAPT_AUTH_ENABLED=false` (the in-process test suite) acts as the demo manager. `/health` is
+  always public.
+- **Frontend**: `web/src/components/AuthGate.tsx` shows the sign-in form on a 401 in API mode (fixture mode is not
+  gated). The topbar shows the user's initials and a sign-out button.
 
 ## Endpoints (`/api/v1`)
 | Area | Method + path | Notes |
@@ -29,6 +53,31 @@ The Vite dev server proxies `/api` to it.
 | Anomalies | GET `/anomalies`, `/anomalies/{id}`; POST `/anomalies/{id}/status` | |
 | Execution | GET `/executions`, `/ledger`, `/outcomes`; POST `/executions/{id}/verify`, `/rollback`, `/reconcile` | POST `/retry` → 422 NOT_BUILT |
 | Scenario Lab | GET `/sim/scenarios` (catalog: Stage 1 AVAILABLE, the rest NOT_BUILT with missing modules); POST `/sim/scenario/{key}` (S1–S5, S7, DEMO_01), `/sim/advance?days=n`, `/sim/reset?seed=42`, `/sim/fault/FAILED` | `/sim/fault/UNKNOWN` → 422 NOT_BUILT |
+
+**Screen endpoints** (insight, learning, model, policy, workspace and decision-detail screens;
+`backend/adapt/api/{insight_views,routers/insights}.py`):
+
+| Endpoint | Source / behaviour |
+|---|---|
+| GET `/opportunities` | spec §8.1 score: risk-adjusted ΔCAA of +min(₹1,000, the largest feasible increase) on one unit; FEASIBLE / BLOCKED (with the reason) / NOT_ESTIMABLE (no curve) |
+| GET `/curves/{budget_id}` | model-estimated 7-day ΔCAA at 21 budgets (0.5–1.5× current); empty with the reason when MODEL_UNAVAILABLE |
+| GET `/creatives/fatigue` | the fatigue evidence module on every campaign over the last 7 days (REVIEW when its gates pass) |
+| GET `/learning/calibration`, `/learning/accuracy`, `/learning/feedback` | calibration log, MAE of calibrated forecasts vs measured outcomes, eligibility per outcome |
+| GET `/models`, `/models/{name}/{version}` | registry champion (response_curve) + seasonal-naive demand; gates and metrics; no promote / rollback |
+| GET `/policy`, `/policy/history`, `/objective` | Approve-mode channels with readiness counts (never eligible in Stage 1); policy versions with field diffs; PROFIT only |
+| GET `/decisions/{id}/timeline`, `/snapshot`, `/archive`; POST `/decisions/{id}/simulate` | lifecycle + saga + outcome + calibration; snapshot manifest; replay environment and artifacts; the decision vs holding the current allocation |
+| GET `/decisions/{id}/replay` | re-runs economics + optimizer + policy from the snapshot in a background thread (cached per decision); UNAVAILABLE while running, then VERIFIED / MISMATCH |
+| GET `/workspaces`, POST `/workspaces/{id}/activate` | the one Stage 1 workspace |
+| POST `/copilot/chat` | SSE `answer` + `done`, TEMPLATE mode (LLM offline), grounded in stored state with app-route citations |
+| Later stage → contract's NOT_AVAILABLE / NOT_ESTIMABLE | `/learning/uplift`, `/learning/shadow`, `/learning/qualification`, `/eval/report`, POST `/creatives/score` |
+| Later stage → 422 NOT_BUILT | PUT `/policy`, PUT `/objective`, POST `/models/{name}/promote` and `rollback`, POST `/workspaces`, `/ingest/upload`, `/ingest/mapping/confirm`, `/copilot/sql` |
+
+**Decision ids** use only `[a-zA-Z0-9_-]`, as the archive contract requires (`opt-<hash>-R`, `-S<k>`, `-mod-<hash>-M`).
+
+**Verified**:
+- The real responses of all 23 screen endpoints pass the frontend's own zod schemas.
+- The live sweep (`web/tests/live-api/pages.spec.ts`) loads all 11 app pages from the real backend with no alert,
+  no contract mismatch and no fixture data.
 
 **Rules for every mutation**:
 - It requires `X-Request-ID` and `Idempotency-Key` (422 without them). Semantic idempotency is enforced by the
@@ -92,9 +141,9 @@ of a fractional current budget (a Meta budget converted from USD cents) means "u
    a reason.
 6. Reset: day 0, with no outcomes.
 
-**Frontend follow-up (copy)**: when `calibration_applied` is false, the outcome panel always says "Safety outcomes are
-excluded from response-curve calibration". For an INCONCLUSIVE OPTIMIZATION outcome the true reason is
-"INCONCLUSIVE outcomes do not calibrate".
+**Outcome calibration note**: each outcome carries `calibration_note`, the reason in words for why the optimism
+correction factor did or did not move (applied once; a safety or operational outcome; an INCONCLUSIVE verdict;
+contaminated by a safety action; a non-positive or immaterial forecast). The outcome panel shows it.
 
 ## C7: template narratives
 `decide/narrative.py` builds every decision's title, summary and why-not sentence, and the overview brief, only from

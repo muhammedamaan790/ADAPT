@@ -11,6 +11,9 @@ listener and ADAPT has no path to the file; only the eval truth listener reads t
 
 Stage 1 scenarios: S1 auction, S2 creative fatigue, S3 stockout, S4 price, S5 tracking, S7 human budget cut,
 DEMO_01 (fatigue + low hero-SKU cover on a Meta category, demand surge + deep stock on a Google category).
+Stage 2 scenarios: S6 category demand surge, S8 retargeting audience saturation (frequency 2 -> 5, reach flat),
+S10 holiday demand spike (seasonal_expected), S11 excess inventory (CLEARANCE), S12 fatigue + demand surge on the
+same campaign (params.without = "fatigue" | "demand" removes one driver: the eval's GT effect-order forks).
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from typing import Any
 import duckdb
 
 from world.state import WorldContext, WorldStateConflict
-from world.truth import Truth
+from world.truth import Truth, _solve_audience, frequency, impressions_at
 
 SCENARIO_SCHEMA = """
 CREATE TABLE IF NOT EXISTS scenario_activation (
@@ -39,7 +42,7 @@ CREATE TABLE IF NOT EXISTS gt_incidents (
 CREATE TABLE IF NOT EXISTS po_block (sku VARCHAR PRIMARY KEY, until_day INTEGER NOT NULL);
 """
 
-SCENARIOS = ("S1", "S2", "S3", "S4", "S5", "S7", "DEMO_01")
+SCENARIOS = ("S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S10", "S11", "S12", "DEMO_01")
 ROAS_FAMILY = ["ROAS", "POAS", "CPA"]
 
 
@@ -162,6 +165,72 @@ def resolve(key: str, truth: Truth, cur: duckdb.DuckDBPyConnection, start: int,
         return {"budget_id": camp.budget_id, "amount": round(row[0] * (1 - cut) / 100.0) * 100.0, "cut": cut}, \
             start, gts
 
+    if key == "S6":  # category demand surge (+40% over a 3-day ramp, 10 days): a positive anomaly, driver demand
+        cat = params.get("category_code", by_rank[1])
+        mag, ramp, days = float(params.get("magnitude", 0.40)), int(params.get("ramp_days", 3)), \
+            int(params.get("days", 10))
+        end = start + days - 1
+        ids = [c.campaign_id for c in truth.catalog.campaigns if c.category_code == cat]
+        gt("S6", "demand", ids, ["ROAS", "POAS", "CVR", "SKU_UNITS"],
+           {"ROAS": "UP", "POAS": "UP", "CVR": "UP", "SKU_UNITS": "UP"}, ramp, end, mag)
+        return {"category_code": cat, "magnitude": mag, "ramp_days": ramp}, end, gts
+
+    if key == "S8":  # retargeting audience saturation: daily frequency ~2 -> 5 with reach flat (audience shrinks)
+        camp = params.get("campaign_id") or max(
+            (t for t in truth.campaigns.values() if t.channel == "meta_retargeting"),
+            key=lambda t: (t.ctr_freq_gamma, t.campaign_id)).campaign_id  # the clearest CTR response to frequency
+        t = truth.campaigns[camp]
+        target_freq, ramp = float(params.get("target_frequency", 5.0)), int(params.get("ramp_days", 7))
+        days = int(params.get("days", 14))
+        end = start + days - 1
+        c = truth.catalog.campaign(camp)
+        row = cur.execute("SELECT amount FROM budgets_state WHERE platform = ? AND budget_id = ?",
+                          [c.platform, c.budget_id]).fetchone()
+        spend = (row[0] if row else t.s_ref) * t.budget_share * 0.975
+        imps = impressions_at(spend, t)
+        freq0 = frequency(imps, t.audience_size)
+        floor = min(1.0, _solve_audience(imps, max(target_freq, freq0)) / t.audience_size)
+        gt("S8", "audience_saturation", [camp], ["CTR", *ROAS_FAMILY],
+           {"CTR": "DOWN", "ROAS": "DOWN", "POAS": "DOWN", "CPA": "UP"}, ramp, end, target_freq / freq0 - 1)
+        return {"campaign_id": camp, "audience_floor": floor, "ramp_days": ramp, "frequency_before": freq0,
+                "target_frequency": target_freq}, end, gts
+
+    if key == "S10":  # a festival: every category's demand x1.6 for 2 days (must be labelled seasonal_expected)
+        mag, days = float(params.get("magnitude", 0.60)), int(params.get("days", 2))
+        end = start + days - 1
+        ids = [c.campaign_id for c in truth.catalog.campaigns]
+        gt("S10", "seasonal_expected", ids, ["ROAS", "POAS", "CVR", "SKU_UNITS"],
+           {"ROAS": "UP", "POAS": "UP", "CVR": "UP", "SKU_UNITS": "UP"}, 1, end, mag)
+        return {"magnitude": mag, "categories": [c.code for c in cats]}, end, gts
+
+    if key == "S11":  # excess inventory: a category's stock set to ~120 days of cover (the CLEARANCE objective case)
+        cat = params.get("category_code", by_rank[2])
+        cover = float(params.get("cover_days", 120.0))
+        stock = {s.sku: math.ceil(cover * _expected_sku_daily(truth, s.sku, start)) for s in truth.catalog.skus_of(cat)}
+        ids = [c.campaign_id for c in truth.catalog.campaigns if c.category_code == cat]
+        gt("S11", "excess_inventory", ids + sorted(stock), ["SKU_UNITS"], {"SKU_UNITS": "UP"}, 1, start, cover)
+        return {"category_code": cat, "cover_days": cover, "on_hand": stock}, start, gts
+
+    if key == "S12":  # creative fatigue + category demand surge on the same Meta campaign
+        cat = params.get("category_code", by_rank[1])
+        camp = params.get("campaign_id") or _campaign(truth, "meta_prospecting", cat).campaign_id
+        creative = params.get("creative_id") or _top_creative(cur, truth, camp, start)
+        fatigue, surge, ramp = float(params.get("magnitude", 0.40)), float(params.get("demand_surge", 0.30)), 10
+        without = params.get("without")  # eval-only counterfactual fork: remove one driver
+        if without not in (None, "fatigue", "demand"):
+            raise ValueError("S12 params.without must be 'fatigue' or 'demand'")
+        end = start + ramp + int(params.get("hold_days", 4)) - 1
+        if without != "fatigue":
+            gt("S12", "creative_fatigue", [camp, creative], ["CTR", *ROAS_FAMILY],
+               {"CTR": "DOWN", "ROAS": "DOWN", "POAS": "DOWN", "CPA": "UP"}, ramp, end, fatigue)
+        if without != "demand":
+            gt("S12", "demand", [camp], ["CVR", *ROAS_FAMILY], {"CVR": "UP"}, ramp, end, surge)
+        return {"campaign_id": camp, "creative_id": creative, "category_code": cat,
+                "magnitude": 0.0 if without == "fatigue" else fatigue,
+                "demand_surge": 0.0 if without == "demand" else surge, "ramp_days": ramp,
+                "audience_floor": 1.0 if without == "fatigue" else 0.75,
+                "without": without}, end, gts
+
     if key == "DEMO_01":
         women = [c for c in cats if c.department == "Women"]
         men = [c for c in cats if c.department == "Men"]
@@ -235,6 +304,9 @@ def apply_day_events(cur: duckdb.DuckDBPyConnection, truth: Truth, day: int) -> 
         elif key == "S7" and day == start:
             cur.execute("UPDATE budgets_state SET amount = ? WHERE platform = 'google' AND budget_id = ?",
                         [p["amount"], p["budget_id"]])
+        elif key == "S11" and day == start:
+            for sku, on_hand in sorted(p["on_hand"].items()):
+                cur.execute("UPDATE inventory_state SET on_hand = greatest(on_hand, ?) WHERE sku = ?", [on_hand, sku])
         elif key == "DEMO_01" and day == start:
             cur.execute("UPDATE inventory_state SET on_hand = ?, inbound_qty = 0, inbound_day = NULL WHERE sku = ?",
                         [p["hero_on_hand"], p["hero_sku"]])
@@ -268,6 +340,18 @@ def effects_for_day(cur: duckdb.DuckDBPyConnection, truth: Truth, day: int) -> D
         elif key == "S5":
             for ch in p["channels"]:
                 mul(eff.ga_mult, ch, 1 - p["drop"])
+        elif key == "S6":
+            mul(eff.demand_mult, p["category_code"], 1 + p["magnitude"] * _ramp(day, start, p["ramp_days"]))
+        elif key == "S8":
+            mul(eff.audience_mult, p["campaign_id"], 1 - (1 - p["audience_floor"]) * _ramp(day, start, p["ramp_days"]))
+        elif key == "S10":
+            for code in p["categories"]:
+                mul(eff.demand_mult, code, 1 + p["magnitude"])
+        elif key == "S12":
+            r = _ramp(day, start, p["ramp_days"])
+            mul(eff.creative_ctr_mult, p["creative_id"], 1 - p["magnitude"] * r)
+            mul(eff.audience_mult, p["campaign_id"], 1 - (1 - p["audience_floor"]) * r)
+            mul(eff.demand_mult, p["category_code"], 1 + p["demand_surge"] * r)
     return eff
 
 

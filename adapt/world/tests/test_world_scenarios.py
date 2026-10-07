@@ -194,3 +194,97 @@ def test_scheduled_scenario_during_seeding_and_replay(seeded_world_dir, truth, t
     assert fresh.semantic_state_hash() == store.semantic_state_hash()
     store.close()
     fresh.close()
+
+
+# ---- Stage 2 scenarios -------------------------------------------------------------------------------------------
+def test_s6_category_demand_surge(forks):
+    control, scen = forks
+    activate(scen, "S6")
+    for s, tag in ((control, "c"), (scen, "s")):
+        run(s, 10, tag)
+    cat = json.loads(one(scen, "SELECT params FROM scenario_activation"))["category_code"]
+    unpaid = "SELECT count(*) FROM fact_orders WHERE category_code = ? AND campaign_id IS NULL " \
+             "AND day BETWEEN 3 AND 9"
+    assert one(scen, unpaid, [cat]) / one(control, unpaid, [cat]) == pytest.approx(1.40, abs=0.15)
+    paid = "SELECT count(*) FROM fact_orders WHERE category_code = ? AND campaign_id IS NOT NULL " \
+           "AND day BETWEEN 3 AND 9"
+    assert one(scen, paid, [cat]) > one(control, paid, [cat])  # p_buy ~ demand^0.5: paid CVR up too
+    other = "SELECT count(*) FROM fact_orders WHERE category_code <> ? AND day >= 0"
+    assert one(scen, other, [cat]) == one(control, other, [cat])
+    (row,) = gt_rows(scen)
+    assert row[:2] == ("S6", "demand") and row[4] == 1 and row[6] == 0.40  # 3-day ramp: 50% on day 2 (index 1)
+
+
+def test_s8_retargeting_frequency_rises_reach_flat_ctr_down_broadly(forks):
+    control, scen = forks
+    activate(scen, "S8")
+    for s, tag in ((control, "c"), (scen, "s")):
+        run(s, 10, tag)
+    p = json.loads(one(scen, "SELECT params FROM scenario_activation"))
+    camp = p["campaign_id"]
+    q = "SELECT sum(impressions)::DOUBLE / sum(reach), avg(reach) FROM fact_ad_campaign_daily WHERE campaign_id = ? " \
+        "AND day BETWEEN 7 AND 9"
+    (f_s, r_s), (f_c, r_c) = scen.read(q, [camp])[0], control.read(q, [camp])[0]
+    assert f_s == pytest.approx(p["target_frequency"], rel=0.15) and f_s > 1.8 * f_c
+    assert r_s <= r_c * 1.05  # reach flat (it falls: the same budget reaches a smaller audience)
+    cq = "SELECT creative_id, sum(clicks)::DOUBLE / sum(impressions) FROM fact_ad_creative_daily " \
+         "WHERE campaign_id = ? AND day BETWEEN 7 AND 9 GROUP BY 1"
+    ctr_c, ctr_s = dict(control.read(cq, [camp])), dict(scen.read(cq, [camp]))
+    assert all(ctr_s[k] < ctr_c[k] for k in ctr_c)  # broad, not creative-specific
+    other = "SELECT sum(impressions) FROM fact_ad_campaign_daily WHERE campaign_id <> ? AND day >= 0"
+    assert one(scen, other, [camp]) == one(control, other, [camp])
+    assert gt_rows(scen)[0][1] == "audience_saturation"
+
+
+def test_s10_holiday_spike_then_back(forks):
+    control, scen = forks
+    activate(scen, "S10")
+    for s, tag in ((control, "c"), (scen, "s")):
+        run(s, 4, tag)
+    unpaid = "SELECT count(*) FROM fact_orders WHERE campaign_id IS NULL AND sku IS NOT NULL AND day BETWEEN ? AND ?"
+    assert one(scen, unpaid, [0, 1]) / one(control, unpaid, [0, 1]) == pytest.approx(1.6, abs=0.15)
+    assert one(scen, "SELECT count(*) FROM fact_orders WHERE campaign_id IS NULL AND sku IS NOT NULL AND day = 3") \
+        == pytest.approx(one(control, "SELECT count(*) FROM fact_orders WHERE campaign_id IS NULL "
+                                      "AND sku IS NOT NULL AND day = 3"), rel=0.15)
+
+
+def test_s11_excess_inventory(forks, truth):
+    _, scen = forks
+    activate(scen, "S11")
+    run(scen, 1, "s")
+    p = json.loads(one(scen, "SELECT params FROM scenario_activation"))
+    for sku, stock in p["on_hand"].items():
+        assert one(scen, "SELECT on_hand FROM fact_erp_daily WHERE sku = ? AND day = 0", [sku]) >= stock * 0.95
+    assert gt_rows(scen)[0][1] == "excess_inventory"
+
+
+def test_s12_fatigue_and_demand_and_the_counterfactual_forks(forks):
+    control, scen = forks
+    activate(scen, "S12")
+    for s, tag in ((control, "c"), (scen, "s")):
+        run(s, 12, tag)
+    p = json.loads(one(scen, "SELECT params FROM scenario_activation"))
+    assert [r[1] for r in gt_rows(scen)] == ["creative_fatigue", "demand"]
+    q = "SELECT sum(clicks)::DOUBLE / sum(impressions) FROM fact_ad_creative_daily WHERE creative_id = ? AND day >= 9"
+    assert one(scen, q, [p["creative_id"]]) < 0.75 * one(control, q, [p["creative_id"]])
+    unpaid = "SELECT count(*) FROM fact_orders WHERE category_code = ? AND campaign_id IS NULL AND day >= 9"
+    assert one(scen, unpaid, [p["category_code"]]) > 1.1 * one(control, unpaid, [p["category_code"]])
+
+
+def test_s12_without_a_driver_removes_exactly_that_driver(seeded_world_dir, truth, tmp_path):
+    stores = {}
+    for name in ("full", "no_fatigue"):
+        d = tmp_path / name
+        shutil.copytree(seeded_world_dir, d)
+        stores[name] = make_store(d / "sim_state.duckdb", truth)
+    stores["full"].commit("activate_scenario", "a", "t", {"key": "S12", "params": {}})
+    stores["no_fatigue"].commit("activate_scenario", "a", "t", {"key": "S12", "params": {"without": "fatigue"}})
+    for name, s in stores.items():
+        run(s, 12, name)
+    assert [r[1] for r in gt_rows(stores["no_fatigue"])] == ["demand"]
+    p = json.loads(one(stores["full"], "SELECT params FROM scenario_activation"))
+    unpaid = "SELECT count(*) FROM fact_orders WHERE category_code = ? AND campaign_id IS NULL"
+    assert one(stores["full"], unpaid, [p["category_code"]]) == one(stores["no_fatigue"], unpaid,
+                                                                    [p["category_code"]])
+    for s in stores.values():
+        s.close()

@@ -21,6 +21,9 @@ dependencies = [
     "rfc8785>=0.1.4",
     "kaggle>=1.6",
     "google-auth-oauthlib>=1.2",
+    "lightgbm>=4.7.0",
+    "argon2-cffi>=25.1.0",
+    "itsdangerous>=2.2.0",
 ]
 
 [dependency-groups]

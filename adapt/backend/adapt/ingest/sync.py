@@ -21,6 +21,7 @@ from adapt.core.db import Database
 from adapt.ingest.connectors.ads import sync_google, sync_meta
 from adapt.ingest.connectors.base import ConnectorResult, SyncContext, sources_config
 from adapt.ingest.connectors.commerce import sync_erp, sync_finance, sync_ga4, sync_store
+from adapt.ingest.connectors.marketplaces import sync_amazon_ads, sync_amazon_marketplace, sync_tiktok
 from adapt.ingest.http import ConnectorError, SourceHttp
 from adapt.ingest.schema import ensure_schema
 
@@ -31,6 +32,9 @@ CONNECTORS: dict[str, Callable[[SyncContext, date, date], ConnectorResult]] = {
     "finance": sync_finance,
     "ga4": sync_ga4,
     "erp": sync_erp,
+    "tiktok_ads": sync_tiktok,                   # Stage 2 SIMULATED channels (optional sources)
+    "amazon_ads": sync_amazon_ads,
+    "amazon_marketplace": sync_amazon_marketplace,
 }
 
 

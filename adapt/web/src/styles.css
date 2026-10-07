@@ -4743,3 +4743,36 @@ h3 {
     margin-top: 12px;
   }
 }
+
+/* Sign-in screen and the topbar session chip (AuthGate.tsx) */
+.login-screen {
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.login-panel {
+  width: min(400px, 100%);
+  margin: 0;
+}
+.login-panel h1 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.login-panel p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.login-panel .button {
+  margin-top: 20px;
+}
+.login-panel .login-error {
+  margin-top: 14px;
+  color: var(--danger);
+}
+.session-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

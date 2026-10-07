@@ -7,6 +7,7 @@ import json
 from dataclasses import asdict
 from datetime import datetime
 
+from adapt.diagnose.causal import estimate as causal
 from adapt.diagnose.decomposition import drilldown, roas_decomposition
 from adapt.diagnose.drivers import rank
 from adapt.diagnose.evidence import MODULES, Incident
@@ -83,28 +84,30 @@ def decompose(db, inc: Incident) -> tuple[dict, dict | None]:
     return asdict(funnel), dd_json
 
 
-def diagnose_incident(db, inc: Incident) -> dict:
-    """Level 1 (exact accounting) + level 2 (evidence modules) for one incident, ranked (reads only)."""
+def diagnose_incident(db, inc: Incident, materiality_m: float | None = None) -> dict:
+    """Level 1 (exact accounting) + level 2 (evidence modules, ranked) + level 3 (gated synthetic control, ROAS
+    family) for one incident (reads only)."""
     funnel, dd = decompose(db, inc)
     evidence = [module(db, inc) for module in MODULES.values()]
-    ranking = rank(evidence, inc.metric, funnel)
-    return {"funnel": funnel, "drilldown": dd, "evidence": evidence, "ranking": ranking}
+    ranking = rank(evidence, inc.metric, funnel, inc.direction)
+    return {"funnel": funnel, "drilldown": dd, "evidence": evidence, "ranking": ranking,
+            "causal": causal.estimate(db, inc, materiality_m)}
 
 
-def incident_from_row(aid, scope, ids_json, platform, metric, lo, hi) -> Incident:
+def incident_from_row(aid, scope, ids_json, platform, metric, lo, hi, direction=None) -> Incident:
     ids = json.loads(ids_json)
     if scope == "creative":
-        return Incident(aid, platform, [ids[0]], ids[1], metric, lo, hi)
-    return Incident(aid, platform, ids, None, metric, lo, hi)
+        return Incident(aid, platform, [ids[0]], ids[1], metric, lo, hi, direction)
+    return Incident(aid, platform, ids, None, metric, lo, hi, direction)
 
 
 def run_diagnosis(db, as_of: datetime) -> dict:
     db.write(lambda cur: cur.execute(DDL))
-    rows = db.query("""SELECT anomaly_id, scope, entity_ids, platform, metric, window_start, window_end
-                       FROM intel.anomalies WHERE is_incident AND status <> 'resolved' AND last_detected_at = ?""",
-                    [as_of])
-    results = [(incident_from_row(*r), None) for r in rows]
-    results = [(inc, diagnose_incident(db, inc)) for inc, _ in results]
+    rows = db.query("""SELECT anomaly_id, scope, entity_ids, platform, metric, window_start, window_end, direction,
+                              threshold FROM intel.anomalies
+                       WHERE is_incident AND status <> 'resolved' AND last_detected_at = ?""", [as_of])
+    incidents = [(incident_from_row(*r[:8]), r[8]) for r in rows]
+    results = [(inc, diagnose_incident(db, inc, m)) for inc, m in incidents]
 
     def persist(cur) -> dict:
         for inc, d in results:
@@ -118,7 +121,9 @@ def run_diagnosis(db, as_of: datetime) -> dict:
             r = d["ranking"]
             cur.execute("INSERT OR REPLACE INTO intel.diagnoses VALUES (?, ?, ?, ?, ?, ?)",
                         [inc.anomaly_id, as_of, r["top_driver"], r["top_level"], r["method"], json.dumps(r)])
+            causal.persist(cur, inc.anomaly_id, as_of, d["causal"])
         return {"decomposed": len(results), "diagnosed": len(results),
-                "top_drivers": {inc.anomaly_id: d["ranking"]["top_driver"] for inc, d in results}}
+                "top_drivers": {inc.anomaly_id: d["ranking"]["top_driver"] for inc, d in results},
+                "causal_estimated": sum(d["causal"]["status"] == causal.ESTIMATED for _, d in results)}
 
     return db.write(persist)

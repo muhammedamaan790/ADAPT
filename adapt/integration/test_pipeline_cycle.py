@@ -36,7 +36,7 @@ def test_closed_loop_through_the_real_execution_path(world, http, db):
     run0 = day0[0]["run_id"]
     steps = db.query("SELECT step, status FROM ops.pipeline_steps WHERE run_id = ? ORDER BY seq", [run0])
     assert [s for s, _ in steps] == STEPS
-    assert dict(steps)["auto_execute"] == "NOT_BUILT" and dict(steps)["safety_monitor"] == "NOT_BUILT"
+    assert dict(steps)["auto_execute"] == "NOT_BUILT" and dict(steps)["safety_monitor"] == "OK"  # Stage 2 built
     assert run_cycle(db, http, logical_now(START), ad)["idempotent_replay"]           # idempotent per run_id
     assert forecast_days(db) >= POOL_DAYS
 
