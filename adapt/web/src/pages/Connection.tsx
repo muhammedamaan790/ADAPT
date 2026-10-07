@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { RefreshCw, PlugZap } from 'lucide-react';
-import { apiBase, checkConnection, dataMode } from '../api/client';
+import { apiBase, checkConnection, dataMode, readinessEndpoints } from '../api/client';
 import { Badge, ErrorState, Loading, SectionTitle } from '../components/ui';
 import { humanStatus } from '../lib/format';
 
@@ -45,7 +45,9 @@ export function Connection() {
           </div>
           <div>
             <dt>Validated read endpoints</dt>
-            <dd>{ready} / 7</dd>
+            <dd>
+              {ready} / {readinessEndpoints.length + 1}
+            </dd>
           </div>
         </dl>
         <p className="workbench-copy">
@@ -118,8 +120,9 @@ export function Connection() {
           </ul>
         )}
         <p className="caption">
-          Optimizer context is a proposed frontend read contract. Authentication, mutations and
-          model output need their own backend validation before integration is complete.
+          Several endpoints are proposed frontend contracts. Entity-specific detail routes and
+          streaming endpoints require their own checks. Authentication, mutations and model output
+          need their own backend validation before integration is complete.
         </p>
       </section>
       <p className="workbench-copy">
