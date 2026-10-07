@@ -9,6 +9,16 @@ import {
   type ScenarioKey,
 } from './contracts';
 import { fixtureService, loadFixtureState } from './fixture-service';
+import {
+  anomalySchema,
+  evaluationSchema,
+  healthSchema,
+  ledgerSchema,
+  optimizerContextSchema,
+  type AllocationInput,
+  type Anomaly,
+  type RecoveryInput,
+} from './workbench-contracts';
 
 export const dataMode = import.meta.env.VITE_DATA_MODE === 'api' ? 'api' : 'fixture';
 const base = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '');
@@ -55,7 +65,7 @@ export async function request<T>(path: string, schema: z.ZodType<T>, body?: unkn
     if (!parsed.success)
       throw new ApiError(
         502,
-        `Response contract mismatch at ${path}. Ask the backend team to align the Stage 1 schema.`,
+        `Response contract mismatch at ${path}. Ask the backend team to align the frontend schema.`,
       );
     return parsed.data;
   } catch (error) {
@@ -97,4 +107,78 @@ export const api =
         scenario: (key: ScenarioKey) => request(`/sim/scenario/${key}`, ack, {}),
         reset: (seed: number) => request(`/sim/reset?seed=${seed}`, ack, {}),
         advance: (days: number) => request(`/sim/advance?days=${days}`, ack, {}),
+        anomalies: () => request('/anomalies', z.array(anomalySchema)),
+        anomaly: (id: string) => request(`/anomalies/${encodeURIComponent(id)}`, anomalySchema),
+        anomalyStatus: (id: string, status: Anomaly['status'], reason: string) =>
+          request(`/anomalies/${encodeURIComponent(id)}/status`, anomalySchema, { status, reason }),
+        optimizerContext: () => request('/optimizer/context', optimizerContextSchema),
+        evaluateAllocation: (input: AllocationInput) =>
+          request('/optimizer/whatif', evaluationSchema, input),
+        runOptimizer: () => request('/optimizer/run', decisionSchema, { objective: 'PROFIT' }),
+        modify: (input: AllocationInput) =>
+          request(
+            `/decisions/${encodeURIComponent(input.decision_id)}/modify`,
+            decisionSchema,
+            input,
+          ),
+        ledger: () => request('/ledger', z.array(ledgerSchema)),
+        fault: (type: 'UNKNOWN' | 'FAILED') => request(`/sim/fault/${type}`, ack, {}),
+        recover: (input: RecoveryInput) =>
+          request(
+            `/executions/${encodeURIComponent(input.execution_id)}/${input.action}`,
+            executionSchema,
+            {
+              decision_hash: input.decision_hash,
+              reason: input.reason,
+              ...(input.final_resolution ? { final_resolution: input.final_resolution } : {}),
+            },
+          ),
       };
+
+export const apiBase = base;
+export const readinessEndpoints = [
+  { name: 'Command Center', path: '/overview', schema: overviewSchema },
+  { name: 'Decisions', path: '/decisions', schema: z.array(decisionSchema) },
+  { name: 'Anomalies', path: '/anomalies', schema: z.array(anomalySchema) },
+  { name: 'Optimizer context', path: '/optimizer/context', schema: optimizerContextSchema },
+  { name: 'Executions', path: '/executions', schema: z.array(executionSchema) },
+  { name: 'Ledger', path: '/ledger', schema: z.array(ledgerSchema) },
+];
+export async function checkConnection() {
+  const probes = [
+    { name: 'Backend health', path: '/health', schema: healthSchema },
+    ...readinessEndpoints,
+  ];
+  return Promise.all(
+    probes.map(async (probe) => {
+      try {
+        const payload = await request(probe.path, probe.schema as z.ZodType<unknown>);
+        return {
+          name: probe.name,
+          path: probe.path,
+          status: 'READY',
+          detail: 'Response matches the frontend contract.',
+          health: probe.path === '/health' ? healthSchema.parse(payload) : null,
+        };
+      } catch (error) {
+        const e = error instanceof ApiError ? error : new ApiError(0, String(error));
+        return {
+          name: probe.name,
+          path: probe.path,
+          status:
+            e.status === 404
+              ? 'MISSING'
+              : [401, 403].includes(e.status)
+                ? 'AUTH_REQUIRED'
+                : e.status === 502
+                  ? 'CONTRACT_MISMATCH'
+                  : e.status === 0
+                    ? 'OFFLINE'
+                    : 'ERROR',
+          detail: e.message,
+          health: null,
+        };
+      }
+    }),
+  );
+}

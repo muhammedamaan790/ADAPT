@@ -1,4 +1,4 @@
-# Stage 1 frontend API handoff
+# Frontend API handoff
 
 Specification: ADAPT v2.4.3 §§0.5, 12, 13, 22.4–22.5. Wire schemas: `adapt/web/src/api/contracts.ts`. Client: `adapt/web/src/api/client.ts`.
 
@@ -22,6 +22,35 @@ All reads return JSON. List reads below return arrays (no pagination envelope in
 | POST | `/sim/scenario/{key}` | `{}` → `{ok:true}` |
 | POST | `/sim/advance?days=1\|3\|7` | `{}` → `{ok:true}` |
 | POST | `/sim/reset?seed=42` | `{}` → `{ok:true}` |
+| GET | `/health` | Exact backend foundation `healthSchema` (also probed in fixture mode) |
+| GET | `/anomalies` | `anomalySchema[]` |
+| GET | `/anomalies/{id}` | `anomalySchema` |
+| POST | `/anomalies/{id}/status` | `{status,reason}` → updated `anomalySchema` |
+| GET | `/optimizer/context` | **Proposed read endpoint**, `optimizerContextSchema` |
+| POST | `/optimizer/run` | `{objective:"PROFIT"}` → `decisionSchema` |
+| POST | `/optimizer/whatif` | `allocationInputSchema` → `evaluationSchema` |
+| POST | `/decisions/{id}/modify` | `allocationInputSchema` → a new `decisionSchema`, never in-place mutation |
+| GET | `/ledger` | `ledgerSchema[]` |
+| POST | `/executions/{id}/verify` | `{decision_hash,reason}` → `executionSchema` |
+| POST | `/executions/{id}/retry` | `{decision_hash,reason}` → `executionSchema` |
+| POST | `/executions/{id}/rollback` | `{decision_hash,reason}` → `executionSchema`; restore settings only |
+| POST | `/executions/{id}/reconcile` | `{decision_hash,reason,final_resolution:"COMPENSATED"}` → `executionSchema` |
+| POST | `/sim/fault/{UNKNOWN\|FAILED}` | `{}` → `{ok:true}`; no public API-mode UI control yet |
+
+The workbench schemas live in `adapt/web/src/api/workbench-contracts.ts`. These routes remain provisional until C6 aligns them with its OpenAPI. The optimizer context route is a view-model proposal, not an endpoint already promised by the backend. Native paginated/domain responses should be adapted once in `client.ts` and validated there.
+
+## Next frontend workbench boundaries
+
+- Anomaly classification, gates and causal results are backend-owned. Fixture diagnoses show probable drivers and `NOT_ESTIMABLE`, not invented causal effects. S7 budget cuts remain visible but do not increase efficiency incident counts.
+- The optimizer browser checks whole-rupee inputs, exact portfolio coverage, min/max budgets, daily movement bounds, inventory scale blocks, ceiling and reserve. These are input checks, not an authoritative risk or inventory policy evaluation.
+- What-if valuation is an exact recorded example only in fixture mode. Arbitrary edits return `NOT_ESTIMABLE` with `estimate:null`. In API mode, the backend supplies the estimate and policy checks. The browser never computes model ΔCAA or bootstrap risk.
+- A fixture modification creates a distinct `DRAFT` with `follows` and `valuation_status:"NOT_ESTIMABLE"`; the original becomes `SUPERSEDED`. Forecast, projected inventory and rejected alternatives are withheld for that draft. API mode must receive a separately valued decision from the backend before approval becomes possible.
+- Execution legs optionally include `read_back_budget:number|null`. Requested settings, latest read-back, external request state and simulation mirror state are separate. Unknown read-back never displays a requested amount as verified.
+- Retry is enabled only for a confirmed failure with no unknown, conflict, sent or unresolved mirror leg. Restore prior settings requires known state and a reason. Neither action undoes spend or exposure.
+- Reconciliation currently requests **COMPENSATED only**. The fixture requires every read-back already equals its prior setting; reconciliation records the resolution and does not restore budgets. Accepted-partial/blocked manager workflows and real fresh-read requirements remain backend follow-up work.
+- Recovery examples support UNKNOWN/FAILED injections after fixture approval and before outcome maturity. World advance/reset/scenario replacement stay blocked for unresolved executions. Restored fixture allocations produce no optimization feedback, since the proposed allocation was not maintained for its horizon.
+- Outcome maturity uses days elapsed since execution, not since workspace initialization. This is UI fixture lifecycle behavior; measured values remain illustrative.
+- Backend Connection probes seven GET endpoints. `READY` means a response matches the wire schema; a degraded health payload is shown as degraded separately. It does not validate auth sessions, mutations, live spend, or engine mathematics.
 
 ### Agreements still needed with C6
 
