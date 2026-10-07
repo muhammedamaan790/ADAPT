@@ -194,11 +194,11 @@ export function DecisionCenter() {
       </Link>
       <div className="page-heading decision-heading">
         <div>
+          <h1>{d.title}</h1>
           <div className="heading-badges">
             <Badge>{d.class}</Badge>
             <Status value={d.status} />
           </div>
-          <h1>{d.title}</h1>
           <p>
             {d.decision_id} · {dateTime(d.created_at)} · {d.horizon_days}-day horizon
           </p>
@@ -234,7 +234,25 @@ export function DecisionCenter() {
         <a href="#why">Why this decision</a>
         <a href="#allocation">Budget recommendation</a>
         <a href="#execution">Execution & outcome</a>
+        <a href="#decision-review">Review action</a>
       </nav>
+      {!isOperational && !valuationMissing && (
+        <section className="proposal-context" aria-label="Proposal summary">
+          <dl>
+            <div>
+              <dt>Est. contribution after ads · {d.horizon_days} days</dt>
+              <dd>{signedMoney(d.expected.p50)}</dd>
+            </div>
+            <div>
+              <dt>Unallocated budget</dt>
+              <dd>{money(d.unallocated)}</dd>
+            </div>
+          </dl>
+          <a href="#decision-review" className="text-link">
+            Review proposal <ArrowRight size={15} />
+          </a>
+        </section>
+      )}
       <div className="decision-layout">
         <div className="decision-main">
           <section className="panel" id="why">
@@ -570,7 +588,7 @@ export function DecisionCenter() {
             )}
           </section>
         </div>
-        <aside className="decision-review">
+        <aside className="decision-review" id="decision-review" aria-label="Review action">
           <section className="panel review-card">
             <SectionTitle title="Review the proposal">
               <ShieldCheck size={19} />

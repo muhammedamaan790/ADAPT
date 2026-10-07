@@ -122,7 +122,7 @@ test('new workspaces fit mobile and preserve keyboard-accessible navigation', as
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await page.getByRole('button', { name: 'Open navigation' }).click();
     await expect(page.getByRole('link', { name: 'Backend Connection', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'Close navigation' }).first().click();
+    await page.keyboard.press('Escape');
     if (path === '/anomalies') {
       const signal = await page.locator('.signal-change b').boundingBox();
       expect(signal!.y + signal!.height).toBeLessThanOrEqual(844);

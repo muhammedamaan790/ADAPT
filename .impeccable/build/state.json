@@ -1,0 +1,112 @@
+{
+  "tool": "build-phase",
+  "version": 2,
+  "startedAt": "2026-10-07T18:11:04.970Z",
+  "comp": ".impeccable/mocks/comp-a.png",
+  "direction": "db6d492e",
+  "breakpoint": "1505x1045",
+  "artifact": null,
+  "phase": "plates",
+  "phases": {
+    "comps": {
+      "status": "closed",
+      "openedAt": "2026-10-07T18:11:04.970Z",
+      "closedAt": "2026-10-07T18:21:01.887Z",
+      "attempts": 1,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "3 comps, 1 approved",
+        "approved": ".impeccable/mocks/comp-a.png",
+        "at": "2026-10-07T18:21:01.886Z"
+      },
+      "forced": null
+    },
+    "spec": {
+      "status": "closed",
+      "openedAt": "2026-10-07T18:21:01.905Z",
+      "closedAt": "2026-10-07T18:22:58.494Z",
+      "attempts": 6,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "25 regions, 0 plates, 8 text regions measured",
+        "at": "2026-10-07T18:22:58.494Z"
+      },
+      "forced": null
+    },
+    "plates": {
+      "status": "open",
+      "openedAt": "2026-10-07T18:22:58.494Z",
+      "closedAt": null,
+      "attempts": 1,
+      "notes": [
+        {
+          "at": "2026-10-07T18:42:47.514Z",
+          "text": "User delegated direction and implementation choices. Interactive plan receipt cannot express delegation; no receipt forged. Product UI proceeds under session authorization, with independent design critique, technical audit and finish review. Automated comp fidelity report retained at review/diff/final."
+        },
+        {
+          "at": "2026-10-07T20:41:41.450Z",
+          "text": "Independent verdict scored all three corrections resolved, disposition ship for the fix list. DESIGN.md and schema2 sidecar written and verified via disclosed documenter fallback. Formal ship closure attempted and refused at plates; no receipt or gate fabricated. Final comp-diff 0.7226 drift."
+        }
+      ],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "no plates owed",
+        "at": "2026-10-07T18:22:58.526Z"
+      },
+      "forced": null
+    },
+    "hero": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "sections": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "motion": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "responsive": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "review": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    }
+  },
+  "finish": null,
+  "sessionId": "01a114aa-e48c-72d1-84bd-4c43f7df9b67",
+  "plates": {}
+}

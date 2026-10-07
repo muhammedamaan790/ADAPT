@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useId } from 'react';
 import type { Evidence } from '../api/contracts';
 
 type Point = Evidence['chart'][number];
@@ -6,7 +6,7 @@ export function TrendChart({
   data,
   title = 'Reconciled ROAS',
   small = false,
-  responsive = false,
+  responsive = true,
 }: {
   data: Point[];
   title?: string;
@@ -14,6 +14,7 @@ export function TrendChart({
   responsive?: boolean;
 }) {
   const [active, setActive] = useState<number | null>(null);
+  const observationId = useId();
   const chartRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(680);
   useEffect(() => {
@@ -26,7 +27,7 @@ export function TrendChart({
   }, [responsive, data.length]);
   if (data.length === 0) return <p className="muted">No time-series observations yet.</p>;
   const w = responsive ? width : 680,
-    h = small ? 170 : 210,
+    h = small ? 150 : 230,
     left = 38,
     right = 12,
     top = 22,
@@ -38,7 +39,8 @@ export function TrendChart({
   const y = (v: number) => top + ((max - v) / Math.max(max - min, 1)) * (h - top - bottom);
   const points = (key: 'actual' | 'baseline') =>
     data.map((d, i) => `${x(i)},${y(d[key])}`).join(' ');
-  const selected = active === null ? data[data.length - 1] : data[active];
+  const selectedIndex = Math.min(active ?? data.length - 1, data.length - 1);
+  const selected = data[selectedIndex];
   return (
     <div className="trend-chart" ref={chartRef}>
       <div className="chart-meta">
@@ -50,14 +52,11 @@ export function TrendChart({
           <i className="legend-line baseline" />
           Baseline forecast
         </span>
-        <b>
-          {selected.actual.toFixed(2)}× <small className="muted">{selected.date}</small>
-        </b>
       </div>
       <svg
         viewBox={`0 0 ${w} ${h}`}
         role="img"
-        aria-label={`${title}: last actual ${data.at(-1)!.actual.toFixed(2)} versus baseline ${data.at(-1)!.baseline.toFixed(2)}. Hover for daily observations.`}
+        aria-label={`${title}: last actual ${data.at(-1)!.actual.toFixed(2)} versus baseline ${data.at(-1)!.baseline.toFixed(2)}. Use the observation slider or data table for daily values.`}
       >
         {[0, 1, 2, 3].map((i) => {
           const value = min + ((max - min) * i) / 3;
@@ -84,13 +83,13 @@ export function TrendChart({
               width={36}
               height={h - top - bottom}
               fill="transparent"
-              onMouseEnter={() => setActive(i)}
-              onMouseLeave={() => setActive(null)}
+              onPointerEnter={() => setActive(i)}
+              onPointerDown={() => setActive(i)}
             />
             <circle
               cx={x(i)}
               cy={y(d.actual)}
-              r={active === i || i === data.length - 1 ? 4 : 0}
+              r={selectedIndex === i || i === data.length - 1 ? 4 : 0}
               className="chart-dot"
             />
             {(i === 0 || i === data.length - 1 || i === 6) && (
@@ -105,6 +104,25 @@ export function TrendChart({
           </g>
         ))}
       </svg>
+      <div className="chart-observation">
+        <label htmlFor={observationId}>{selected.date}</label>
+        <span>
+          <strong>{selected.actual.toFixed(2)}×</strong> actual
+        </span>
+        <span>
+          <strong>{selected.baseline.toFixed(2)}×</strong> baseline
+        </span>
+        <input
+          id={observationId}
+          type="range"
+          min="0"
+          max={data.length - 1}
+          value={selectedIndex}
+          aria-label={`${title} observation day`}
+          aria-valuetext={`${selected.date}: actual ${selected.actual.toFixed(2)}, baseline ${selected.baseline.toFixed(2)}`}
+          onChange={(event) => setActive(Number(event.target.value))}
+        />
+      </div>
       <details className="chart-access">
         <summary>View chart data</summary>
         <div className="table-scroll">

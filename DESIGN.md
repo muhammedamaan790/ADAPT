@@ -1,292 +1,269 @@
 ---
 name: ADAPT
-description: An evidence-led operating workspace for inspecting and approving D2C budget decisions.
+description: A precise advertising decision workspace with visible evidence and guarded budget approval.
 colors:
-  canvas: "#f2f5f6"
+  canvas: "#f4f6f8"
   surface: "#ffffff"
-  ink: "#172126"
-  muted: "#64727a"
-  rule: "#dce3e6"
-  rule-strong: "#c8d2d7"
-  accent: "#315fb5"
-  accent-soft: "#eaf0fb"
-  success: "#1f724e"
-  warning: "#976018"
-  danger: "#b23c42"
-  success-soft: "#eaf5ee"
-  warning-soft: "#fbf2e3"
-  danger-soft: "#fbecee"
-  soft: "#f6f8f9"
-  primary-hover: "#254d98"
-  focus: "#8fb2ff"
-  selection: "#dce8ff"
-  nav: "#11191d"
-  nav-text: "#b8c3c8"
-  nav-hover: "#19262c"
-  nav-active: "#21385f"
-  nav-active-text: "#e9f0ff"
-  dark-canvas: "#10171a"
-  dark-surface: "#182125"
-  dark-ink: "#eef3f5"
-  dark-muted: "#a7b4ba"
-  dark-rule: "#303d43"
-  dark-accent: "#91b3fb"
-  dark-accent-soft: "#223452"
-  dark-success: "#83cca4"
-  dark-warning: "#e2b775"
-  dark-danger: "#f09a9f"
-  dark-success-soft: "#213a2d"
-  dark-warning-soft: "#3c3020"
-  dark-danger-soft: "#40272c"
-  dark-soft: "#202b30"
+  ink: "#222a35"
+  muted: "#586574"
+  rule: "#dce2e8"
+  accent: "#2459c4"
+  accent-soft: "#edf3ff"
+  success: "#20704b"
+  warning: "#87550c"
+  danger: "#b03338"
+  success-soft: "#edf7f1"
+  warning-soft: "#fff6e7"
+  danger-soft: "#fdf0f0"
+  soft: "#f6f8fa"
+  forecast: "#a66a0b"
+  focus: "#2459c4"
+  graphite: "#262b32"
+  nav-ink: "#edf2f7"
+  nav-muted: "#b5bfcb"
+  nav-hover: "#343c47"
+  nav-selected: "#dce9ff"
+  nav-selected-ink: "#173d85"
+  primary-hover: "#1a479f"
+  dark-canvas: "#161b22"
+  dark-surface: "#202730"
+  dark-ink: "#edf2f7"
+  dark-muted: "#afbdcc"
+  dark-rule: "#3b4655"
+  dark-accent: "#8db4ff"
+  dark-accent-soft: "#253653"
+  dark-success: "#8dd1ab"
+  dark-warning: "#e7bd7c"
+  dark-danger: "#f4a1a5"
+  dark-success-soft: "#253b32"
+  dark-warning-soft: "#3b3225"
+  dark-danger-soft: "#402c32"
+  dark-soft: "#262f3b"
+  dark-forecast: "#e7bd7c"
+  dark-focus: "#a8c5ff"
 typography:
   headline:
-    fontFamily: "Manrope Variable, sans-serif"
-    fontSize: "34px"
-    fontWeight: 700
-    lineHeight: 1.16
-    letterSpacing: "-.045em"
-  title:
-    fontFamily: "Manrope Variable, sans-serif"
+    fontFamily: "IBM Plex Sans, sans-serif"
+    fontSize: "30px"
+    fontWeight: 600
+    lineHeight: 1.25
+    letterSpacing: "-0.025em"
+  section:
+    fontFamily: "IBM Plex Sans, sans-serif"
     fontSize: "17px"
-    fontWeight: 700
+    fontWeight: 600
     lineHeight: 1.4
-    letterSpacing: "-.025em"
-  subtitle:
-    fontFamily: "Manrope Variable, sans-serif"
+    letterSpacing: "-0.012em"
+  title:
+    fontFamily: "IBM Plex Sans, sans-serif"
     fontSize: "14px"
-    fontWeight: 700
+    fontWeight: 600
     lineHeight: 1.5
-    letterSpacing: "-.025em"
+    letterSpacing: "0"
   body:
-    fontFamily: "DM Sans Variable, sans-serif"
+    fontFamily: "IBM Plex Sans, sans-serif"
     fontSize: "14px"
     fontWeight: 400
+    lineHeight: 1.6
+    letterSpacing: "normal"
+  support:
+    fontFamily: "IBM Plex Sans, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.6
+    letterSpacing: "normal"
   label:
-    fontFamily: "DM Sans Variable, sans-serif"
-    fontSize: "11px"
-    fontWeight: 600
+    fontFamily: "IBM Plex Sans, sans-serif"
+    fontSize: "12px"
+    fontWeight: 500
     lineHeight: 1.4
-  badge:
-    fontFamily: "DM Sans Variable, sans-serif"
-    fontSize: "9px"
+    letterSpacing: "normal"
+  metadata:
+    fontFamily: "IBM Plex Sans, sans-serif"
+    fontSize: "11px"
+    fontWeight: 400
+    letterSpacing: "normal"
+  financial:
+    fontFamily: "IBM Plex Sans, sans-serif"
+    fontSize: "26px"
     fontWeight: 600
-    lineHeight: 1.5
-    letterSpacing: ".2px"
+    letterSpacing: "-0.03em"
 rounded:
   chip: "4px"
-  control: "7px"
-  panel-mobile: "9px"
-  inset: "9px"
-  panel: "11px"
-  dialog: "12px"
+  control: "6px"
+  panel: "12px"
+  dialog: "14px"
 spacing:
   xs: "4px"
   sm: "8px"
   md: "12px"
   lg: "16px"
-  xl: "24px"
-  xxl: "32px"
+  xl: "20px"
+  panel: "22px"
+  dialog: "24px"
+  page: "28px"
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
-    textColor: "{colors.surface}"
-    typography: "{typography.label}"
+    textColor: "#ffffff"
     rounded: "{rounded.control}"
     padding: "10px 14px"
+    height: "40px"
   button-primary-hover:
     backgroundColor: "{colors.primary-hover}"
   button-secondary:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    typography: "{typography.label}"
     rounded: "{rounded.control}"
     padding: "10px 14px"
-  button-ghost:
-    backgroundColor: "transparent"
-    textColor: "{colors.muted}"
-    typography: "{typography.label}"
+  input:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
     rounded: "{rounded.control}"
-    padding: "10px 14px"
-  button-danger:
-    backgroundColor: "{colors.danger}"
-    textColor: "{colors.surface}"
-    typography: "{typography.label}"
-    rounded: "{rounded.control}"
-    padding: "10px 14px"
+    padding: "10px 12px"
+    height: "42px"
   panel:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
     rounded: "{rounded.panel}"
     padding: "22px"
-  field:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
+  badge:
+    backgroundColor: "{colors.soft}"
+    textColor: "{colors.muted}"
+    rounded: "{rounded.chip}"
+    padding: "3px 7px"
+  button-ghost:
+    backgroundColor: "transparent"
+    textColor: "{colors.muted}"
     rounded: "{rounded.control}"
-    padding: "10px 12px"
-  badge-success:
-    backgroundColor: "{colors.success-soft}"
-    textColor: "{colors.success}"
-    typography: "{typography.badge}"
-    rounded: "{rounded.chip}"
-    padding: "3px 7px"
-  badge-warning:
-    backgroundColor: "{colors.warning-soft}"
-    textColor: "{colors.warning}"
-    typography: "{typography.badge}"
-    rounded: "{rounded.chip}"
-    padding: "3px 7px"
-  badge-danger:
-    backgroundColor: "{colors.danger-soft}"
-    textColor: "{colors.danger}"
-    typography: "{typography.badge}"
-    rounded: "{rounded.chip}"
-    padding: "3px 7px"
-  dialog:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.dialog}"
-    padding: "26px"
-    width: "calc(100% - 32px)"
+    padding: "10px 14px"
+  button-danger:
+    backgroundColor: "{colors.danger}"
+    textColor: "#ffffff"
+    rounded: "{rounded.control}"
+    padding: "10px 14px"
 ---
 
 # Design System: ADAPT
 
 ## Overview
 
-**Creative North Star: "The Decision Control Room"**
+**Creative North Star: "Evidence Studio"**
 
-ADAPT's operate mode feels calm, precise and inspectable. A cool slate workspace and near-black navigation rail frame compact financial information. Restrained cobalt identifies primary actions, selected states and model forecasts; status colors communicate health, review and blocked states alongside explicit text.
-
-Fine rules, aligned numbers and grouped white surfaces keep the evidence readable. Approval remains a deliberate interaction connected to the proposal's evidence, policy checks and decision hash. Illustrative fixtures remain visibly labelled, and forecasts remain distinct from measured outcomes.
+Evidence Studio uses graphite navigation and cool reading surfaces for sustained comparison. One self-hosted sans family, ruled financial rows and restrained semantic color keep the interface precise while allowing substantial evidence density. The approved two-form Forward Shift symbol is the identity asset; retain its geometry in light, graphite and monochrome applications.
 
 **Key Characteristics:**
 
-- Cool neutral workspace with a near-black navigation rail.
-- Restrained cobalt emphasis and text-labelled semantic status.
-- Compact typography, tabular financial numerals and fine dividers.
-- Evidence before explicit approval, with visible fixture provenance.
-- Locally bundled fonts, responsive navigation and reduced-motion support.
+- Cool reading ground and graphite navigation.
+- Tabular financial values and thin comparison rules.
+- Explicit evidence, forecast and execution-state labels.
+- Native dialogs, disclosures and keyboard-accessible charts.
+
+This is the implemented replacement world authorized by the frontend redesign request and delegated design selection. Its normative tokens come from the final overriding CSS and self-hosted font imports. Surface composition and workflow-specific decisions remain in the surface brief and `adapt/docs/frontend-redesign.md`.
+
+Review boundary: the final concept comparison reports 0.7226, `drift`; pixel certification is not claimed. The formal CLI plan-receipt gate remains pending because it does not encode the user's delegated selection. No human approval receipt or passed build phase is fabricated. Browser evidence covers desktop and emulated mobile; it is not a physical-device or complete accessibility certification.
 
 ## Colors
 
-The palette uses cool neutrals for work surfaces, cobalt for model/action emphasis and separate semantic colors for operational states. Frontmatter captures the stylesheet; dark-prefixed values are the corresponding dark-theme overrides.
+The palette is cool and quiet, with graphite chrome and restrained blue action color.
 
 ### Primary
 
-- **Action Cobalt** (`accent`): primary action fills, forecasts, selected controls and links. **Cobalt Wash** (`accent-soft`) groups the brief and selected scenarios without saturating the page.
-- **Deep Cobalt** (`primary-hover`): primary button hover. **Focus Blue** (`focus`) marks keyboard focus; **Selection Blue** (`selection`) marks selected text.
+**Decision Blue** (`accent`) identifies analytical actuals, links and selection. Primary buttons keep the light-theme blue with white text in both themes; `primary-hover` supplies their darker hover state. Dark-theme chart/link accents use the lighter `dark-accent` for legibility.
 
 ### Secondary
 
-- **Healthy Green** (`success`, `success-soft`): healthy sources, passed checks and verified execution.
-- **Review Amber** (`warning`, `warning-soft`): review conditions, inventory warnings and fixture notices.
-- **Blocked Red** (`danger`, `danger-soft`): failed checks, blocked tracking, adverse states and errors.
+**Forecast Amber** (`forecast`) distinguishes baseline/forecast material. Plot forecasts are dashed and explicitly labeled, while actuals are solid blue. It is separate from general warning state.
 
 ### Neutral
 
-- **Slate Canvas** (`canvas`) and **White Surface** (`surface`): page ground and grouped panels.
-- **Operating Ink** (`ink`): primary text and navigation background. **Quiet Slate** (`muted`) carries supporting context; **Fine Rule** (`rule`) separates rows; **Inset Neutral** (`soft`) distinguishes minor groups.
-- Navigation has separate quiet text, hover surface and cobalt selected-state tokens. The rail retains its near-black background in both themes.
+**Cool Canvas**, **White Surface**, **Operating Ink**, **Quiet Slate** and **Comparison Rule** (`canvas`, `surface`, `ink`, `muted`, `rule`) separate page, containers, text and rows. **Graphite Navigation** remains stable across themes. The corresponding `dark-*` tokens govern dark reading surfaces and state colors.
 
-**The Status Text Rule.** Pair every semantic state color with a readable label or explanation; color alone cannot establish the state.
+Success, warning and danger use paired foreground and soft background tokens for actual state semantics. A rise in ad spend is neutral unless the product establishes that it is beneficial. Reconciled is a neutral status; missing evidence is an empty state rather than success.
 
-Dark mode remaps workspace variables. Primary and destructive button fills, their white text and primary hover remain fixed literal colors in the current code; not all controls use the dark accent overrides.
+The sidecar's eight-step OKLCH ramps are synthesized palette previews for documentation; they are not implemented application scales. The extracted frontmatter values remain authoritative.
+
+**The Evidence before assertion Rule.** Keep measured, reconciled, forecast, simulated and unavailable states explicit. Color supports these labels; it cannot replace them.
 
 ## Typography
 
-**Heading Font:** Manrope Variable with a sans-serif fallback.
-**Body Font:** DM Sans Variable with a sans-serif fallback.
-
-Both fonts are bundled locally through Fontsource. Manrope gives headings and financial values a firm hierarchy; DM Sans keeps dense labels readable. Supporting interface copy often uses 9–12px rather than the root body size. Paragraphs use a line height of 1.6.
+**Display and Body Font:** IBM Plex Sans, with sans-serif fallback. Latin weights 400, 500, 600 and 700 are self-hosted. Headings and financial values predominantly use weight 600; monospace is limited to identifiers and code.
 
 ### Hierarchy
 
-- **Headline:** the page heading role in frontmatter. Decision headings use 32px; at the mobile breakpoint page headings use 28px.
-- **Title:** section headings use the title role; mobile section titles use 15px.
-- **Subtitle:** smaller grouped headings use the subtitle role.
-- **Body:** the root size and family; component copy adjusts size for its density.
-- **Label:** compact semibold action text. Badges have their own smaller role.
-- **Financial values:** Manrope with tabular numerals. Standard metrics use 24–26px, forecasts 36px and the scenario day 54px. These are component sizes rather than a universal display scale.
+- **Headline:** the normative headline token, reduced to 26px on phones; the decision-detail headline uses 28px on desktop.
+- **Section:** compact 17px headings, reduced to 16px on phones.
+- **Title and Body:** 14px; supporting explanatory copy uses 13px.
+- **Label and Table:** 12px for compact controls and comparisons, with tabular financial numerals and right-aligned numeric columns.
+- **Metadata:** 11px for subordinate dates, comparisons and identifiers. Source provenance has an existing compact 10px treatment; this exception is not a new body-text standard.
+- **Financial:** 26px for overview amounts, 25px on phones; model-estimate emphasis uses 32px in the proposal review.
 
-**The Comparable Numbers Rule.** Use tabular numerals for financial metrics, review facts, chart labels and tables; align amounts consistently within their group.
+**The One reading voice Rule.** Use IBM Plex Sans for interface text and financial values. Reserve monospace for identifiers and code.
 
 ## Layout
 
-Desktop uses a fixed near-black sidebar (244px) and matching workspace offset. The optional compact sidebar uses 76px. Main content is centered at a maximum width of 1360px with padding of 34px 34px 44px. At widths of at least 1600px, the maximum becomes 1400px and shell gutters become 48px.
+The desktop rail is 224px and collapses to 76px; it becomes 204px below 1100px. The content container is capped at 1480px with 28px page insets, reducing to 22px below 1100px, 20px below 900px and 16px below 600px. Desktop chrome uses a 48px top bar and a separate truthful data-mode disclosure strip.
 
-Command Center uses a bordered six-column metric band and a two-column overview. Decisions and the lab use flexible main content plus a review/control aside (300px), separated by a 20px gap. The decision aside is sticky at a 20px top offset. Related rows use rules inside grouped panels.
+Working panels use the panel spacing token, with 18px for compact desktop overview panels and phone panels. Overview evidence and attention pair in a 1.35:1 grid with a 20px gap. At 1280px and below, six metrics and sources reflow into three columns; below 600px they use two columns. At 900px and below the sidebar is replaced by a native navigation dialog exposing all 11 routes. Navigation groups are Operate, Analyze and Workspace.
 
-At widths up to 1200px, the sidebar becomes 212px, main gutters become 24px, metrics/sources become three columns, the overview becomes one column and the decision/lab aside becomes 275px. At widths up to 900px, decision/lab layouts become one column: the decision review precedes the main content and internally uses two columns.
+Mobile home places the attention register before metrics and charting. The decision review stacks below evidence at 1100px and below, with a compact proposal summary and review shortcut above it. The phone top bar is sticky; section anchors clear it by 76px. Tables scroll within labeled containers rather than causing document overflow.
 
-At widths up to 860px, the sidebar becomes an off-canvas drawer with a labelled menu trigger and no workspace offset. Main padding becomes 30px 24px, then 24px 16px on phones; metrics and stat bands use two columns. The decision review becomes a responsive preface to the main evidence and lab controls stack. Wide data tables retain horizontal scrolling. The drawer exposes every route and closes by route change, backdrop, close control or Escape.
-
-The spacing vocabulary is recorded in frontmatter. Fitted component padding also includes 13px, 18px, 20px and 22px; preserve those observed values when extending the same component. The retained 32px design scale step appears in dialog viewport spacing, rather than standard panel padding.
+The desktop first-view correction fits all six source records at 1505 × 1045 with existing type sizes. The decision-loop strip follows below the fold. These viewport-specific observations are evidence, not a promise that every section fits every screen.
 
 ## Elevation & Depth
 
-The workspace is flat at rest: background tones, thin borders and dividers establish depth. Panels have no shadow. Shadows separate floating lineage details and approval dialogs from underlying evidence. The dialog backdrop dims and lightly blurs the workspace.
+**The Flat comparison surfaces Rule.** Use thin rules and tonal separation for working panels. Reserve physical elevation for the modal layer.
 
-### Shadow Vocabulary
-
-- **Floating details and dialogs:** `0 18px 44px rgb(24 39 47 / 0.14)` in light mode, stronger in dark mode.
-- **Dialog backdrop:** `rgb(8 15 18 / 0.62)` with a 3px blur.
-
-**The Flat Workspace Rule.** Keep ordinary panels and information rows flat; reserve elevation for floating details and modal decisions.
+Panels and lineage popovers have no decorative shadow. The native modal retains its structural shadow (`0 15px 60px #0003`) and a simple dimming backdrop (`rgb(20 29 41 / 50%)`) without blur. Do not promote the discarded popover shadow into the new system.
 
 ## Shapes
 
-Gently curved controls and grouped surfaces soften dense information without making every row a card. Controls use the control radius; panels use the panel radius, reduced to the mobile panel radius at 700px. Briefs and lineage popovers use the inset radius. Small badges use the chip radius; dialogs use the largest radius.
-
-Borders are generally a single fine rule. Circular avatars, health dots and loop nodes are functional markers. Ordinary content surfaces remain rectangular, without decorative imagery.
+Panels use gently rounded corners through the panel token. Controls, badges and dialogs use their smaller or larger role-specific radii. Borders are thin and continuous. The logo's two geometric forms remain exact SVG geometry rather than an enclosing badge or generated illustration.
 
 ## Components
 
 ### Buttons
 
-Compact semibold actions with gently curved outlines. Primary and destructive fills use fixed colors. Secondary actions use a surface fill with a fine border; ghost actions use a transparent fill and muted text. Hover changes the background without movement. Disabled buttons reduce opacity to 0.5 and use a not-allowed cursor.
-
-Buttons use a 150ms ease background transition. Keyboard focus uses a 3px blue outline with a 3px offset. Icon buttons are smaller square controls rather than a separate primary action style.
+Primary actions have blue fill, white text and a darker hover state. Secondary actions have surface fill and a rule border. Buttons use 12px medium text, 40px minimum desktop height and 44px mobile minimum height. Disabled controls use reduced opacity and a not-allowed cursor. Keyboard focus uses a visible 3px outline with 3px offset. Buttons transition their background over 150ms ease-out; reduced-motion preferences remove transitions and animations while keeping textual feedback.
 
 ### Chips
 
-Status badges use soft semantic fills, explicit short text and a small radius. These are informational labels. Forecast/model badges use cobalt; success, review and blocked badges use their semantic pairs.
+Compact, softly filled state labels use medium text. Neutral, accent, success, warning and danger variants bind to semantic tokens. Place provenance beside or below the heading it qualifies; it is never a decorative eyebrow.
 
 ### Cards / Containers
 
-Surface fills, a fine border and no shadow. Standard panels use the frontmatter panel padding; decision main panels use 24px and review cards 20px. At 1200px panels use 20px padding, and at 700px they use 18px. Internal rows use dividers so comparisons stay close together.
+Surface fill, rule border, panel radius and restrained internal padding create comparison containers. Lists rely on rules and aligned values rather than separate floating metric tiles. Section headings can wrap without hiding their qualifiers.
 
 ### Inputs / Fields
 
-Fields use a surface fill, strong rule, control radius, padding of 10px 12px and a minimum height of 42px. Compact labels sit above the field. Focus adds a cobalt border and subtle focus ring; invalid inputs use a danger border. Textareas resize vertically. Approval checkboxes use action cobalt.
+Fields have visible labels, surface backgrounds, rule borders and control radii. Inputs use 13px text and 42px minimum height; invalid fields use a danger border. Preserve native focus and disabled behavior. Placeholder text is subordinate support, not the field label.
 
 ### Navigation
 
-The near-black rail groups routes into Workspace, Operations and Intelligence. Links use quiet text, a restrained hover fill and a deep cobalt selected surface with a bright inset marker. At 860px it becomes an off-canvas drawer. Decision section links and report views use compact segmented surfaces; preserve the distinction between primary routes and in-page evidence sections.
+Graphite navigation uses pale readable labels, a darker hover background and a pale-blue selected row. All routes retain meaningful names and grouped hierarchy. The mobile dialog traps focus, closes on navigation or Escape, and restores focus to its trigger. Native controls have accessible names even when their visible phone treatment is icon-only.
 
-### Decision Review and Approval
+API mode preserves the existing sign-in form and session controls from main. The sign-in page uses the same reading surfaces, labeled native fields and primary action; the top bar exposes the existing signed-in identity and sign-out control. Fixture mode retains its explicitly illustrative workspace.
 
-The review groups forecast, policy checks and action together. Approval presents the allocation, explicit acknowledgement and decision hash before confirmation. Fixture notices remain visible at route level. Keep probable explanations, model forecasts and measured feedback distinct in copy and labels.
+### Financial comparison and charts
 
-### Charts and Progress
+Financial strips use tabular values separated by vertical rules. The campaign plot is mathematically drawn SVG with a solid actual series and dashed amber baseline. Exact values are available through a labeled range input and an HTML data-table disclosure. Pointer and touch input supplement keyboard controls; they are not the sole means of reading data. Plot geometry responds to container width while labels remain legible.
 
-Charts use fine grid lines, cobalt emphasis, restrained supporting series and textual numeric labels. Accessible summaries expose numeric data. Loading uses short skeleton lines; control transitions are brief and functional. Reduced motion removes animations, transitions and smooth scrolling.
+### Approval and lineage
+
+Approval is a native dialog showing the exact proposal, immutable identity and required confirmation. Its wording distinguishes fixture interaction from connected execution. Lineage is a native, viewport-clamped popover with light dismissal and Escape support. Forecasts, likely drivers and accounting decomposition preserve their distinct certainty labels.
 
 ## Do's and Don'ts
 
 ### Do:
 
-- **Do** pair health, review and blocked colors with readable state labels.
-- **Do** use local DM Sans and Manrope fonts and tabular numerals for comparisons.
-- **Do** keep evidence, policy checks and the decision hash available before explicit approval.
-- **Do** visibly label illustrative fixtures and distinguish forecasts from measured outcomes.
-- **Do** preserve horizontal primary navigation on mobile and respect reduced-motion preferences.
+- Do align monetary comparisons and use tabular numerals.
+- Do pair color with text, icons or line style for meaning.
+- Do keep data provenance and model qualifiers near the evidence they describe.
+- Do preserve visible focus, labels and feedback in both themes.
 
 ### Don't:
 
-- **Don't** use semantic color as the only explanation of a state.
-- **Don't** add shadows to ordinary panels or turn every information row into a separate card.
-- **Don't** present fixture values as engine output, evaluation results or measured simulator evidence.
-- **Don't** hide a failed API connection by silently showing fixtures.
-- **Don't** add remote font or image requests to the locally bundled visual system.
-- **Don't** introduce purple or decorative gradients as default emphasis; cobalt and semantic colors have defined jobs.
+- Don't replace the approved Forward Shift symbol with generated decoration.
+- Don't use decorative gradients, glows or sparkle branding in this analytical workspace.
+- Don't present a forecast, probable driver or fixture interaction as an achieved outcome.
+- Don't use the discarded Manrope/DM Sans and cream/purple palette for new screens.

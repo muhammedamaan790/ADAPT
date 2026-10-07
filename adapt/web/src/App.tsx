@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
 import {
   Activity,
@@ -13,14 +13,13 @@ import {
   Radar,
   SlidersHorizontal,
   ListChecks,
-  Menu,
   PlugZap,
   MessageSquare,
   TrendingUp,
   BookOpen,
   Database,
   ChartNoAxesCombined,
-  X,
+  Menu,
 } from 'lucide-react';
 import { CommandCenter } from './pages/CommandCenter';
 import { DecisionCenter } from './pages/DecisionCenter';
@@ -59,67 +58,89 @@ const routeNames: Record<string, string> = {
   data: 'Data Hub',
 };
 
+const navigation = [
+  {
+    label: 'Operate',
+    items: [
+      { to: '/', label: 'Command Center', icon: LayoutDashboard },
+      { to: '/decisions', label: 'Decision Center', icon: Workflow },
+      { to: '/executions', label: 'Execution & Ledger', icon: ListChecks },
+    ],
+  },
+  {
+    label: 'Analyze',
+    items: [
+      { to: '/anomalies', label: 'Anomalies', icon: Radar },
+      { to: '/opportunities', label: 'Opportunity Map', icon: TrendingUp },
+      { to: '/optimizer', label: 'Optimizer', icon: SlidersHorizontal },
+      { to: '/outcomes', label: 'Outcomes', icon: ChartNoAxesCombined },
+      { to: '/learning', label: 'Learning', icon: BookOpen },
+    ],
+  },
+  {
+    label: 'Workspace',
+    items: [
+      { to: '/data', label: 'Data Hub', icon: Database },
+      { to: '/scenarios', label: 'Scenario Lab', icon: FlaskConical },
+      { to: '/connection', label: 'Backend Connection', icon: PlugZap },
+    ],
+  },
+];
+
+function Navigation({ close }: { close?: () => void }) {
+  return (
+    <nav aria-label="Primary navigation" className="navigation-groups">
+      {navigation.map((group) => (
+        <div className="navigation-group" key={group.label}>
+          <p className="navigation-label">{group.label}</p>
+          {group.items.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} end={to === '/'} title={label} onClick={close}>
+              <Icon size={18} aria-hidden="true" />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 export function App() {
   const [dark, setDark] = useState(() => {
-    const savedTheme = localStorage.getItem('adapt.theme');
-    return savedTheme
-      ? savedTheme === 'dark'
-      : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const saved = localStorage.getItem('adapt.theme');
+    return saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
   const [copilot, setCopilot] = useState(false);
-  const [navigationOpen, setNavigationOpen] = useState(false);
   const overview = useOverview();
   const route = useLocation().pathname;
-  const toggleTheme = () => {
-    setDark((current) => {
-      const next = !current;
-      localStorage.setItem('adapt.theme', next ? 'dark' : 'light');
-      return next;
-    });
-  };
-
-  useEffect(() => setNavigationOpen(false), [route]);
   useEffect(() => {
-    if (!navigationOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setNavigationOpen(false);
-    };
-    document.body.classList.add('navigation-locked');
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.body.classList.remove('navigation-locked');
-      window.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [navigationOpen]);
-
+    document.title = `${routeNames[route.split('/')[1]] || 'Command Center'} · ADAPT`;
+  }, [route]);
+  const toggleTheme = () => {
+    setDark(!dark);
+    localStorage.setItem('adapt.theme', dark ? 'light' : 'dark');
+  };
   return (
-    <div
-      className={`app ${dark ? 'dark' : ''} ${collapsed ? 'compact-nav' : ''} ${navigationOpen ? 'mobile-navigation-open' : ''}`}
-    >
+    <div className={`app ${dark ? 'dark' : ''} ${collapsed ? 'compact-nav' : ''}`}>
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <aside className="sidebar" id="primary-navigation" aria-label="Application navigation">
-        <div className="sidebar-header">
-          <Link to="/" className="brand" aria-label="ADAPT Command Center">
-            <span className="brand-mark">
-              <svg viewBox="0 0 32 32" aria-hidden="true">
-                <path d="M5 25 16 6 27 25M10 19h12" />
-              </svg>
-            </span>
-            <span>
-              ADAPT<span className="brand-sub">Advertising intelligence</span>
-            </span>
-          </Link>
-          <button
-            className="icon-button mobile-navigation-close"
-            aria-label="Close navigation"
-            onClick={() => setNavigationOpen(false)}
-          >
-            <X size={19} />
-          </button>
-        </div>
+      <aside className="sidebar">
+        <Link to="/" className="brand" aria-label="ADAPT Command Center">
+          <span className="brand-mark">
+            <svg viewBox="0 0 256 256" aria-hidden="true">
+              <g fill="currentColor" transform="translate(3 -6)">
+                <path d="M32 80H80V178H176V224H80L32 176Z" />
+                <path d="M112 32H176L224 80V144H176V78H112Z" />
+              </g>
+            </svg>
+          </span>
+          <span>
+            ADAPT<span className="brand-sub">Advertising intelligence</span>
+          </span>
+        </Link>
         <Link className="workspace" to="/data?section=workspaces" aria-label="Manage workspaces">
           <span className="workspace-avatar">D</span>
           <div>
@@ -130,61 +151,7 @@ export function App() {
             <small>Decision workspace · INR</small>
           </div>
         </Link>
-        <nav aria-label="Primary navigation">
-          <div className="nav-cluster">
-            <span className="nav-label">Workspace</span>
-            <NavLink to="/" end>
-              <LayoutDashboard size={19} />
-              <span>Command Center</span>
-            </NavLink>
-            <NavLink to="/decisions">
-              <Workflow size={19} />
-              <span>Decision Center</span>
-            </NavLink>
-            <NavLink to="/scenarios">
-              <FlaskConical size={19} />
-              <span>Scenario Lab</span>
-            </NavLink>
-          </div>
-          <div className="nav-cluster">
-            <span className="nav-label">Operations</span>
-            <NavLink to="/anomalies">
-              <Radar size={19} />
-              <span>Anomalies</span>
-            </NavLink>
-            <NavLink to="/optimizer">
-              <SlidersHorizontal size={19} />
-              <span>Optimizer</span>
-            </NavLink>
-            <NavLink to="/executions">
-              <ListChecks size={19} />
-              <span>Execution & Ledger</span>
-            </NavLink>
-            <NavLink to="/connection">
-              <PlugZap size={19} />
-              <span>Backend Connection</span>
-            </NavLink>
-          </div>
-          <div className="nav-cluster">
-            <span className="nav-label">Intelligence</span>
-            <NavLink to="/opportunities">
-              <TrendingUp size={19} />
-              <span>Opportunity Map</span>
-            </NavLink>
-            <NavLink to="/outcomes">
-              <ChartNoAxesCombined size={19} />
-              <span>Outcomes</span>
-            </NavLink>
-            <NavLink to="/learning">
-              <BookOpen size={19} />
-              <span>Learning</span>
-            </NavLink>
-            <NavLink to="/data">
-              <Database size={19} />
-              <span>Data Hub</span>
-            </NavLink>
-          </div>
-        </nav>
+        <Navigation />
         <div className="sidebar-bottom">
           <div className="mode-box">
             <ShieldCheck size={20} />
@@ -216,39 +183,27 @@ export function App() {
           </div>
         </div>
       </aside>
-      <button
-        className="navigation-backdrop"
-        aria-label="Close navigation"
-        onClick={() => setNavigationOpen(false)}
-      />
       <div className="workspace-main">
         <header className="topbar">
-          <div className="topbar-leading">
-            <button
-              className="icon-button mobile-navigation-trigger"
-              aria-label="Open navigation"
-              aria-controls="primary-navigation"
-              aria-expanded={navigationOpen}
-              onClick={() => setNavigationOpen(true)}
-            >
-              <Menu size={19} />
-            </button>
-            <span className="mobile-route-name">
-              {routeNames[route.split('/')[1]] || 'Command Center'}
-            </span>
-            <div className="breadcrumb">
-              Workspace <span>/</span>{' '}
-              <strong>{routeNames[route.split('/')[1]] || 'Command Center'}</strong>
-            </div>
+          <button
+            className="icon-button mobile-menu-button"
+            aria-label="Open navigation"
+            onClick={() => setMobileNav(true)}
+          >
+            <Menu size={20} />
+          </button>
+          <div className="breadcrumb">
+            Workspace <span>/</span>{' '}
+            <strong>{routeNames[route.split('/')[1]] || 'Command Center'}</strong>
           </div>
           <div className="topbar-actions">
             <button
               className="icon-button"
               aria-label="Open Copilot"
-              title="Open Copilot"
               onClick={() => setCopilot(true)}
             >
               <MessageSquare size={18} />
+              <span className="copilot-label">Copilot</span>
             </button>
             <Badge tone={dataMode === 'fixture' ? 'warning' : 'accent'}>
               {dataMode === 'fixture' ? 'FRONTEND FIXTURES' : 'API MODE'}
@@ -257,8 +212,6 @@ export function App() {
               className="icon-button"
               onClick={toggleTheme}
               aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
-              aria-pressed={dark}
-              title={dark ? 'Switch to light theme' : 'Switch to dark theme'}
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
@@ -316,6 +269,11 @@ export function App() {
           </span>
         </footer>
       </div>
+      {mobileNav && (
+        <Modal title="Navigation" close={() => setMobileNav(false)}>
+          <Navigation close={() => setMobileNav(false)} />
+        </Modal>
+      )}
       {copilot && (
         <ViewBoundary
           fallback={
