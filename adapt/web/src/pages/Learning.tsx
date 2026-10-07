@@ -4,6 +4,7 @@ import { insights } from '../api/insights';
 import { Badge, Empty, ErrorState, Loading, SectionTitle } from '../components/ui';
 import { dateTime, money } from '../lib/format';
 import { ModelManagement } from '../components/ModelManagement';
+import { ConfidenceBands } from '../components/ConfidenceBands';
 
 export function Learning() {
   return (
@@ -19,6 +20,7 @@ export function Learning() {
         <Badge tone="accent">EVIDENCE OF FEEDBACK</Badge>
       </div>
       <LearningMetrics />
+      <ConfidenceBands />
       <ModelManagement />
     </>
   );

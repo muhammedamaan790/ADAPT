@@ -111,6 +111,20 @@ export const reconciliationSchema = z.object({
   store_revenue: finite,
   attribution_excess: finite,
   note: z.string(),
+  window_start: z.string().optional(),
+  window_end: z.string().optional(),
+  platforms: z
+    .array(
+      z.object({
+        platform: z.string().min(1),
+        platform_conversions: finite.nonnegative(),
+        store_attributed_orders: z.number().int().nonnegative(),
+        over_attribution: finite.nonnegative().nullable(),
+        over_attribution_reason: z.string().nullable().optional(),
+        session_click_ratio: finite.nonnegative().nullable(),
+      }),
+    )
+    .optional(),
 });
 export const importAckSchema = z.object({
   import_id: z.string(),

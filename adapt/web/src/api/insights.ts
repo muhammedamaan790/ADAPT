@@ -201,12 +201,12 @@ export const insights = {
   },
   async reconciliation() {
     if (!fixture) return request('/data/reconciliation', reconciliationSchema);
-    return {
+    return reconciliationSchema.parse({
       platform_revenue: 1390000,
       store_revenue: 1248000,
       attribution_excess: 142000,
       note: 'Recorded frontend illustration. Platform attribution is reconciled against store net revenue; attribution excess is not extra sales.',
-    };
+    });
   },
   async importData(
     type: ImportType,

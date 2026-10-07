@@ -10,6 +10,26 @@ import {
   type Objective,
 } from './contracts';
 import { fixtureService, loadFixtureState } from './fixture-service';
+import { sourceSchema } from './contracts';
+import {
+  calibrationSchema,
+  accuracySchema,
+  upliftSchema,
+  feedbackSchema,
+  modelSchema,
+  reconciliationSchema,
+  dataHealthSchema,
+  opportunitySchema,
+  fatigueSchema,
+} from './insight-contracts';
+import { workspaceListSchema } from './management-contracts';
+import { policySchema, shadowSchema, scenarioCatalogSchema } from './policy-contracts';
+import {
+  confidenceBandsSchema,
+  sourceChecksSchema,
+  workspaceObjectiveSchema,
+  policyHistorySchema,
+} from './completion-contracts';
 import {
   anomalySchema,
   evaluationSchema,
@@ -38,6 +58,7 @@ export async function request<T>(
   schema: z.ZodType<T>,
   body?: unknown,
   writeMethod: 'POST' | 'PUT' = 'POST',
+  signal?: AbortSignal,
 ): Promise<T> {
   const mutation = body !== undefined;
   const controller = new AbortController();
@@ -46,7 +67,7 @@ export async function request<T>(
     const response = await fetch(`${base}${path}`, {
       method: mutation ? writeMethod : 'GET',
       credentials: 'include',
-      signal: controller.signal,
+      signal: signal ? AbortSignal.any([controller.signal, signal]) : controller.signal,
       headers: {
         Accept: 'application/json',
         ...(mutation
@@ -179,6 +200,38 @@ export const readinessEndpoints = [
   { name: 'Optimizer context', path: '/optimizer/context', schema: optimizerContextSchema },
   { name: 'Executions', path: '/executions', schema: z.array(executionSchema) },
   { name: 'Ledger', path: '/ledger', schema: z.array(ledgerSchema) },
+  { name: 'Outcomes', path: '/outcomes', schema: z.array(outcomeSchema) },
+  { name: 'Event polling', path: '/events', schema: z.array(eventSchema) },
+  { name: 'Opportunities', path: '/opportunities', schema: z.array(opportunitySchema) },
+  { name: 'Creative fatigue', path: '/creatives/fatigue', schema: z.array(fatigueSchema) },
+  { name: 'Data sources', path: '/data/sources', schema: z.array(sourceSchema) },
+  { name: 'Source checks', path: '/data/health', schema: sourceChecksSchema },
+  {
+    name: 'SKU mapping coverage',
+    path: '/data/mapping-coverage',
+    schema: dataHealthSchema.pick({ coverage: true, unmapped: true, note: true }),
+  },
+  {
+    name: 'Attribution reconciliation',
+    path: '/data/reconciliation',
+    schema: reconciliationSchema,
+  },
+  { name: 'Workspaces', path: '/workspaces', schema: workspaceListSchema },
+  { name: 'Calibration', path: '/learning/calibration', schema: calibrationSchema },
+  { name: 'Prediction accuracy', path: '/learning/accuracy', schema: accuracySchema },
+  { name: 'Strategy uplift', path: '/learning/uplift', schema: upliftSchema },
+  { name: 'Feedback', path: '/learning/feedback', schema: feedbackSchema },
+  { name: 'Model registry', path: '/models', schema: z.array(modelSchema) },
+  { name: 'Execution policy', path: '/policy', schema: policySchema },
+  { name: 'Policy history', path: '/policy/history', schema: policyHistorySchema },
+  { name: 'Workspace objective', path: '/objective', schema: workspaceObjectiveSchema },
+  { name: 'Shadow decisions', path: '/learning/shadow', schema: shadowSchema },
+  {
+    name: 'Confidence qualification',
+    path: '/learning/qualification',
+    schema: confidenceBandsSchema,
+  },
+  { name: 'Scenario capabilities', path: '/sim/scenarios', schema: scenarioCatalogSchema },
 ];
 export async function checkConnection() {
   const probes = [
