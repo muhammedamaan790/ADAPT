@@ -16,7 +16,7 @@ import numpy as np
 
 from world.rng import uniforms
 
-PURPOSES = ("click", "session", "purchase", "sku", "return", "user")
+PURPOSES = ("click", "session", "purchase", "sku", "return", "user", "creative")
 CAPACITY_HEADROOM = 1.5
 
 
@@ -56,8 +56,20 @@ class FunnelInputs:
     sku_ids: tuple[str, ...] = ()
     sku_weights: tuple[float, ...] = ()
     return_rates: tuple[float, ...] = ()
+    # Optional per-creative delivery: each prospect is served one creative (by delivery weight) and clicks at
+    # that creative's CTR; `ctr` is then unused. Empty = one CTR for the whole campaign.
+    creative_weights: tuple[float, ...] = ()
+    creative_ctr: tuple[float, ...] = ()
 
     def __post_init__(self) -> None:
+        if len(self.creative_weights) != len(self.creative_ctr):
+            raise ValueError("creative_weights and creative_ctr must be the same length")
+        if self.creative_weights:
+            if any(w < 0 for w in self.creative_weights) or not math.isclose(sum(self.creative_weights), 1.0,
+                                                                              abs_tol=1e-9):
+                raise ValueError("creative_weights must be >= 0 and sum to 1")
+            if any(not 0.0 <= c <= 1.0 for c in self.creative_ctr):
+                raise ValueError("creative_ctr must be in [0, 1]")
         for name in ("ctr", "click_session_rate", "availability"):
             v = getattr(self, name)
             if not 0.0 <= v <= 1.0:
@@ -83,8 +95,12 @@ class FunnelInputs:
 
 @dataclass(frozen=True)
 class FunnelArrays:
-    """Per-prospect outcomes for exposed prospects 0..I-1 (sku_index = -1 where not purchased)."""
+    """Per-prospect outcomes for exposed prospects 0..I-1 (sku_index = -1 where not purchased).
 
+    creative_index is the served creative (-1 everywhere when the campaign has a single CTR).
+    """
+
+    creative_index: np.ndarray
     clicked: np.ndarray
     session: np.ndarray
     purchased: np.ndarray
@@ -116,7 +132,15 @@ def prospect_funnel(seed: int, day: int, campaign_id: str, inputs: FunnelInputs,
     def u(purpose: str) -> np.ndarray:
         return uniforms(seed, day, campaign_id, purpose, exposed)
 
-    clicked = u("click") < inputs.ctr
+    if inputs.creative_weights:
+        ccdf = np.cumsum(inputs.creative_weights)
+        ccdf[-1] = 1.0
+        creative_index = np.minimum(np.searchsorted(ccdf, u("creative"), side="right"), len(ccdf) - 1)
+        ctr = np.asarray(inputs.creative_ctr)[creative_index]
+    else:
+        creative_index = np.full(exposed, -1, dtype=np.int64)
+        ctr = inputs.ctr
+    clicked = u("click") < ctr
     session = clicked & (u("session") < inputs.click_session_rate)
     purchased = session & (u("purchase") < inputs.p_buy)
 
@@ -132,7 +156,7 @@ def prospect_funnel(seed: int, day: int, campaign_id: str, inputs: FunnelInputs,
     returned = purchased & (u("return") < return_rate)
 
     user_id = np.floor(u("user") * inputs.audience_size).astype(np.int64)
-    return FunnelArrays(clicked, session, purchased, returned, sku_index, user_id)
+    return FunnelArrays(creative_index, clicked, session, purchased, returned, sku_index, user_id)
 
 
 def simulate_campaign_day(

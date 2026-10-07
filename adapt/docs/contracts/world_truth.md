@@ -33,11 +33,13 @@ Strictly increasing and concave in s (property-tested), so targets are hit by bi
 | gamma, eta, target daily frequency, cross-sell share | uniform ranges in benchmarks.yaml |
 | audience A, s_ref | solved so the unsaturated reference spend gives the target frequency |
 | creative CTR multiplier | LogNormal(0, 0.15), normalised to mean 1 per campaign |
-| creative fatigue half-life | 180–540 days at reference delivery |
+| creative fatigue half-life | 365–1095 days at reference delivery |
 | price elasticity | per category, U(-2.5, -0.8) |
 
-**Survivorship:** prior rows are redrawn (up to 500 times) until the campaign's revenue ROAS at the reference
-spend lies in `reference_roas_band` [1.2, 9.0]; a brand does not keep running campaigns at ROAS 0.5.
+**Survivorship:** prior rows are redrawn (up to 500 times) until the campaign's fresh-creative revenue ROAS at
+the reference spend lies in `reference_roas_band` [2.0, 10.0]; a brand does not keep running campaigns at
+ROAS 0.5. Wear-out and saturation pull realised ROAS ~1.5x below this (see measured values). A channel whose
+prior is a single fallback row cannot be redrawn; the closest draw is kept.
 
 ## Demand and volume
 - demand index per category = 28-day centred trend (floored at 0.05) x weekday factor (by world weekday).
@@ -45,12 +47,17 @@ spend lies in `reference_roas_band` [1.2, 9.0]; a brand does not keep running ca
 - Expected paid purchases per campaign-day = k x category mean units x source share x index, with sources
   Adwords -> Google Search, YouTube -> Google Video, Facebook -> Meta (60% prospecting / 40% retargeting).
 - Unpaid orders (Email, Organic) and the unmapped warehouse demand use the same index and k.
-- Historical budgets change on the 1st of each world month (the "human manager"), set so expected purchases
-  equal the month's target; rounded to ₹100. Shared budgets split by the reference-month need, held fixed.
+- `truth.history_budgets` is the fresh-creative budget plan. The budgets actually applied during seeding come
+  from the history "human manager" (`world.step.manager_budgets`): on the 1st of each world month it solves for
+  the month's target using the creatives' *current* wear plus the average pacing/CPM/noise effects, rounded to
+  ₹100. Shared budgets split by the reference-month need, held fixed.
 
-## Measured (seed 42, real data, k = 10)
-48 campaigns, 322 creatives; reference ROAS 1.5–9.5 (median 3.1); paid spend ≈ ₹25 lakh/day for ≈ 1,190 paid
-purchases/day (blended ROAS ≈ 2.6); median campaign ≈ 15 purchases/day.
+## Measured (seed 42, real data, k = 10, simulated history, last 28 days)
+48 campaigns, 322 creatives. Paid purchase attempts / expected = 0.91–0.95 per channel (within-month wear is not
+fully offset by a monthly manager). Campaign ROAS 1.25–7.9 (median 2.15); blended paid ROAS 2.1, paid POAS 0.7
+(break-even ROAS ≈ 3.1 at ~50% gross margin, 12% returns): many campaigns lose money on the first order, as is
+common for D2C, which leaves ADAPT real profit decisions. ≈ 2,190 store orders/day (≈ 465 paid), revenue
+≈ ₹1.08 Cr/day, ad spend ≈ ₹15.5 lakh/day; 92 stockout SKU-days in the year. Seeding takes ≈ 130 s.
 
 ## FAILURE STATES
 A channel with no purchases in the backbone sessions -> ValueError (no silent zero campaign).

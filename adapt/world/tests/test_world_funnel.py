@@ -77,7 +77,7 @@ def test_more_spend_exposes_a_strict_superset_of_the_same_prospects():
     high = prospect_funnel(42, 10, "C1", make_inputs(spend=6_000), POOL)
     n = low.clicked.size
     assert high.clicked.size > n
-    for name in ("clicked", "session", "purchased", "returned", "sku_index", "user_id"):
+    for name in ("creative_index", "clicked", "session", "purchased", "returned", "sku_index", "user_id"):
         assert np.array_equal(getattr(high, name)[:n], getattr(low, name)), name
 
 
@@ -127,6 +127,22 @@ def test_aggregate_rates_match_truth_within_sampling_error():
     assert 1.0 < out.frequency < 20.0
 
 
+def test_creative_delivery_and_per_creative_ctr():
+    inp = make_inputs(spend=40_000, creative_weights=(0.7, 0.3), creative_ctr=(0.05, 0.01))
+    a = prospect_funnel(3, 4, "C1", inp, POOL)
+    n = a.creative_index.size
+    share0 = (a.creative_index == 0).mean()
+    assert share0 == pytest.approx(0.7, abs=0.01)
+    ctr0 = a.clicked[a.creative_index == 0].mean()
+    ctr1 = a.clicked[a.creative_index == 1].mean()
+    assert ctr0 == pytest.approx(0.05, rel=0.05) and ctr1 == pytest.approx(0.01, rel=0.1)
+    # more spend: the first n prospects keep their creative and their outcome
+    more = prospect_funnel(3, 4, "C1", make_inputs(spend=60_000, creative_weights=(0.7, 0.3),
+                                                    creative_ctr=(0.05, 0.01)), POOL)
+    assert np.array_equal(more.creative_index[:n], a.creative_index)
+    assert np.array_equal(more.clicked[:n], a.clicked)
+
+
 def test_p_buy_is_capped_at_one():
     assert make_inputs(cvr=2.0, price_factor=1.5).p_buy == 1.0
 
@@ -134,7 +150,8 @@ def test_p_buy_is_capped_at_one():
 @pytest.mark.parametrize(
     "kw",
     [dict(ctr=1.2), dict(click_session_rate=-0.1), dict(sku_weights=(0.5, 0.5, 0.5)), dict(sku_ids=("A", "A", "B")),
-     dict(return_rates=(0.1, 1.5, 0.0)), dict(sku_ids=()), dict(cvr=-0.01)],
+     dict(return_rates=(0.1, 1.5, 0.0)), dict(sku_ids=()), dict(cvr=-0.01),
+     dict(creative_weights=(0.5, 0.6), creative_ctr=(0.1, 0.1)), dict(creative_weights=(1.0,), creative_ctr=())],
 )
 def test_invalid_inputs_are_rejected(kw):
     with pytest.raises(ValueError):

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -68,6 +68,7 @@ class CampaignTruth:
     budget_share: float  # share of its budget's spend this campaign receives (1.0 unless the budget is shared)
     prior_row: int
     prior_source: str
+    view_through_rate: float = 0.0  # platform-claimed extra conversions per click-through purchase
 
 
 @dataclass(frozen=True)
@@ -92,12 +93,20 @@ class Truth:
     warehouse: dict[str, float]  # unmapped store demand (non-promoted categories)
     history_budgets: pd.DataFrame  # budget_id, from_day, to_day, amount_inr
     source_shares: dict[str, float]
+    sku_lead_time: dict[str, int] = field(default_factory=dict)
     meta: dict = field(default_factory=dict)
+    _history_index: dict | None = field(default=None, repr=False, compare=False)
+
+    @property
+    def history_days(self) -> int:
+        return int(self.meta["history_days"])
 
     def demand_index(self, category_code: str, day: int) -> float:
         if day < 0:
-            row = self.demand[(self.demand.category_code == category_code) & (self.demand.day == day)]
-            return float(row["index"].iloc[0])
+            if self._history_index is None:
+                self._history_index = {(c, int(d)): float(i) for c, d, i in
+                                       self.demand[["category_code", "day", "index"]].itertuples(index=False)}
+            return self._history_index[(category_code, day)]
         wd = self.config.world_date(day).weekday()
         return self.future_level[category_code] * self.weekday_factor[category_code][wd]
 
@@ -128,12 +137,13 @@ def expected_purchases(spend: float, t: CampaignTruth, demand: float = 1.0, ctr_
     return imps * ctr * t.click_session_rate * p_buy
 
 
-def spend_for_purchases(target: float, t: CampaignTruth, demand: float = 1.0) -> float:
+def spend_for_purchases(target: float, t: CampaignTruth, demand: float = 1.0, ctr_mult: float = 1.0,
+                        cpm_mult: float = 1.0) -> float:
     if target <= 0:
         return 0.0
     hi = max(t.s_ref, 1.0)
     for _ in range(80):
-        if expected_purchases(hi, t, demand) >= target:
+        if expected_purchases(hi, t, demand, ctr_mult, cpm_mult) >= target:
             break
         hi *= 2.0
     else:
@@ -141,7 +151,7 @@ def spend_for_purchases(target: float, t: CampaignTruth, demand: float = 1.0) ->
     lo = 0.0
     for _ in range(100):
         mid = 0.5 * (lo + hi)
-        if expected_purchases(mid, t, demand) < target:
+        if expected_purchases(mid, t, demand, ctr_mult, cpm_mult) < target:
             lo = mid
         else:
             hi = mid
@@ -317,7 +327,9 @@ def build_truth(cfg: WorldConfig, catalog: Catalog | None = None, pools: dict[st
                 best = (miss, t)
             if miss == 0.0:
                 break
-        campaigns[c.campaign_id] = best[1]
+        vt = _uniform(generator(cfg.seed, 0, c.campaign_id, "truth:view_through"),
+                      bench["step"]["view_through_rate"][c.channel])
+        campaigns[c.campaign_id] = replace(best[1], view_through_rate=vt)
 
     # Historical budgets: set on the 1st of each world month so expected purchases match the month's target.
     months: dict[tuple[int, int], list[int]] = {}
@@ -362,6 +374,9 @@ def build_truth(cfg: WorldConfig, catalog: Catalog | None = None, pools: dict[st
 
     elasticity = {code: _uniform(generator(cfg.seed, 0, code, "truth:elasticity"), bench["price_elasticity"])
                   for code in codes}
+    lo_lead, hi_lead = bench["inventory"]["lead_time_days"]
+    sku_lead_time = {s.sku: int(generator(cfg.seed, 0, s.sku, "truth:lead_time").integers(lo_lead, hi_lead + 1))
+                     for s in catalog.skus}
     warehouse = {**warehouse, "units_mean": warehouse["units_mean"] * k,
                  "price_inr": warehouse["price_usd"] * bench["fx_usd_inr"],
                  "cogs_inr": warehouse["cogs_usd"] * bench["fx_usd_inr"]}
@@ -369,7 +384,7 @@ def build_truth(cfg: WorldConfig, catalog: Catalog | None = None, pools: dict[st
     return Truth(
         config=cfg, catalog=catalog, campaigns=campaigns, creatives=creatives, elasticity=elasticity,
         demand=demand, weekday_factor=wf, future_level=level, category_rates=category_rates, warehouse=warehouse,
-        history_budgets=history_budgets, source_shares=shares,
+        history_budgets=history_budgets, source_shares=shares, sku_lead_time=sku_lead_time,
         meta={"schema_version": TRUTH_SCHEMA_VERSION, "seed": cfg.seed, "brand_scale": k,
               "history_end_date": cfg.history_end_date.isoformat(), "history_days": n_hist,
               "backbone_window": {"start": window["start"].isoformat(), "end": window["end"].isoformat()},
@@ -404,7 +419,8 @@ def write_truth(truth: Truth, path: str | Path, overwrite: bool = False) -> None
             ),
             "demand_index": truth.demand,
             "history_budgets": truth.history_budgets,
-            "sku_truth": pd.DataFrame([asdict(s) for s in truth.catalog.skus]),
+            "sku_truth": pd.DataFrame([{**asdict(s), "lead_time_days": truth.sku_lead_time[s.sku]}
+                                       for s in truth.catalog.skus]),
         }
         for name, df in frames.items():
             con.register("frame", df)

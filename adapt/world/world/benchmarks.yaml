@@ -29,13 +29,14 @@ saturation:                      # truth draws per campaign (uniform ranges)
   cross_sell_share: [0.03, 0.10] # purchases landing on unmapped (warehouse) products
 
 # Survivorship: a brand only keeps campaigns whose revenue ROAS at the reference spend is plausible.
-# Prior rows are rejection-sampled per campaign until the reference ROAS lands in this band. A ROAS of 1.2-2 at
-# 40-60% gross margin still loses money after ads (POAS < 1), so profit-vs-ROAS trade-offs remain.
-reference_roas_band: [1.2, 9.0]
+# Prior rows are rejection-sampled per campaign until the fresh-creative reference ROAS lands in this band.
+# Creative wear-out and saturation pull realised ROAS down ~1.5x (seed 42: realised median ~2-3), and a realised
+# ROAS of 1.5-2 at 40-60% gross margin still loses money after ads, so profit-vs-ROAS trade-offs remain.
+reference_roas_band: [2.0, 10.0]
 
 demand_on_conversion: 0.5        # p_buy scales with demand_index^0.5; budgets carry the rest of the growth
 
-fatigue_half_life_days: [180, 540]  # baseline creative wear-out at reference delivery (scenario S2 accelerates it)
+fatigue_half_life_days: [365, 1095] # baseline creative wear-out at reference delivery (scenario S2 accelerates it)
 creative_ctr_sigma: 0.15         # creative CTR multiplier ~ LogNormal(0, sigma)
 price_elasticity: [-2.5, -0.8]   # per category
 
@@ -43,6 +44,32 @@ unit_costs:                      # TheLook has no shipping or payment costs
   ship_cost_pct: 0.04
   ship_cost_min_inr: 60
   payment_fee_pct: 0.02
+
+step:                            # world.step behaviour (no empirical source)
+  pacing: [0.95, 1.0]            # share of the daily budget actually delivered
+  view_through_rate:             # platform-claimed extra conversions per click-through purchase (over-attribution)
+    google_search: [0.05, 0.15]
+    google_video: [0.15, 0.35]
+    meta_prospecting: [0.20, 0.45]
+    meta_retargeting: [0.25, 0.50]
+  new_customer_rate:             # share of purchases from first-time customers
+    google_search: 0.45
+    google_video: 0.60
+    meta_prospecting: 0.70
+    meta_retargeting: 0.15
+    email: 0.10
+    organic: 0.50
+  ga_record_rate: 0.95           # GA4 records this share of sessions/purchases (consent, blockers); S5 lowers it
+  unpaid_session_cvr: 0.03       # unpaid sessions = unpaid orders / this
+  return_lag_days: [3, 21]
+  prospect_pool_spend_multiple: 3.0  # S_max = this x max(budget, reference spend) when sizing the prospect pool
+
+inventory:                       # simulated ERP (s, Q) policy; TheLook stock never depletes
+  lead_time_days: [7, 21]        # per SKU, truth draw
+  initial_cover_days: 35
+  safety_days: 5                 # reorder point s = trailing daily sales x (lead time + safety_days)
+  order_cover_days: 30           # order quantity Q = trailing daily sales x order_cover_days
+  planning_window_days: 28       # the planner's trailing-sales window
 
 min_prior_rows: 10               # fewer E-commerce rows than this for a channel -> parametric fallback below
 fallback_rates:                  # USD CPM; used only when a channel has too few rows

@@ -58,7 +58,18 @@ PLATFORMS = frozenset({"google", "meta"})
 # Faults a mock platform can be told to produce on its next N mutations (spec §9.4: 429/400/503/timeout-after-success).
 FAULTS = frozenset({"rate_limit", "unavailable", "bad_request", "timeout_after_success"})
 
-Operation = Callable[[duckdb.DuckDBPyConnection, dict[str, Any]], dict[str, Any]]
+@dataclass(frozen=True)
+class WorldContext:
+    """What operations may use besides the state cursor: the (immutable) truth and the day simulator.
+
+    `simulate_day(cur, seed, day)` is None for a bare store (control-plane tests); then advance only moves the clock.
+    """
+
+    truth: Any = None
+    simulate_day: Callable[[duckdb.DuckDBPyConnection, int, int], dict[str, Any]] | None = None
+
+
+Operation = Callable[[duckdb.DuckDBPyConnection, dict[str, Any], WorldContext], dict[str, Any]]
 
 
 def canonical_json(value: Any) -> str:
@@ -78,27 +89,40 @@ class UnknownEntity(LookupError):
 
 
 # ---- operations: pure functions of (state, payload); the only way state changes ----------------------
-def op_reset(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> dict[str, Any]:
+def op_reset(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any], ctx: WorldContext) -> dict[str, Any]:
+    """Clears every state table (the log is kept) and sets the clock. start_day < 0 begins a history run."""
     seed = int(payload["seed"])
-    cur.execute("DELETE FROM budgets_state")
-    cur.execute("DELETE FROM faults_state")
-    cur.execute("DELETE FROM world_clock")
-    cur.execute("INSERT INTO world_clock VALUES (1, ?, 0)", [seed])
-    return {"seed": seed, "day": 0}
+    start_day = int(payload.get("start_day", 0))
+    tables = [r[0] for r in cur.execute(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_name <> 'world_log'"
+    ).fetchall()]
+    for table in tables:
+        cur.execute(f'DELETE FROM "{table}"')
+    cur.execute("INSERT INTO world_clock VALUES (1, ?, ?)", [seed, start_day])
+    return {"seed": seed, "day": start_day}
 
 
-def op_advance(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> dict[str, Any]:
+def op_advance(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any], ctx: WorldContext) -> dict[str, Any]:
+    """Simulates days [day, day + n) and moves the clock to day + n (clock day = the next day to simulate)."""
     days = int(payload["days"])
     if days < 1:
         raise ValueError("days must be >= 1")
     row = cur.execute("SELECT seed, day FROM world_clock WHERE id = 1").fetchone()
     if row is None:
         raise WorldStateConflict("world not seeded: call reset first")
+    seed, day = row
+    summaries = []
+    if ctx.simulate_day is not None:
+        for d in range(day, day + days):
+            summaries.append(ctx.simulate_day(cur, seed, d))
     cur.execute("UPDATE world_clock SET day = day + ? WHERE id = 1", [days])
-    return {"seed": row[0], "day": row[1] + days}
+    out: dict[str, Any] = {"seed": seed, "day": day + days}
+    if summaries:
+        out["simulated"] = summaries
+    return out
 
 
-def op_set_budget(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> dict[str, Any]:
+def op_set_budget(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any], ctx: WorldContext) -> dict[str, Any]:
     """Absolute setter (never relative), so a retried request can never double-apply."""
     amount = float(payload["amount"])
     status = str(payload.get("status", "ENABLED"))
@@ -113,7 +137,7 @@ def op_set_budget(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> di
     return {"platform": payload["platform"], "budget_id": payload["budget_id"], "amount": amount, "status": status}
 
 
-def op_set_fault(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> dict[str, Any]:
+def op_set_fault(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any], ctx: WorldContext) -> dict[str, Any]:
     platform, fault, count = payload["platform"], payload["fault"], int(payload.get("count", 1))
     if platform not in PLATFORMS or fault not in FAULTS or count < 1:
         raise ValueError(f"invalid fault {platform}/{fault}/{count}")
@@ -121,7 +145,9 @@ def op_set_fault(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> dic
     return {"platform": platform, "fault": fault, "remaining": count}
 
 
-def op_platform_set_budget(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any]) -> dict[str, Any]:
+def op_platform_set_budget(
+    cur: duckdb.DuckDBPyConnection, payload: dict[str, Any], ctx: WorldContext
+) -> dict[str, Any]:
     """A mock-platform budget mutation. Absolute setter on an existing budget; consumes an injected fault if armed.
 
     The fault consumption is itself committed state, so a fault sequence replays deterministically.
@@ -171,14 +197,24 @@ class CommitResult:
 
 
 class WorldStore:
-    def __init__(self, path: str | Path) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        ctx: WorldContext | None = None,
+        extra_schema: str = "",
+        extra_ops: dict[str, Operation] | None = None,
+    ) -> None:
         self.path = str(path)
+        self.ctx = ctx or WorldContext()
+        self._ops = {**OPERATIONS, **(extra_ops or {})}
         self._con = duckdb.connect(self.path)
         self._lock = threading.Lock()
         self._con.execute(SCHEMA)
+        if extra_schema:
+            self._con.execute(extra_schema)
 
     def commit(self, operation: str, request_id: str, actor_id: str, payload: dict[str, Any]) -> CommitResult:
-        if operation not in OPERATIONS:
+        if operation not in self._ops:
             raise KeyError(f"unknown operation {operation}")
         payload_json = canonical_json(payload)
         with self._lock:
@@ -194,7 +230,7 @@ class WorldStore:
                     return CommitResult(prior[0], json.loads(prior[3]), replayed=True)
                 cur.execute("BEGIN")
                 try:
-                    result = OPERATIONS[operation](cur, payload)
+                    result = self._ops[operation](cur, payload, self.ctx)
                     seq = cur.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM world_log").fetchone()[0]
                     result_json = canonical_json(result)
                     cur.execute(

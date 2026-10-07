@@ -25,6 +25,12 @@ $env:PYTHONPATH="world"; uv run python -m world.backbone --raw-dir data/raw --ou
 ```
 Produces 60 price-band SKUs in 12 categories over the last 365 days, with a checksum manifest. Design decisions are in `docs/contracts/world_backbone.md`.
 
+## Seed a world (truth + 365 simulated history days, ~2 minutes)
+```powershell
+$env:PYTHONPATH="world"; uv run python -m world.seed --seed 42 --overwrite
+```
+Writes `data/world/seed42/sim_truth.duckdb` (hidden truth, read-only afterwards) and `sim_state.duckdb` (the world after its history, clock at day 0). See `docs/contracts/world_truth.md` and `world_step.md`.
+
 ## Run the world service (simulated outside world + mock Google/Meta APIs)
 ```powershell
 uv run uvicorn world.main:app --app-dir world --port 8100
