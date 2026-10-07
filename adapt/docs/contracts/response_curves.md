@@ -33,6 +33,7 @@ across the portfolio).
 - Jacobian condition number > 1e6
 - bootstrap CV(K) > 0.5
 - |corr(Hill(adstock(x)), b)| > 0.9
+- the bootstrap-median elasticity d ln R / d ln s at current spend > 1.05 (`increasing_returns`, correction 4 below)
 
 **Fallbacks**:
 - spend floor (median ≥ ₹500, ≥ 30 spend days), a failed or rejected fit, or an unstable fit → the unit uses the
@@ -62,19 +63,26 @@ the 120-day window. An accepted, stable unit whose channel has no pooled curve s
    was identifiable: 34 of 47 units were unstable or rejected, with Hill(spend)–baseline correlation 0.85–0.91. Real
    budgets also move for reasons other than demand: tests, pushes and pull-backs.
 
+4. **Increasing returns are unstable.** A deployed curve whose bootstrap-median elasticity at current spend exceeds
+   1.05 claims that extra spend earns more per rupee than the average, which a narrow observational spend band cannot
+   identify. On seed 42 the 3 such units were exactly the 3 worst recoveries (53%, 84% and 205% error, against a 14%
+   median for the other 27). They now fall back to the pooled curve, or to MODEL_UNAVAILABLE where none exists
+   (decreases allowed, no scale-up). The 5% tolerance absorbs sampling noise around 1.0: units at 0.98–1.00 recover
+   within 1–15%.
+
 The CV(K) > 0.5 rule was kept on evidence. Relaxing it admits 18 more units, but their median marginal-ROAS error is
 34%, against 13% with the rule.
 
 ## Measured (seed 42, fit_ts 2026-10-01 12:00, 62 s)
 | | Value |
 |---|---|
-| Units | 47: 23 OK, 7 POOLED, 17 MODEL_UNAVAILABLE |
+| Units | 47: 20 OK, 7 POOLED, 20 MODEL_UNAVAILABLE (3 moved by the increasing-returns rule) |
 | Pooled curves | google_search OK (R²_P 0.61); google_video and meta MODEL_UNAVAILABLE (CV(K) 0.50 and 0.53) |
 | Family P10–P90 coverage on P | 83% |
-| Curve recovery vs world truth (`evalharness.curve_recovery`) | median relative error of marginal ROAS at current spend **15%** over the 30 usable units (OK 15%, POOLED 16%; target ≤ 30%) |
+| Curve recovery vs world truth (`evalharness.curve_recovery`) | median relative error of marginal ROAS at current spend **14%** over the 27 usable units (OK 14%, POOLED 16%; target ≤ 30%); the worst-case 53–205% errors are gone |
 
-Known limitation: a few accepted units sit in the convex part of their Hill curve, where the model elasticity is
-> 1. One unit reaches 1.7 against a true 0.72. Bootstrap P10 and the outcome calibration factor (§10) are the guards.
+The earlier limitation (accepted curves in the convex part of the Hill curve, one at elasticity 1.7 against a true
+0.72) is closed by correction 4.
 
 ## FAILURE STATES
 - INSUFFICIENT_DATA (spend floor) → POOLED

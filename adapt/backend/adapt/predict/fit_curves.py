@@ -118,10 +118,23 @@ def _oos_residuals(params, s_tr, r_tr, b_tr, s_h, r_h, b_h) -> tuple[list[float]
     return [round(float(v), 4) for v in (r_h[ok] - pred[ok]) / pred[ok]], model
 
 
+def steady_elasticity(P: np.ndarray, x: float, b: float) -> np.ndarray:
+    """d ln y / d ln x at a constant normalised spend x (steady-state adstock a = x / (1 - theta)), per row of P."""
+    beta, K, S, theta, gamma = P.T
+    a = x / (1 - theta)
+    aS, KS = a ** S, K ** S
+    h = aS / (KS + aS)
+    dh_da = S * KS * a ** (S - 1) / (KS + aS) ** 2
+    y = beta * h + gamma * b
+    return np.where(y > 0, x * beta * dh_da / (1 - theta) / np.where(y > 0, y, 1.0), 0.0)
+
+
 def _stability(f: Fit, draws: np.ndarray, series: list[tuple[np.ndarray, np.ndarray, float]],
-               cfg: dict) -> tuple[bool, dict]:
-    """Identifiability diagnostics (spec §22.2) over every (x, b, a0) series the fit used (one, or a pooled stack)."""
+               cfg: dict, x_now: float = 1.0, b_now: float = 1.0) -> tuple[bool, dict]:
+    """Identifiability diagnostics (spec §22.2) over every (x, b, a0) series the fit used (one, or a pooled stack),
+    plus (v2.4.5) the bootstrap-median elasticity at current spend: > max_elasticity claims increasing returns."""
     u = cfg["unstable"]
+    elasticity = float(np.median(steady_elasticity(draws, x_now, b_now)))
     k = draws[:, 1]
     cv_k = float(k.std() / k.mean()) if k.mean() > 0 else float("inf")
     h = np.concatenate([hill(adstock(x, f.params[3], a0)[0], f.params[1], f.params[2]) for x, _, a0 in series])
@@ -129,10 +142,11 @@ def _stability(f: Fit, draws: np.ndarray, series: list[tuple[np.ndarray, np.ndar
     corr = float(np.corrcoef(h, b)[0, 1]) if h.std() > 0 and b.std() > 0 else 0.0
     diag = {"condition_number": f.condition_number, "bootstrap_cv_K": cv_k,
             "bootstrap_cv_beta": float(draws[:, 0].std() / draws[:, 0].mean()) if draws[:, 0].mean() > 0 else None,
-            "baseline_corr": corr}
+            "baseline_corr": corr, "elasticity_at_current_spend": elasticity}
     reasons = [r for r, bad in (("condition_number", f.condition_number > u["condition_number"]),
                                 ("bootstrap_cv_K", cv_k > u["cv_K"]),
-                                ("baseline_corr", abs(corr) > u["baseline_corr"])) if bad]
+                                ("baseline_corr", abs(corr) > u["baseline_corr"]),
+                                ("increasing_returns", elasticity > u.get("max_elasticity", np.inf))) if bad]
     return not reasons, {**diag, "unstable_reason": ",".join(reasons) or None}
 
 
@@ -268,7 +282,9 @@ def fit_curves(db, as_of: datetime, cfg_overrides: dict | None = None) -> dict:
             a0 = float(x[:7].mean())
             f = fit([(x, y, bn, a0)], cfg)
             draws = bootstrap((x, y, bn, a0), f, idx_train % len(x), cfg)
-            stable, diag = _stability(f, draws, [(x, bn, a0)], cfg)
+            k = cfg["baseline_trend_days"]
+            stable, diag = _stability(f, draws, [(x, bn, a0)], cfg, x_now=float(np.mean(x[-k:])),
+                                      b_now=float(np.mean(bn[-k:])))
             res["diagnostics"] = diag
             if not (f.success and stable):
                 res.update(status="POOLED", reason=f"UNSTABLE: {diag['unstable_reason'] or 'fit failed'}")

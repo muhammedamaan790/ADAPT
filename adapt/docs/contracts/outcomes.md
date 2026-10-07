@@ -49,9 +49,9 @@ and unique orders (`core.order_items`), all as of the measurement time.
 - It is idempotent through the `learn.calibration_log` primary key.
 - INCONCLUSIVE, immaterial and raw_pred ≤ 0 (cuts) never update the factor.
 
-**Stage 1 deviation (stated)**: the residual pool is the curve candidate's out-of-sample errors on its P + D windows
-(42 days), or a proportional-ROAS model for units without a curve. The spec's 56 rolling-origin days need the
-pipeline's stored daily forecasts (C2).
+**Residual pool**: the 56 days of rolling-origin out-of-sample residuals of the forecasts the pipeline stores daily
+(`predict/forecasts.py`; backfilled once on the first run, see `execution_pipeline.md`). A unit with fewer than 28
+valid days falls back to its curve candidate's P + D errors, and the outcome's `method` names the pool it used.
 
 ## FAILURE STATES
 - PENDING: not yet matured
@@ -59,14 +59,15 @@ pipeline's stored daily forecasts (C2).
 - a missing measurement basis raises
 
 ## Measured (seed 42)
-The PROFIT recommendation (40 legs, about 20% cuts) was applied in the world, which stands in for C5's saga, then the
-world was advanced and ingested daily. The outcome matured on day 3 with 2,284 orders. Both runs below are verdict
+The PROFIT recommendation (40 legs, about 20% cuts) was applied in the world, then the world was advanced and ingested
+daily. The first two runs used the world's control endpoint before C5 existed; the last row is the real path. The outcome matured on day 3 with 2,284 orders. Both runs below are verdict
 INCONCLUSIVE, so the factor stays at 0.9 and the replay is idempotent.
 
 | Run | Realized over 3 days | 90% CI | Predicted for the same days |
 |---|---|---|---|
 | First run (old world) | −₹1.6 lakh | −₹8.7 lakh to +₹6.1 lakh | +₹9.3 lakh |
 | Rerun on the reseeded world | +₹2.7 lakh | −₹4.4 lakh to +₹10.4 lakh | +₹9.3 lakh |
+| **Through the product path** (pipeline → approve → C5 saga against the mock platform APIs → daily catch-up cycles), 56-day rolling-origin residuals | +₹3.9 lakh (2,509 orders) | −₹2.9 lakh to +₹9.7 lakh | +₹9.2 lakh |
 
 The first run's measurement exposed a world defect. Demand dropped about 18% at day 0 because the world carried the
 last-28-day mean trend forward instead of the recent level: unpaid orders fell from 14,214 to 11,656 per 3 days. The

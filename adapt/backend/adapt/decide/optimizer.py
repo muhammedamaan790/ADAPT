@@ -166,6 +166,13 @@ class FastEval:
         return True
 
 
+def search_draws(state: PortfolioState, ec: dict | None = None) -> np.ndarray:
+    """The fixed, evenly spaced subset of joint draws the search (and the inventory-gate predicate) evaluates."""
+    ec = ec or objectives_config()["economics"]
+    n_all = state.n_draws
+    return np.linspace(0, n_all - 1, min(int(ec["search_draws"]), n_all)).round().astype(int)
+
+
 def gate_label(x: float, gate: dict) -> str:
     return "BLOCK" if x > gate["block_above"] else ("LIMIT" if x >= gate["allow_below"] else "ALLOW")
 
@@ -181,9 +188,7 @@ class Optimizer:
         self.step = float(self.ec["greedy_step_inr"])
         self.inc = float(self.ec["allocation_increment_inr"])
         self.c = build_constraints(state, flags, self.g)
-        n_all = state.n_draws
-        search = np.linspace(0, n_all - 1, min(int(self.ec["search_draws"]), n_all)).round().astype(int)
-        self.pf = Portfolio(state, search)          # search subset (fixed, deterministic)
+        self.pf = Portfolio(state, search_draws(state, self.ec))  # search subset (fixed, deterministic)
         self.full = Portfolio(state)                # all draws, for reporting
         self.fe = FastEval(self.pf, self.g["inventory_gate"])
         self.s0 = self.pf.s0.copy()

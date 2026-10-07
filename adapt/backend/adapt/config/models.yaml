@@ -19,6 +19,9 @@ response_curve:
     condition_number: 1000000.0
     cv_K: 0.5
     baseline_corr: 0.9
+    max_elasticity: 1.05      # bootstrap-median d ln R / d ln s at current spend; > 1 claims increasing returns,
+                              # which a narrow observational spend band cannot identify (seed 42: the 3 such units
+                              # were the 3 worst recoveries, 53-205% error vs 14% median for the rest)
   coverage_band: [0.70, 0.90] # P10-P90 predictive coverage on the holdout
   pooled_min_campaigns: 3
   baseline_trend_days: 14     # forecast baseline = mean of the last 14 baseline values
