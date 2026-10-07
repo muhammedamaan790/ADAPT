@@ -49,7 +49,8 @@ def orders(request: Request, created_at_min: str | None = None, created_at_max: 
     rows = store.read("""
         SELECT order_id, day, minute, customer_id, is_new_customer, source, medium, campaign_id, creative_id, sku,
                unit_price_inr, discount_inr
-        FROM fact_orders WHERE day BETWEEN ? AND ? AND order_id > ? ORDER BY order_id LIMIT ?
+        FROM fact_orders WHERE day BETWEEN ? AND ? AND order_id > ? AND channel NOT IN ('amazon_sp', 'amazon_organic')
+        ORDER BY order_id LIMIT ?
     """, [lo, hi, since_id, limit])
     out = []
     for oid, day, minute, cust, is_new, source, medium, cid, crid, sku, price, discount in rows:
@@ -79,7 +80,9 @@ def refunds(request: Request, created_at_min: str | None = None, created_at_max:
     lo, hi = _days(store, truth, parse_iso_date(created_at_min), parse_iso_date(created_at_max))
     rows = store.read("""
         SELECT order_id, return_day, unit_price_inr - discount_inr FROM fact_orders
-        WHERE returned AND return_day BETWEEN ? AND ? AND order_id > ? ORDER BY order_id LIMIT ?
+        WHERE returned AND return_day BETWEEN ? AND ? AND order_id > ?
+          AND channel NOT IN ('amazon_sp', 'amazon_organic')
+        ORDER BY order_id LIMIT ?
     """, [lo, hi, since_id, limit])
     out = []
     for oid, rday, subtotal in rows:

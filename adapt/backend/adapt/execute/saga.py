@@ -24,6 +24,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from adapt.decide.decisions import DecisionError, check_fresh, expire, get_decision
+from adapt.execute import mirror as sim_mirror
 from adapt.execute.adapters import AdapterUnavailable, ReadError, platforms_config, redact
 from adapt.pipeline.events import emit
 from adapt.policy import locks
@@ -138,6 +139,12 @@ class Runner:
     def _close(self, a: float | None, b: float | None, adapter) -> bool:
         return a is not None and b is not None and abs(a - b) <= adapter.tolerance()
 
+    def _verified(self, adapter, leg) -> None:
+        """A LIVE leg just verified on the real platform: mirror it into the simulation (hybrid mode, spec §9.4).
+        The mirror's own state machine handles failures; nothing here can undo the verified change."""
+        if getattr(adapter, "mode", None) == "LIVE" and getattr(adapter, "mirror", None) is not None:
+            sim_mirror.start(self.db, leg, adapter.mirror, self.now)
+
     def _read(self, adapter, leg) -> float | None:
         try:
             return float(adapter.read(leg["budget_id"])["amount_inr"])
@@ -179,6 +186,7 @@ class Runner:
                 if self._close(observed, leg["desired_after"], adapter):
                     db.write(lambda cur, o=observed: _leg_to(cur, leg["leg_id"], "VERIFIED", at, observed_after=o,
                                                              external_state="VERIFIED", error=None))
+                    self._verified(adapter, leg)
                     return "VERIFIED"
                 if observed is None:
                     db.write(lambda cur, r=res: _leg_to(cur, leg["leg_id"], "UNKNOWN", at, external_state="UNKNOWN",
@@ -199,6 +207,7 @@ class Runner:
             if self._close(observed, leg["desired_after"], adapter):
                 self.db.write(lambda cur, o=observed: _leg_to(cur, leg["leg_id"], "VERIFIED", self.now,
                                                               observed_after=o, external_state="VERIFIED"))
+                self._verified(adapter, leg)
                 return "VERIFIED"
             if k < self.polls - 1:
                 self.sleep(self.interval)
@@ -374,6 +383,7 @@ def reverify(db, adapters: dict, now: datetime, sleep: Callable[[float], None] =
         if runner._close(observed, leg["desired_after"], adapter):
             db.write(lambda cur, o=observed, lid=lid: _leg_to(cur, lid, "VERIFIED", now, observed_after=o,
                                                               external_state="VERIFIED", error=None))
+            runner._verified(adapter, leg)
         elif runner._close(observed, leg["observed_before"], adapter):
             db.write(lambda cur, o=observed, lid=lid: _leg_to(cur, lid, "FAILED", now, observed_after=o,
                                                      external_state="FAILED", error="re-verify: not applied"))
@@ -404,6 +414,7 @@ def recover(db, adapters: dict, now: datetime, sleep: Callable[[float], None] = 
             if leg["state"] == "SENT" and runner._close(observed, leg["desired_after"], adapter):
                 db.write(lambda cur, o=observed, lid=leg["leg_id"]: _leg_to(
                     cur, lid, "VERIFIED", now, observed_after=o, external_state="VERIFIED"))
+                runner._verified(adapter, leg)
             elif runner._close(observed, leg["observed_before"], adapter):
                 if leg["state"] == "PREREAD_OK":
                     continue  # nothing was sent: run_leg proceeds from PREREAD_OK

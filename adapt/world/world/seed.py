@@ -93,9 +93,11 @@ def main() -> None:
     ap.add_argument("--history-end", default="2026-09-30", help="world date of the last history day (YYYY-MM-DD)")
     ap.add_argument("--overwrite", action="store_true")
     ap.add_argument("--demo", action="store_true", help="schedule DEMO_01 at day -10 (the golden demo world)")
+    ap.add_argument("--channels", default="", help="Stage 2 SIMULATED channels to add: tiktok,amazon_sp")
     args = ap.parse_args()
     cfg = WorldConfig(seed=args.seed, backbone_dir=Path(args.backbone), global_ads_csv=Path(args.global_ads),
-                      brand_scale=args.brand_scale, history_end_date=date.fromisoformat(args.history_end))
+                      brand_scale=args.brand_scale, history_end_date=date.fromisoformat(args.history_end),
+                      extra_channels=tuple(c for c in args.channels.split(",") if c))
     out = Path(args.out) if args.out else DATA_DIR / "world" / f"seed{args.seed}"
     t0 = time.time()
     store, _ = seed_world(cfg, out, overwrite=args.overwrite,

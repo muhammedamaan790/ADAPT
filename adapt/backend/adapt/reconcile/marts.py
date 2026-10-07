@@ -37,7 +37,10 @@ def build_marts(cur, as_of: datetime) -> dict[str, int]:
              span AS (SELECT campaign_id, min(date) AS first_date FROM ad GROUP BY 1),
              spine AS (SELECT s.campaign_id, d::DATE AS date
                        FROM span s, generate_series(s.first_date, {last}, INTERVAL 1 DAY) AS g(d)),
-             a AS ({attributed.format(key="oi.campaign_id", join="")}),
+             a AS ({attributed.format(key="oi.campaign_id", join="")}
+                   UNION ALL  -- Amazon SP: the platform's purchased-product attribution
+                   SELECT analysis_date, campaign_id, sum(orders), sum(units), sum(gross), 0, sum(refund),
+                          sum(net_revenue), sum(cba), 0 FROM core.platform_attributed_daily GROUP BY 1, 2),
              ga AS (SELECT date, campaign_id, sum(sessions) AS ga_sessions, sum(purchases) AS ga_purchases,
                            sum(revenue_inr) AS ga_revenue
                     FROM core.ga_daily WHERE campaign_id <> '(not set)' GROUP BY 1, 2)

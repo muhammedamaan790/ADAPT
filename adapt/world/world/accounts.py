@@ -16,6 +16,12 @@ GA4_PROPERTY_ID = "412345678"
 BRAND_TIMEZONE = "Asia/Kolkata"
 STORE_GST_RATE = 0.12  # apparel GST, charged on top of tax-exclusive prices (ADAPT must strip it)
 WAREHOUSE_SKU = "OTHER-ASSORTED"  # store SKU for non-promoted (unmapped) products
+TIKTOK_ADVERTISER_ID = "7012345678901234567"  # Stage 2 SIMULATED channels
+TIKTOK_CURRENCY = "USD"
+TIKTOK_TIMEZONE = "UTC"  # stat_time_day is labelled UTC; the simulation's day grid is shared (stated in the contract)
+AMAZON_PROFILE_ID = "3141592653"
+AMAZON_CURRENCY = "INR"
+AMAZON_MARKETPLACE = "Amazon.in"
 
 
 def usd_per_inr() -> float:

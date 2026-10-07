@@ -73,11 +73,13 @@ def test_metadata_logical_time_and_raw_pages(world, http, db):
     assert q(db, "SELECT DISTINCT provenance FROM stg.store_order_lines") == [("CALIBRATED",)]
     assert q(db, "SELECT DISTINCT provenance FROM stg.sku_economics") == [("PUBLIC-SAMPLE",)]
     pages = dict(q(db, "SELECT source, count(*) FROM raw.api_pages GROUP BY 1"))
-    assert set(pages) == {"meta_ads", "google_ads", "store", "finance", "ga4", "erp"}
+    base = {"meta_ads", "google_ads", "store", "finance", "ga4", "erp"}
+    optional = {"tiktok_ads", "amazon_ads", "amazon_marketplace"}  # Stage 2 channels: polled, empty in this world
+    assert base <= set(pages) and set(pages) - base <= optional
     cols = q(db, "SELECT DISTINCT source_currency FROM raw.api_pages WHERE source = 'meta_ads'")
     assert cols == [("USD",)]
     status = dict(q(db, "SELECT connector, status FROM ops.connector_status"))
-    assert set(status.values()) == {"OK"} and len(status) == 6
+    assert set(status.values()) == {"OK"} and set(status) == base | optional
 
 
 def test_resync_is_idempotent_and_advance_pulls_only_new_days(world, http, db):

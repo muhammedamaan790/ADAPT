@@ -96,12 +96,14 @@ def make_global_ads(path: Path) -> Path:
 
 
 def seed_fixture_world(out: Path, backbone_dir: Path, global_ads_csv: Path, seed: int = 42,
-                       scenarios: list | None = None, brand_scale: float = 10.0) -> Path:
+                       scenarios: list | None = None, brand_scale: float = 10.0,
+                       extra_channels: tuple[str, ...] = ()) -> Path:
     from world.seed import seed_world
     from world.truth import WorldConfig
 
     store, _ = seed_world(WorldConfig(seed=seed, backbone_dir=backbone_dir, global_ads_csv=global_ads_csv,
-                                      history_end_date=FIXTURE_HISTORY_END, brand_scale=brand_scale), out,
+                                      history_end_date=FIXTURE_HISTORY_END, brand_scale=brand_scale,
+                                      extra_channels=extra_channels), out,
                           scenarios=scenarios)
     store.close()
     return out

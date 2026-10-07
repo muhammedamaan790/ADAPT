@@ -23,7 +23,7 @@ from adapt.economics.state import load_state
 from adapt.learn.calibration import FAMILY, calibrate, current_factor
 from adapt.predict.forecasts import residual_pool
 
-PLATFORM_SOURCE = {"meta": "meta_ads", "google": "google_ads"}
+PLATFORM_SOURCE = {"meta": "meta_ads", "google": "google_ads", "tiktok": "tiktok_ads", "amazon": "amazon_ads"}
 COMMON_SOURCES = ("store", "erp", "finance")
 MEASUREMENT_DAYS = 14  # outcome windows mature by day 14 at the latest (spec §10)
 
@@ -109,15 +109,25 @@ def measurement_basis(state, allocation: np.ndarray, legs: list[dict], db=None) 
                       ((u.curve.diagnostics.get("oos_model") or "none") if u.curve is not None else "none")}
     return {"days": MEASUREMENT_DAYS, "units": units,
             "pred_daily_delta_caa": econ.daily_delta_caa.mean(0).tolist(),
+            # the safety monitor's reference (spec §9.3): the 10th percentile of the cumulative dCAA draws per day
+            "p10_cum_daily_delta_caa": np.percentile(np.cumsum(econ.daily_delta_caa, axis=1), 10, axis=0).tolist(),
             "total_budget": float(pf.s0.sum())}
 
 
 def run_optimizer(db, as_of: datetime, flags: dict | None = None, persist: bool = True) -> dict:
+    from adapt.decide.alternatives import objectives_for, selected_objective, sensitivity
+    from adapt.policy.engine import cooldown_units
+    from adapt.policy.locks import kill_switch_active
+
     state = load_state(db, as_of)
     flags = policy_flags(db, state, as_of) if flags is None else flags
-    opt = Optimizer(state, flags)
+    oc = objectives_for(selected_objective(db))
+    opt = Optimizer(state, flags, objectives=oc)
     result = opt.solve()
     safety = safety_candidates(opt) if result.get("status") == "OK" else []
+    if result.get("status") == "OK":
+        result["alternatives"] = sensitivity(state, flags, objectives=oc, portfolios=(opt.pf, opt.full),
+                                             cooldown=cooldown_units(db, as_of), kill_switch=kill_switch_active(db))
     factor = current_factor(db)
     run_id = "opt-" + hashlib.sha256(f"{as_of.isoformat()}|{json.dumps(result.get('allocation'), sort_keys=True)}"
                                      .encode()).hexdigest()[:12]
@@ -152,8 +162,9 @@ def _persist(db, as_of: datetime, state, opt: Optimizer, out: dict) -> None:
 
     def work(cur):
         cur.execute(DDL)
-        cur.execute("INSERT OR REPLACE INTO intel.optimizer_runs VALUES (?, ?, 'PROFIT', ?, ?, ?, ?)",
-                    [out["run_id"], as_of, result.get("status"), out["calibration_factor"],
+        cur.execute("INSERT OR REPLACE INTO intel.optimizer_runs VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    [out["run_id"], as_of, result.get("objective") or "PROFIT", result.get("status"),
+                     out["calibration_factor"],
                      json.dumps(result, default=float), json.dumps(safety, default=float)])
         for did, cls, fam, raw, cal, basis in proposals:
             cur.execute("INSERT OR REPLACE INTO learn.measurement_basis VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

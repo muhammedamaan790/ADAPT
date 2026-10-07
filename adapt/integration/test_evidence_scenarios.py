@@ -84,3 +84,56 @@ def test_s5_tracking(world, http, db):
     ev = check(db, Incident("t", "google", [camp], None, "SESSION_CLICK", START, START + timedelta(days=3)),
                "tracking")
     assert ev["tracking"].values["session_click_drop_pct"] == pytest.approx(60.0, abs=8.0)  # injected -60%
+
+
+# ---- Stage 2 modules: saturation (S8) and demand (S6, offsetting in S12) ---------------------------------------------
+def test_s6_demand(world, http, db):
+    p = run_scenario(world, http, db, "S6", 8)
+    label = db.query("SELECT category FROM core.skus WHERE sku LIKE ? LIMIT 1", [p["category_code"] + "%"])[0][0]
+    camp = campaign_of(db, "google_search", label)
+    inc = Incident("t", "google", [camp], None, "CVR", START + timedelta(days=2), START + timedelta(days=7), "UP")
+    ev = check(db, inc, "demand")
+    assert ev["demand"].values["demand_change_pct"] == pytest.approx(40.0, abs=12.0)  # injected +40%
+
+
+def test_s8_audience_saturation(world_large, db):
+    from adapt.ingest.http import SourceHttp
+
+    world, http = world_large, SourceHttp("http://testserver", client=world_large, sleep=lambda s: None)
+    p = run_scenario(world, http, db, "S8", 12)
+    inc = Incident("t", "meta", [p["campaign_id"]], None, "CTR", START + timedelta(days=5),
+                   START + timedelta(days=11), "DOWN")
+    ev = check(db, inc, "saturation")
+    assert ev["saturation"].values["frequency_post"] > 1.3 * ev["saturation"].values["frequency_pre"]
+    assert ev["fatigue"].score < 0.4  # the decline is broad, not creative-specific
+
+
+def test_s2_is_not_saturation(world_large, db):
+    from adapt.ingest.http import SourceHttp
+
+    world, http = world_large, SourceHttp("http://testserver", client=world_large, sleep=lambda s: None)
+    p = run_scenario(world, http, db, "S2", 12)
+    inc = Incident("t", "meta", [p["campaign_id"]], p["creative_id"], "CTR", START + timedelta(days=5),
+                   START + timedelta(days=11), "DOWN")
+    ev = check(db, inc, "fatigue")
+    assert ev["saturation"].score < 0.4
+
+
+def test_demand_offsets_a_decline_it_did_not_cause():
+    """Hand-made ranking, ROAS down through CTR with CVR up. (1) unpaid demand rose: it SUPPORTS the CVR lever, and
+    because that lever pushed ROAS up while ROAS fell overall, its contribution is offsetting (spec: "ROAS fell but
+    unpaid demand rose"). (2) unpaid demand fell while CVR rose: OFFSETTING on its own lever, it claims nothing.
+    Neither case is ever top-1."""
+    from adapt.diagnose.drivers import rank
+    from adapt.diagnose.evidence import Evidence
+
+    funnel = {"status": "OK", "contributions": {"CTR": -0.30, "CVR": 0.08, "AOV": 0.0, "CPM": 0.0}}
+    ev = [Evidence("fatigue", "OK", 0.8, ["CTR"]), Evidence("demand", "OK", 0.9, ["CVR"], {"d": 0.2})]
+    r = rank(ev, "ROAS", funnel)
+    assert r["top_driver"] == "fatigue"
+    demand_row = next(x for x in r["drivers"] if x["module"] == "demand")
+    assert demand_row["relation"] == "SUPPORTS" and demand_row["offsetting"]  # explains CVR, which offset the drop
+    ev[1] = Evidence("demand", "OK", 0.9, ["CVR"], {"d": -0.2})
+    r = rank(ev, "ROAS", funnel)
+    demand_row = next(x for x in r["drivers"] if x["module"] == "demand")
+    assert demand_row["offsetting"] and demand_row["signed_contribution"] == 0.0 and r["top_driver"] == "fatigue"

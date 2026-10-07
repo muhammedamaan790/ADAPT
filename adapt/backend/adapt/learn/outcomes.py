@@ -122,7 +122,12 @@ def measure_outcome(db, decision_id: str, as_of: datetime) -> dict:
         out["verdict"] = "INCONCLUSIVE"
         out["inconclusive_reason"] = f"minimum sample not reached by day {MAX_DAYS} ({orders} < {MIN_ORDERS} orders)"
     calibration = None
-    if cls == "OPTIMIZATION":
+    from adapt.policy.safety_monitor import contaminated
+
+    if cls == "OPTIMIZATION" and contaminated(db, decision_id):  # spec §10 1b: a safety action acted in the window
+        out["contaminated_by_safety"] = True
+        calibration = {"applied": False, "reason": "CONTAMINATED_BY_SAFETY: excluded from calibration"}
+    elif cls == "OPTIMIZATION":
         # rho compares like with like: realized over the window vs the raw prediction for the same days
         calibration = apply_outcome(db, decision_id, out["verdict"], out["realized"], out["raw_pred_window"],
                                     basis["total_budget"], as_of, family or "BUDGET_REALLOCATION")

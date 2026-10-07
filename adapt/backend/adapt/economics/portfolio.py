@@ -1,12 +1,15 @@
 """portfolio_economics (B6, spec §8.1): one function values a whole allocation jointly, per joint bootstrap draw.
 
-Stage 1: no cannibalization (T = 0, so the booked increment equals the curve increment). Over horizon H, per draw d:
+Over horizon H, per draw d:
   1. curve increments  dR_i = R_i(s') - R_i(s)          (daily paths, adstock continued from fit_ts)
-  2. SKU mix           du_ik = dR_i x w_ik / nrpu_k      (mapped SKUs; the __unmapped__ share u_i makes no units)
+  2. cannibalization   booked dR~_i from the steal / shortfall / recapture flows of economics/cannibalization.py
+                       (Stage 2; the state's cannibalization config; disabled or T = 0 -> dR~ = dR, Stage 1)
+  2b. SKU mix          du_ik = dR~_i x w_ik / nrpu_k     (mapped SKUs; the __unmapped__ share u_i makes no units;
+                       transferred revenue lands in the RECEIVING unit's mix)
   3. rationing         H_k = max(ATP_k + released_k, 0); increases on k scaled by min(1, H_k / requested_k);
                        decreases are never scaled; rationed-away units earn nothing (wasted spend is reported)
-  4. dCAA = sum du_eff x unit_contribution + sum dR_i u_i ucr_i - sum (s' - s) x pacing x H
-     dnet = sum du_eff x nrpu + sum dR_i u_i
+  4. dCAA = sum du_eff x unit_contribution + sum dR~_i u_i ucr_i - sum (s' - s) x pacing x H
+     dnet = sum du_eff x nrpu + sum dR~_i u_i
 Absolute values are the status quo (curves at s plus the non-modelled baseline) + delta, so s' = s gives delta = 0
 but abs_CAA = CAA0. Units whose curve is MODEL_UNAVAILABLE use a proportional model (observed ROAS x spend), which
 the optimizer only ever lets decrease (a cut then assumes revenue falls in proportion: the conservative reading).
@@ -19,9 +22,14 @@ from datetime import datetime
 
 import numpy as np
 
+from adapt.economics.cannibalization import book, build_T
+from adapt.economics.inventory_risk import (
+    PROJECTED_SHORTFALL,
+    STOCKOUT_PROBABILITY,
+    status,
+    stockout_probability,
+)
 from adapt.predict.curves import CurveArtifact
-
-PROJECTED_SHORTFALL = "PROJECTED_SHORTFALL"  # Stage 1 risk kind (STOCKOUT_PROBABILITY is Stage 2)
 
 
 @dataclass
@@ -38,6 +46,8 @@ class UnitState:
     unmapped_share: float             # u_i
     unmapped_cr: float                # ucr_i: CBA / net revenue of the unit's unmapped attributed lines
     is_shared: bool = False
+    categories: list[str] = field(default_factory=list)   # product sets sold (cannibalization overlap)
+    stage: str | None = None          # search | video | prospecting | retargeting (cannibalization coefficient)
 
     @property
     def model_available(self) -> bool:
@@ -51,8 +61,9 @@ class SkuState:
     unit_contribution: float          # nrpu - COGS - ship - fee% x nrpu
     available: float                  # on_hand - reserved + inbound_confidence x inbound within H
     safety_stock: float
-    baseline_daily: float             # seasonal-naive P50 (last 7 days' mean)
+    baseline_daily: float             # P50 baseline daily demand (champion demand model; seasonal-naive in Stage 1)
     on_hand: float = 0.0
+    dispersion: float = 1e6           # NB2 r of the SKU's category (Stage 2 predicate; 1e6 ~ Poisson)
 
     def atp(self, horizon: int) -> float:
         return self.available - self.safety_stock - self.baseline_daily * horizon
@@ -68,6 +79,16 @@ class PortfolioState:
     other_net_revenue_daily: float = 0.0
     n_draws: int = 200
     meta: dict = field(default_factory=dict)
+    cannibalization: dict = field(default_factory=dict)   # {} or {"enabled": false} -> T = 0 (Stage 1)
+    inventory_risk: dict = field(default_factory=dict)    # {} -> PROJECTED_SHORTFALL (Stage 1); see inventory_risk.py
+
+    @property
+    def risk_kind(self) -> str:
+        return self.inventory_risk.get("predicate", PROJECTED_SHORTFALL)
+
+    @property
+    def p_unsafe(self) -> float:
+        return float(self.inventory_risk.get("p_unsafe", 0.3))
 
 
 @dataclass
@@ -85,6 +106,8 @@ class Economics:
     wasted_spend: float
     rationing_binds: bool
     baseline_deficit_skus: list[str]
+    booked_net_revenue: np.ndarray | None = None   # (n, U) booked increments after cannibalization
+    cannibalization: dict = field(default_factory=dict)  # expected flow totals (zero when T = 0)
 
     def summary(self) -> dict:
         d = self.delta_caa
@@ -145,6 +168,8 @@ class Portfolio:
         self.available = np.array([s.available for s in sk]) if sk else np.zeros(0)
         self.ss = np.array([s.safety_stock for s in sk]) if sk else np.zeros(0)
         self.baseline = np.array([s.baseline_daily for s in sk]) * self.H if sk else np.zeros(0)
+        self.r = np.array([s.dispersion for s in sk]) if sk else np.zeros(0)
+        self.kind, self.p_unsafe = state.risk_kind, state.p_unsafe
         self.atp = self.available - self.ss - self.baseline
         self.u = np.array([u.unmapped_share for u in self.units])
         self.ucr = np.array([u.unmapped_cr for u in self.units])
@@ -152,11 +177,25 @@ class Portfolio:
         self.s0 = np.array([u.budget for u in self.units])
         # contribution per rupee of attributed net revenue (status-quo mix), for absolute values
         self.cm = (self.W * (self.uc / self.nrpu)[None, :]).sum(1) + self.u * self.ucr if K else self.u * self.ucr
+        self.T = build_T(self.units, state.cannibalization)   # None = Stage 1 (T = 0)
         self._cache: dict[tuple[int, float], np.ndarray] = {}
         self.R0 = np.stack([self.unit_paths(i, self.s0[i]) for i in range(U)], axis=1) if U else \
             np.zeros((len(self.draws), 0, self.H))
+        self.R0h = self.R0.sum(-1)                            # (n, U) status-quo horizon revenue
+        # absolute status quo: curves at s plus the non-modelled baseline (CAA0 = E[base_cba])
+        self.base_cba = (self.R0h * self.cm[None, :]).sum(1) - float((self.s0 * self.pacing).sum()) * self.H \
+            + state.other_cba_daily * self.H
 
     CACHE_LIMIT = 10_000  # a continuous solver would otherwise fill memory with one-off budgets
+
+    def risk(self, projected: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """(risk value, excess over the predicate) per SKU for projected horizon demand. Stage 1: projected shortfall
+        in units (excess = shortfall). Stage 2: NB2 P(stockout) (excess = max(P - p_unsafe, 0))."""
+        if self.kind == STOCKOUT_PROBABILITY:
+            p = stockout_probability(projected, self.available, self.r)
+            return p, np.maximum(p - self.p_unsafe, 0.0)
+        sf = np.maximum(projected - (self.available - self.ss), 0.0)
+        return sf, sf
 
     def unit_paths(self, i: int, budget: float) -> np.ndarray:
         key = (i, float(budget))
@@ -176,10 +215,16 @@ class Portfolio:
         dR = np.zeros_like(self.R0)  # (n, U, H)
         for i in changed:
             dR[:, i, :] = self.unit_paths(i, s_new[i]) - self.R0[:, i, :]
-        dRh = dR.sum(-1)  # (n, U)
+        dRh = dR.sum(-1)  # (n, U) curve increments
+        flows = None
+        if self.T is not None:
+            flows = book(dRh, self.R0h + dRh, self.T)
+            dRb = flows["booked"]
+        else:
+            dRb = dRh  # Stage 1: booked increment = curve increment
 
-        # SKU mix -> units (Stage 1: T = 0, booked increment = curve increment)
-        du = dRh[:, :, None] * self.W[None, :, :] / self.nrpu[None, None, :] if len(self.sku_ids) else \
+        # SKU mix -> units (booked increments, in the receiving unit's mix)
+        du = dRb[:, :, None] * self.W[None, :, :] / self.nrpu[None, None, :] if len(self.sku_ids) else \
             np.zeros((len(self.draws), U, 0))
         released = np.clip(-du, 0, None).sum(1)            # (n, K)
         requested = np.clip(du, 0, None).sum(1)
@@ -189,8 +234,8 @@ class Portfolio:
         du_eff = np.where(du > 0, du * scale[:, None, :], du)
         rationed = du - du_eff                              # >= 0, only on increases
 
-        unit_cba = (du_eff * self.uc[None, None, :]).sum(-1) + dRh * self.u * self.ucr   # (n, U)
-        unit_net = (du_eff * self.nrpu[None, None, :]).sum(-1) + dRh * self.u
+        unit_cba = (du_eff * self.uc[None, None, :]).sum(-1) + dRb * self.u * self.ucr   # (n, U)
+        unit_net = (du_eff * self.nrpu[None, None, :]).sum(-1) + dRb * self.u
         dspend_unit = (s_new - self.s0) * self.pacing * H                              # (U,)
         delta_spend = float(dspend_unit.sum())
         dcaa = unit_cba.sum(1) - delta_spend
@@ -202,21 +247,22 @@ class Portfolio:
                              1.0 / H)
         daily = (share * unit_cba[:, :, None]).sum(1) - (dspend_unit.sum() / H)
 
-        base_cba = (self.R0.sum(-1) * self.cm[None, :]).sum(1) - (self.s0 * self.pacing).sum() * H \
-            + self.state.other_cba_daily * H
+        base_cba = self.base_cba
         base_net = self.R0.sum(-1).sum(1) + self.state.other_net_revenue_daily * H
 
-        # inventory after the change (expected over draws), Stage 1 deterministic predicate
+        # inventory after the change (expected over draws), through the stage's predicate
         mean_eff = du_eff.sum(1).mean(0)  # (K,)
         projected = self.baseline + mean_eff
-        shortfall = np.maximum(projected - (self.available - self.ss), 0.0)
+        risk, excess = self.risk(projected)
         by_sku = {}
         for j, k in enumerate(self.sku_ids):
-            status = "OK" if projected[j] <= self.available[j] - self.ss[j] else (
-                "AT_RISK" if projected[j] <= self.available[j] else "SHORT")
-            by_sku[k] = {"status": status, "shortfall": float(shortfall[j]), "projected": float(projected[j]),
-                         "available": float(self.available[j]), "safety_stock": float(self.ss[j])}
-        at_risk = shortfall > 1e-9
+            entry = {"status": status(self.kind, float(risk[j]), float(projected[j]), float(self.available[j]),
+                                      float(self.ss[j]), self.p_unsafe),
+                     "projected": float(projected[j]), "available": float(self.available[j]),
+                     "safety_stock": float(self.ss[j])}
+            entry["shortfall" if self.kind == PROJECTED_SHORTFALL else "stockout_probability"] = float(risk[j])
+            by_sku[k] = entry
+        at_risk = excess > 1e-9
         exposure = {u.unit_id: float((self.W[i] * at_risk).sum() + self.u[i]) for i, u in enumerate(self.units)}
 
         pos_rev = (np.clip(du, 0, None) * self.nrpu[None, None, :]).sum(-1)              # (n, U)
@@ -229,9 +275,12 @@ class Portfolio:
             abs_caa=base_cba + dcaa, abs_net_revenue=base_net + dnet, delta_caa=dcaa, delta_net_revenue=dnet,
             delta_spend=delta_spend, daily_delta_caa=daily,
             units_by_sku={k: float(mean_eff[j]) for j, k in enumerate(self.sku_ids)},
-            inventory_risk_by_sku={"kind": PROJECTED_SHORTFALL, "by_sku": by_sku},
+            inventory_risk_by_sku={"kind": self.kind, "by_sku": by_sku},
             exposure_by_unit=exposure, wasted_spend=wasted, rationing_binds=bool((rationed > 1e-12).any()),
-            baseline_deficit_skus=[k for j, k in enumerate(self.sku_ids) if self.atp[j] < 0])
+            baseline_deficit_skus=[k for j, k in enumerate(self.sku_ids) if self.atp[j] < 0],
+            booked_net_revenue=dRb,
+            cannibalization={"enabled": self.T is not None, **({k: float(v.sum(1).mean()) for k, v in flows.items()
+                                                                 if k != "booked"} if flows else {})})
 
 
 def portfolio_economics(state: PortfolioState, s_new: dict | np.ndarray, draws: np.ndarray | None = None) -> Economics:

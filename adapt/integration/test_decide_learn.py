@@ -72,7 +72,10 @@ def test_s3_blocks_scale_and_yields_a_safety_candidate_whose_outcome_is_measured
     run = run_optimizer(db, logical_now(day))
     res = run["result"]
     risk = res["inventory_risk_after"]["by_sku"][sku]
-    assert risk["status"] in ("AT_RISK", "SHORT") and risk["shortfall"] > 0
+    if res["inventory_risk_after"]["kind"] == "PROJECTED_SHORTFALL":                  # Stage 1 predicate
+        assert risk["status"] in ("AT_RISK", "SHORT") and risk["shortfall"] > 0
+    else:                                                                              # Stage 2: NB2 P(stockout)
+        assert risk["status"] in ("AT_RISK", "SHORT") and risk["stockout_probability"] > 0.3
     gated = [uid for uid, g in res["inventory_gate"].items() if g["gate"] in ("LIMIT", "BLOCK")]
     assert gated, res["inventory_gate"]
     assert all(res["allocation"][u] <= res["baseline"][u] + 1e-9
@@ -82,7 +85,7 @@ def test_s3_blocks_scale_and_yields_a_safety_candidate_whose_outcome_is_measured
     cand = cands[0]
     assert cand["class"] == "SAFETY" and cand["status"] == "REQUIRES_REVIEW"
     assert all(leg["after"] < leg["before"] for leg in cand["legs"]) and cand["freed_budget"] > 0
-    assert cand["remaining_shortfall"] <= cand["shortfall_before"]
+    assert cand["remaining_risk"] <= cand["risk_before"]
 
     # approve (human) -> apply -> advance the 3-day safety window -> measure
     apply_legs(world, cand["legs"], "safety")

@@ -1,0 +1,13 @@
+# Amazon marketplace propensity p(category) (spec §1): daily marketplace demand per SKU = web demand x p. Assumptions
+# (no empirical source): basics / accessories sell relatively more on the marketplace, outerwear less.
+default: 0.20
+by_category_keyword:            # matched case-insensitively against the category name; first match wins
+  socks: 0.40
+  underwear: 0.35
+  intimates: 0.30
+  accessories: 0.35
+  jeans: 0.25
+  swim: 0.20
+  outerwear: 0.10
+  coats: 0.10
+  suits: 0.08

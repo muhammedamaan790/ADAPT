@@ -3,7 +3,7 @@
 ingest -> DQ gate -> reconcile (canonical + marts + health) -> detect -> diagnose -> predict (refit when due, else
 inference with the champion) -> store tomorrow's forecasts -> optimize -> decide (snapshot, hash, fingerprint) ->
 policy -> auto-execute [NOT_BUILT: Stage 1 is Approve mode only] -> verify (re-verify UNKNOWN legs) ->
-safety monitor [NOT_BUILT: Stage 2] -> measure matured outcomes of executed decisions -> learn (calibration).
+safety monitor (Stage 2) -> measure matured outcomes of executed decisions -> learn (calibration).
 
 Idempotency: a COMPLETED run_id returns its stored summary without recomputing. A failed or interrupted run_id
 re-runs from the start; every step is itself idempotent (CREATE OR REPLACE builds, run-keyed detection, decisions
@@ -21,10 +21,13 @@ from adapt.decide.decisions import create_decisions
 from adapt.decide.run import run_optimizer
 from adapt.detect.detector import run_detection
 from adapt.diagnose.run import run_diagnosis
+from adapt.execute import mirror as sim_mirror
 from adapt.execute.saga import reverify
 from adapt.ingest.sync import run_sync
 from adapt.learn.outcomes import measure_outcome
 from adapt.pipeline import events
+from adapt.policy.safety_monitor import run_monitor as run_safety_monitor
+from adapt.predict.demand import demand_config, fit_demand
 from adapt.predict.fit_curves import fit_curves, load_curves
 from adapt.predict.forecasts import POOL_DAYS, backfill_forecasts, forecast_days, store_forecasts
 from adapt.reconcile.build import build_canonical
@@ -63,6 +66,18 @@ def _needs_refit(db, as_of: datetime) -> str | None:
     if matured:
         return f"{matured} matured outcome(s) since the last fit"
     return None
+
+
+def _needs_demand_refit(db, as_of: datetime) -> bool:
+    from adapt.economics.inventory_risk import risk_config
+
+    if risk_config()["predicate"] != "STOCKOUT_PROBABILITY":
+        return False  # Stage 1: the seasonal-naive demand model needs no fit
+    if not db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'models' "
+                    "AND table_name = 'demand_fits'"):
+        return True
+    last = db.query("SELECT max(fit_ts) FROM models.demand_fits")[0][0]
+    return last is None or as_of - last >= timedelta(days=demand_config()["refit_days"])
 
 
 def _brief(x) -> dict:
@@ -123,6 +138,8 @@ def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: s
         if reason:
             out["fit"] = fit_curves(db, as_of)
         ctx["curves"] = load_curves(db)
+        if _needs_demand_refit(db, as_of):  # Stage 2: weekly LightGBM candidate vs the champion (spec §2, §10.2)
+            out["demand"] = fit_demand(db, as_of)
         return out
 
     step("predict", predict)
@@ -147,8 +164,15 @@ def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: s
                                                         as_of)})
     step("policy", lambda: {"evaluated_in": "decide (validate + Approve-mode result per decision)"})
     step("auto_execute", lambda: {"status": "NOT_BUILT", "reason": "Stage 1 is Approve mode only"})
-    step("verify", lambda: {"resolved": len(reverify(db, adapters, as_of, sleep)) if adapters else 0})
-    step("safety_monitor", lambda: {"status": "NOT_BUILT", "reason": "automatic safety monitor is Stage 2"})
+    def verify():
+        out = {"resolved": len(reverify(db, adapters, as_of, sleep)) if adapters else 0}
+        live = (adapters or {}).get("google")
+        if getattr(live, "mode", None) == "LIVE":  # hybrid mirror retrier (spec §9.4): never touches the live change
+            out["mirror"] = sim_mirror.retry_pending(db, getattr(live, "mirror", None), as_of)
+        return out
+
+    step("verify", verify)
+    step("safety_monitor", lambda: _brief(run_safety_monitor(db, as_of)))
 
     def measure():
         if not db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'exec' AND table_name = 'sagas'"):
