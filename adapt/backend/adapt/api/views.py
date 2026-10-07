@@ -463,13 +463,11 @@ def overview_view(db, workspace: str, world: dict, scenario: str) -> dict:
 
 
 def _run_opt_id(db, pipeline_run_id: str) -> str | None:
-    """The optimizer run produced by a pipeline run (its decide step summary)."""
-    row = db.query("SELECT detail FROM ops.pipeline_steps WHERE run_id = ? AND step = 'decide'", [pipeline_run_id])
-    if row:
-        created = json.loads(row[0][0]).get("created") or []
-        if created:
-            return created[0].split(":")[0]
-    row = db.query("SELECT run_id FROM intel.optimizer_runs ORDER BY as_of DESC LIMIT 1") \
-        if has(db, "intel", "optimizer_runs") else []
+    """The optimizer run produced by a pipeline run: same logical as_of (never parsed out of decision ids)."""
+    if not has(db, "intel", "optimizer_runs"):
+        return None
+    row = db.query("""SELECT o.run_id FROM intel.optimizer_runs o JOIN ops.pipeline_runs p ON p.as_of = o.as_of
+                      WHERE p.run_id = ? ORDER BY o.run_id LIMIT 1""", [pipeline_run_id])
+    if not row:
+        row = db.query("SELECT run_id FROM intel.optimizer_runs ORDER BY as_of DESC LIMIT 1")
     return row[0][0] if row else None
-

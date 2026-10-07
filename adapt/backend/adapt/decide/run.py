@@ -124,10 +124,10 @@ def run_optimizer(db, as_of: datetime, flags: dict | None = None, persist: bool 
     if result.get("status") == "OK":
         result["expected"]["calibrated_pred"] = calibrate(result["expected"]["raw_pred"], factor)
         result["expected"]["optimism_correction_factor"] = factor
-        result["decision_id"] = f"{run_id}:R"
+        result["decision_id"] = f"{run_id}-R"
         result["class"] = "OPTIMIZATION"
         for k, cand in enumerate(safety):
-            cand["decision_id"] = f"{run_id}:S{k}"
+            cand["decision_id"] = f"{run_id}-S{k}"
     out = {"run_id": run_id, "as_of": as_of.isoformat(), "result": result, "safety": safety,
            "calibration_factor": factor, "flags": flags}
     if persist:

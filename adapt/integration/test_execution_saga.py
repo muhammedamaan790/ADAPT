@@ -65,10 +65,10 @@ def leg(uid, after):
             "budget_id": uid, "campaign_ids": [uid], "before": before, "after": after}
 
 
-def approved(db, st, legs, did="run-1:R"):
+def approved(db, st, legs, did="run-1-R"):
     exp = {"E": 1000.0, "P10": 500.0, "P50": 1000.0, "P90": 1500.0, "prob_loss": 0.1, "delta_net_revenue": 2000.0,
            "raw_pred": 1000.0}
-    run = {"run_id": did.split(":")[0], "calibration_factor": 0.9, "safety": [],
+    run = {"run_id": did.rsplit("-", 1)[0], "calibration_factor": 0.9, "safety": [],
            "result": {"status": "OK", "decision_id": did, "legs": legs, "expected": exp, "why_not": [],
                       "inventory_risk_after": {"kind": "PROJECTED_SHORTFALL", "by_sku": {}},
                       "unallocated": 0.0, "reserve_floor": 0.0}}
@@ -265,10 +265,10 @@ def test_rollback_and_rollback_conflict(world, db):
 
 def test_reservations_serialise_sagas_and_ledger_is_redacted(world, db):
     st = state()
-    first = approved(db, st, [leg(G2, 36000.0)], "run-1:R")
+    first = approved(db, st, [leg(G2, 36000.0)], "run-1-R")
     saga.execute_decision(db, first, adapters(world) | {"google": StaleRead(world, stale=10)}, "maria", T0, copy(st),
                           NOSLEEP)                                   # leaves G2 UNKNOWN: reservation held
-    second = approved(db, st, [leg(G2, 38000.0)], "run-2:R")
+    second = approved(db, st, [leg(G2, 38000.0)], "run-2-R")
     with pytest.raises(Exception, match="reserved by saga"):
         saga.execute_decision(db, second, adapters(world), "maria", T0, copy(st), NOSLEEP)
     ledger = json.dumps(db.query("SELECT request, response FROM exec.saga_legs"))

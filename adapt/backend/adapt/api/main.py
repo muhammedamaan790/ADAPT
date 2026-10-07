@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from adapt import __version__
-from adapt.api.routers import data, loop
+from adapt.api.routers import data, insights, loop
 from adapt.api.runtime import Runtime
 from adapt.api.schemas import HealthResponse
 from adapt.config.settings import Settings, get_settings
@@ -58,6 +58,7 @@ def create_app(settings: Settings | None = None, db: Database | None = None, wor
 
     app.include_router(data.router)
     app.include_router(loop.router)
+    app.include_router(insights.router)
     return app
 
 

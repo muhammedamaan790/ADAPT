@@ -393,3 +393,316 @@ class RecoveryBody(BaseModel):
     decision_hash: str
     reason: str = Field(min_length=1)
     final_resolution: Literal["COMPENSATED", "ACCEPTED_PARTIAL", "BLOCKED"] | None = None
+
+
+# ---- insight / management / policy screens (insight-contracts.ts, management-contracts.ts, policy-contracts.ts,
+# completion-contracts.ts) ------------------------------------------------------------------------------------------
+class Citation(BaseModel):
+    label: str
+    href: str
+
+
+class Opportunity(BaseModel):
+    id: str
+    budget_id: str
+    entity: str
+    platform: Platform
+    score: float | None
+    status: Literal["FEASIBLE", "BLOCKED", "NOT_ESTIMABLE"]
+    reason: str
+    marginal_caa: float | None
+    delta_budget: float = Field(ge=0)
+    decision_id: str | None
+    evidence: list[Citation]
+    provenance: list[Provenance]
+
+
+class CurvePoint(BaseModel):
+    budget: float = Field(ge=0)
+    contribution: float
+
+
+class Curve(BaseModel):
+    budget_id: str
+    label: str
+    unit: str
+    points: list[CurvePoint]
+    reason: str
+
+
+class Fatigue(BaseModel):
+    creative_id: str
+    name: str
+    entity: str
+    ctr_change: float
+    frequency: float = Field(ge=0)
+    status: Literal["REVIEW", "STABLE"]
+    reason: str
+
+
+class CreativeScore(BaseModel):
+    status: Literal["AVAILABLE", "NOT_ESTIMABLE"]
+    score: float | None
+    explanation: str
+
+
+class CalibrationUpdate(BaseModel):
+    outcome_id: str
+    decision_id: str
+    before: float
+    after: float
+    at: str
+
+
+class CalibrationOut(BaseModel):
+    factor: float
+    updates: list[CalibrationUpdate]
+    note: str
+
+
+class AccuracyOut(BaseModel):
+    sample_count: int = Field(ge=0)
+    mae: float | None
+    note: str
+
+
+class UpliftRow(BaseModel):
+    strategy: str
+    realized_caa: float
+    spend: float = Field(ge=0)
+    constraint_breaches: int = Field(ge=0)
+
+
+class UpliftOut(BaseModel):
+    status: Literal["AVAILABLE", "NOT_AVAILABLE"]
+    rows: list[UpliftRow]
+    note: str
+
+
+class ModelOut(BaseModel):
+    name: str
+    version: str
+    status: Literal["CHAMPION", "CHALLENGER", "NOT_AVAILABLE"]
+    trained_at: str | None
+    note: str
+
+
+class FeedbackOut(BaseModel):
+    outcome_id: str
+    decision_id: str
+    eligible: bool
+    reason: str
+
+
+class ModelCheck(BaseModel):
+    id: str
+    label: str
+    passed: bool
+    detail: str
+
+
+class ModelMetric(BaseModel):
+    label: str
+    candidate: float | None
+    champion: float | None
+    baseline: float | None
+    unit: str
+
+
+class ModelDetail(BaseModel):
+    name: str
+    version: str
+    registry_revision: str
+    role: Literal["CHAMPION", "CANDIDATE", "RETIRED"]
+    artifact_hash: str | None
+    training_snapshot_hash: str | None
+    trained_at: str | None
+    rollback_version: str | None
+    promotion_reason: str | None
+    checks: list[ModelCheck]
+    metrics: list[ModelMetric]
+    allowed_actions: list[Literal["PROMOTE", "ROLLBACK"]]
+    note: str
+
+
+class ReadinessCheck(BaseModel):
+    id: str
+    label: str
+    passed: bool | None
+    detail: str
+
+
+class Readiness(BaseModel):
+    eligible: bool
+    executed_decisions: int = Field(ge=0)
+    measured_outcomes: int = Field(ge=0)
+    independent_worlds: int = Field(ge=0)
+    wilson_lower: float | None
+    reliability: Literal["PASS", "FAIL", "INCONCLUSIVE", "UNAVAILABLE"]
+    guardrail_violations: int = Field(ge=0)
+    checks: list[ReadinessCheck]
+    note: str
+
+
+Mode = Literal["OBSERVE", "APPROVE", "SIMULATION_AUTONOMOUS", "PRODUCTION_AUTONOMOUS"]
+
+
+class ChannelPolicy(BaseModel):
+    channel: Literal["Meta", "Google", "TikTok", "Amazon"]
+    mode: Mode
+    execution_mode: Literal["MOCK", "LIVE"]
+    test_account: bool
+    serves_ads: bool
+    allowed_modes: list[Mode]
+    simulation: Readiness
+    production: Readiness
+    note: str
+
+
+class PolicyOut(BaseModel):
+    policy_version: str
+    revision: str
+    channels: list[ChannelPolicy] = Field(min_length=1)
+    note: str
+
+
+class PolicyChange(BaseModel):
+    field: str
+    before: str
+    after: str
+
+
+class PolicyVersion(BaseModel):
+    version: str
+    at: str
+    actor: str
+    reason: str
+    changes: list[PolicyChange]
+
+
+class PolicyHistory(BaseModel):
+    status: Literal["AVAILABLE", "NOT_AVAILABLE"]
+    note: str
+    versions: list[PolicyVersion]
+
+
+class WorkspaceObjective(BaseModel):
+    workspace_id: str
+    objective: Objective
+    revision: str
+    supported_objectives: list[Objective] = Field(min_length=1)
+    can_change: bool
+    note: str
+
+
+class TimelineEntry(BaseModel):
+    id: str
+    at: str
+    label: str
+    detail: str
+    href: str
+
+
+class ReplayOut(BaseModel):
+    status: Literal["VERIFIED", "MISMATCH", "UNAVAILABLE"]
+    expected_hash: str
+    actual_hash: str | None
+    message: str
+
+
+class SnapshotOut(BaseModel):
+    decision: Decision
+    evidence: EvidenceOut
+    notice: str
+
+
+class ArchiveArtifact(BaseModel):
+    id: str
+    kind: str
+    label: str
+    hash: str | None
+    href: str | None
+    status: Literal["PRESENT", "MISSING"]
+
+
+class ArchiveStep(BaseModel):
+    id: str
+    at: str
+    label: str
+    detail: str
+    artifact_id: str | None
+
+
+class ArchiveOut(BaseModel):
+    decision_id: str
+    decision_hash: str
+    snapshot_id: str
+    environment_fingerprint: str | None
+    code_sha: str | None
+    lock_hash: str | None
+    seed: int | None
+    status: Literal["AVAILABLE", "UNAVAILABLE"]
+    note: str
+    artifacts: list[ArchiveArtifact]
+    steps: list[ArchiveStep]
+
+
+class StrategyRow(BaseModel):
+    name: str
+    allocated: float = Field(ge=0)
+    estimate: Expected
+    reason: str
+
+
+class ConfidenceRow(BaseModel):
+    label: str
+    value: float = Field(ge=0, le=1)
+    meaning: str
+
+
+class Comparison(BaseModel):
+    decision_id: str
+    decision_hash: str
+    status: Literal["AVAILABLE", "NOT_ESTIMABLE"]
+    strategies: list[StrategyRow]
+    alternatives: list[dict]
+    confidence: list[ConfidenceRow]
+    note: str
+
+
+class Workspace(BaseModel):
+    id: str
+    name: str
+    currency: Literal["INR"]
+    timezone: Literal["Asia/Kolkata"]
+
+
+class WorkspaceList(BaseModel):
+    active_id: str
+    items: list[Workspace] = Field(min_length=1)
+
+
+class Envelope(BaseModel):
+    """status + note + an empty payload: the contracts' NOT_AVAILABLE states for later-stage features."""
+    status: Literal["AVAILABLE", "NOT_AVAILABLE"]
+    note: str
+
+
+class ShadowOut(Envelope):
+    records: list[dict]
+
+
+class QualificationOut(Envelope):
+    pools: list[dict]
+
+
+class EvalReportOut(Envelope):
+    report: dict | None
+
+
+class SimulateBody(BaseModel):
+    decision_hash: str
+
+
+class CopilotBody(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)

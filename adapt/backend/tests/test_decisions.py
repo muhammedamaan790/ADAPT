@@ -29,10 +29,10 @@ def copy_state(s):
 def make_run(state, run_id="run-1"):
     opt = Optimizer(state)
     r = opt.solve()
-    r["decision_id"] = f"{run_id}:R"
+    r["decision_id"] = f"{run_id}-R"
     safety = safety_candidates(opt)
     for k, c in enumerate(safety):
-        c["decision_id"] = f"{run_id}:S{k}"
+        c["decision_id"] = f"{run_id}-S{k}"
     return {"run_id": run_id, "result": r, "safety": safety, "calibration_factor": 0.9}
 
 
@@ -47,7 +47,7 @@ def db(tmp_path):
 def created(db):
     state = trap_state()
     ids = dec.create_decisions(db, make_run(state), state, {}, T0)
-    assert ids == ["run-1:R"]
+    assert ids == ["run-1-R"]
     return state, ids[0]
 
 
@@ -207,7 +207,7 @@ def test_safety_decision_requires_review(db):
     u = curve_unit("G", 1000, 2.0, 1.0, 1.0, 3000, {"k": 1.0}, channel="google_search", noise=0.0)
     state = replace(trap_state(), units=[u], skus={"k": SkuState("k", 100.0, 40.0, 300.0, 50.0, 40.0)})
     ids = dec.create_decisions(db, make_run(state), state, {}, T0)
-    safety = [i for i in ids if ":S" in i]
+    safety = [i for i in ids if i.rsplit("-", 1)[-1].startswith("S")]
     assert safety
     d = dec.get_decision(db, safety[0])
     assert d["class"] == "SAFETY" and d["status"] == "PENDING_APPROVAL" and d["requires_review"]

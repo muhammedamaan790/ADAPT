@@ -30,6 +30,31 @@ The Vite dev server proxies `/api` to it.
 | Execution | GET `/executions`, `/ledger`, `/outcomes`; POST `/executions/{id}/verify`, `/rollback`, `/reconcile` | POST `/retry` → 422 NOT_BUILT |
 | Scenario Lab | GET `/sim/scenarios` (catalog: Stage 1 AVAILABLE, the rest NOT_BUILT with missing modules); POST `/sim/scenario/{key}` (S1–S5, S7, DEMO_01), `/sim/advance?days=n`, `/sim/reset?seed=42`, `/sim/fault/FAILED` | `/sim/fault/UNKNOWN` → 422 NOT_BUILT |
 
+**Screen endpoints** (insight, learning, model, policy, workspace and decision-detail screens;
+`backend/adapt/api/{insight_views,routers/insights}.py`):
+
+| Endpoint | Source / behaviour |
+|---|---|
+| GET `/opportunities` | spec §8.1 score: risk-adjusted ΔCAA of +min(₹1,000, the largest feasible increase) on one unit; FEASIBLE / BLOCKED (with the reason) / NOT_ESTIMABLE (no curve) |
+| GET `/curves/{budget_id}` | model-estimated 7-day ΔCAA at 21 budgets (0.5–1.5× current); empty with the reason when MODEL_UNAVAILABLE |
+| GET `/creatives/fatigue` | the fatigue evidence module on every campaign over the last 7 days (REVIEW when its gates pass) |
+| GET `/learning/calibration`, `/learning/accuracy`, `/learning/feedback` | calibration log, MAE of calibrated forecasts vs measured outcomes, eligibility per outcome |
+| GET `/models`, `/models/{name}/{version}` | registry champion (response_curve) + seasonal-naive demand; gates and metrics; no promote / rollback |
+| GET `/policy`, `/policy/history`, `/objective` | Approve-mode channels with readiness counts (never eligible in Stage 1); policy versions with field diffs; PROFIT only |
+| GET `/decisions/{id}/timeline`, `/snapshot`, `/archive`; POST `/decisions/{id}/simulate` | lifecycle + saga + outcome + calibration; snapshot manifest; replay environment and artifacts; the decision vs holding the current allocation |
+| GET `/decisions/{id}/replay` | re-runs economics + optimizer + policy from the snapshot in a background thread (cached per decision); UNAVAILABLE while running, then VERIFIED / MISMATCH |
+| GET `/workspaces`, POST `/workspaces/{id}/activate` | the one Stage 1 workspace |
+| POST `/copilot/chat` | SSE `answer` + `done`, TEMPLATE mode (LLM offline), grounded in stored state with app-route citations |
+| Later stage → contract's NOT_AVAILABLE / NOT_ESTIMABLE | `/learning/uplift`, `/learning/shadow`, `/learning/qualification`, `/eval/report`, POST `/creatives/score` |
+| Later stage → 422 NOT_BUILT | PUT `/policy`, PUT `/objective`, POST `/models/{name}/promote` and `rollback`, POST `/workspaces`, `/ingest/upload`, `/ingest/mapping/confirm`, `/copilot/sql` |
+
+**Decision ids** use only `[a-zA-Z0-9_-]`, as the archive contract requires (`opt-<hash>-R`, `-S<k>`, `-mod-<hash>-M`).
+
+**Verified**:
+- The real responses of all 23 screen endpoints pass the frontend's own zod schemas.
+- The live sweep (`web/tests/live-api/pages.spec.ts`) loads all 11 app pages from the real backend with no alert,
+  no contract mismatch and no fixture data.
+
 **Rules for every mutation**:
 - It requires `X-Request-ID` and `Idempotency-Key` (422 without them). Semantic idempotency is enforced by the
   engine: approval is bound to `decision_hash`, and a decision has at most one execution saga.

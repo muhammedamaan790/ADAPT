@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
@@ -224,7 +225,7 @@ def modify(decision_id: str, body: m.AllocationInput, request: Request):
             prop = dec.manual_proposal(state, alloc, policy["config"])
             h = hashlib.sha256(json.dumps(alloc, sort_keys=True).encode()).hexdigest()[:10]
             run_id = f"{opt_id}-mod-{h}"
-            new_id = f"{run_id}:M"
+            new_id = f"{run_id}-M"
             prop["decision_id"] = new_id
             run = {"run_id": run_id, "result": prop, "safety": [], "calibration_factor":
                    d["expected"].get("optimism_correction_factor", 0.9), "manual_allocation": alloc}
@@ -265,15 +266,19 @@ def optimizer_context(request: Request):
         note = (v.nar.why_not_text(why[u.unit_id], names)[1] if u.unit_id in why else
                 "recommended change" if abs(res.get("allocation", {}).get(u.unit_id, u.budget) - u.budget) > 1e-6
                 else "")
+        # whole-rupee view: bounds always contain round(current budget), which the backend reads as "unchanged"
+        cur = round(u.budget)
+        lo_i, hi_i = min(math.ceil(c.lo[i] - 1e-6), cur), max(math.floor(c.hi[i] + 1e-6), cur)
+        after = min(max(round(res.get("allocation", {}).get(u.unit_id, u.budget)), lo_i), hi_i)
         camps.append({"platform": v.PLATFORM[u.platform], "entity": names.get(u.unit_id, u.unit_id),
-                      "budget_id": u.unit_id, "before": u.budget,
-                      "after": float(round(res.get("allocation", {}).get(u.unit_id, u.budget))),
+                      "budget_id": u.unit_id, "before": u.budget, "after": float(after),
                       "margin": float(pf.cm[i]), "roas": float(u.observed_roas), "marginal_caa": marg,
                       "inventory_gate": (res.get("inventory_gate", {}).get(u.unit_id) or {}).get("gate", "ALLOW"),
-                      "min_budget": float(c.lo[i]), "max_budget": float(c.hi[i]), "note": note})
+                      "min_budget": float(lo_i), "max_budget": float(hi_i), "note": note})
     return {"decision_id": pend[0]["decision_id"] if pend else None,
             "decision_hash": pend[0]["decision_hash"] if pend else None, "supported_objectives": ["PROFIT"],
-            "objective": "PROFIT", "budget_ceiling": float(c.B), "reserve_floor": float(c.R),
+            # whole rupees: the sum of rounded budgets may exceed a fractional ceiling by a few rupees
+            "objective": "PROFIT", "budget_ceiling": float(math.ceil(c.B)), "reserve_floor": float(c.R),
             "max_daily_change": float(g["change"]["max_daily_change_pct"]),
             "policy_version": current_policy(r.db, as_of)["policy_version"],
             "horizon_days": int(objectives_config()["economics"]["horizon_days"]), "campaigns": camps}
