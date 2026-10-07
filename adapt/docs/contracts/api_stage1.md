@@ -14,8 +14,32 @@ health, ledger, optimizer context) all pass the frontend's own zod schemas under
 1. Start the world service: `WORLD_DIR=data/world/seed42 uv run uvicorn world.main:app --app-dir world --port 8100`
 2. Bootstrap the workspace once (sync + day-0 cycle + baseline): `uv run python -m adapt.api.runtime --bootstrap`
 3. Start the API: `uv run uvicorn adapt.api.main:app --app-dir backend --port 8000`
+   (set `ADAPT_SEED_PASSWORD` the first time, or read the generated `data/auth/initial_credentials.txt`)
 
 The Vite dev server proxies `/api` to it.
+
+## Login, roles and CSRF (spec §9.5; `backend/adapt/api/auth.py`)
+- **Users**: `viewer` (viewer), `maria` (manager), `admin` (admin), with Argon2 hashes in `data/auth/users.json`.
+  They live outside the workspace file, so `/sim/reset` keeps them. The first boot takes the password from
+  `ADAPT_SEED_PASSWORD`; without it, random passwords are written once to `data/auth/initial_credentials.txt`.
+- **Session**: `POST /auth/login {user_id, password}` sets the HttpOnly, SameSite=Lax `adapt_session` cookie (12 h,
+  signed with `ADAPT_SESSION_SECRET`; random per process when unset, so a restart signs everyone out). It returns
+  `{auth_enabled, user, csrf_token}`. `GET /auth/me` returns the same for the current cookie, or 401.
+  `POST /auth/logout` clears the cookie.
+- **CSRF**: every POST/PUT except login sends `X-CSRF-Token: <csrf_token>` (403 `CSRF_FAILED` otherwise). The token
+  is kept in memory by the frontend and is never readable from a cookie.
+- **Roles**: every GET needs viewer. Read-only computations sent as POST (simulate, what-if, creative score, Copilot)
+  need viewer. Every state change needs manager. Policy, objective, model promote/rollback and new workspaces need
+  admin. Denials are 403 `FORBIDDEN: this action needs the <role> role`.
+- **Actor**: approvals, rejections, executions, rollbacks, anomaly status changes and world control calls record the
+  signed-in user (no more `demo-manager`).
+- **Audit**: every write (allowed or denied) is appended to `data/auth/audit.jsonl` with request id, actor, role,
+  method, path and status.
+- **Throttling**: 5 failed logins for one user name within 5 minutes lock that name (429) until the window passes.
+- **Off switch**: `ADAPT_AUTH_ENABLED=false` (the in-process test suite) acts as the demo manager. `/health` is
+  always public.
+- **Frontend**: `web/src/components/AuthGate.tsx` shows the sign-in form on a 401 in API mode (fixture mode is not
+  gated). The topbar shows the user's initials and a sign-out button.
 
 ## Endpoints (`/api/v1`)
 | Area | Method + path | Notes |
@@ -117,9 +141,9 @@ of a fractional current budget (a Meta budget converted from USD cents) means "u
    a reason.
 6. Reset: day 0, with no outcomes.
 
-**Frontend follow-up (copy)**: when `calibration_applied` is false, the outcome panel always says "Safety outcomes are
-excluded from response-curve calibration". For an INCONCLUSIVE OPTIMIZATION outcome the true reason is
-"INCONCLUSIVE outcomes do not calibrate".
+**Outcome calibration note**: each outcome carries `calibration_note`, the reason in words for why the optimism
+correction factor did or did not move (applied once; a safety or operational outcome; an INCONCLUSIVE verdict;
+contaminated by a safety action; a non-positive or immaterial forecast). The outcome panel shows it.
 
 ## C7: template narratives
 `decide/narrative.py` builds every decision's title, summary and why-not sentence, and the overview brief, only from

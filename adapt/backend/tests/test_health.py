@@ -32,3 +32,12 @@ def test_openapi_contract_is_generated(tmp_path):
         spec = client.get("/openapi.json").json()
     assert "/api/v1/health" in spec["paths"]
     assert "HealthResponse" in spec["components"]["schemas"]
+
+
+def test_every_connector_has_a_display_name():
+    """A connector without a name entry used to crash /overview (KeyError: 'amazon_ads' after Stage 2 added it)."""
+    from adapt.api.routers.data import SOURCE_META, source_meta
+    from adapt.ingest.sync import CONNECTORS
+
+    assert set(CONNECTORS) <= set(SOURCE_META)
+    assert source_meta("new_source") == ("New Source", "other")

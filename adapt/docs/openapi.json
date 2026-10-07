@@ -2103,6 +2103,28 @@
     "title": "Leg",
     "type": "object"
    },
+   "LoginBody": {
+    "properties": {
+     "password": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Password",
+      "type": "string"
+     },
+     "user_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "User Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "user_id",
+     "password"
+    ],
+    "title": "LoginBody",
+    "type": "object"
+   },
    "LoopStep": {
     "properties": {
      "label": {
@@ -2762,6 +2784,11 @@
      "calibration_applied": {
       "title": "Calibration Applied",
       "type": "boolean"
+     },
+     "calibration_note": {
+      "default": "",
+      "title": "Calibration Note",
+      "type": "string"
      },
      "class": {
       "title": "Class",
@@ -3493,6 +3520,51 @@
      "missing_modules"
     ],
     "title": "ScenarioItem",
+    "type": "object"
+   },
+   "SessionOut": {
+    "properties": {
+     "auth_enabled": {
+      "title": "Auth Enabled",
+      "type": "boolean"
+     },
+     "csrf_token": {
+      "title": "Csrf Token",
+      "type": "string"
+     },
+     "user": {
+      "$ref": "#/components/schemas/SessionUser"
+     }
+    },
+    "required": [
+     "auth_enabled",
+     "user",
+     "csrf_token"
+    ],
+    "title": "SessionOut",
+    "type": "object"
+   },
+   "SessionUser": {
+    "properties": {
+     "display_name": {
+      "title": "Display Name",
+      "type": "string"
+     },
+     "role": {
+      "title": "Role",
+      "type": "string"
+     },
+     "user_id": {
+      "title": "User Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "user_id",
+     "display_name",
+     "role"
+    ],
+    "title": "SessionUser",
     "type": "object"
    },
    "ShadowOut": {
@@ -4261,6 +4333,87 @@
     "summary": "Anomaly Status",
     "tags": [
      "loop"
+    ]
+   }
+  },
+  "/api/v1/auth/login": {
+   "post": {
+    "operationId": "login_api_v1_auth_login_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/LoginBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Login",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/logout": {
+   "post": {
+    "operationId": "logout_api_v1_auth_logout_post",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Logout",
+    "tags": [
+     "auth"
+    ]
+   }
+  },
+  "/api/v1/auth/me": {
+   "get": {
+    "operationId": "me_api_v1_auth_me_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SessionOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Me",
+    "tags": [
+     "auth"
     ]
    }
   },

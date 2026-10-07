@@ -235,6 +235,7 @@ class Outcome(BaseModel):
     matured_at: str
     method: str
     calibration_applied: bool
+    calibration_note: str = ""
 
     model_config = {"populate_by_name": True}
 

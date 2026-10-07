@@ -21,7 +21,14 @@ Provenance = Literal["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED", "LIVE"]
 SOURCE_META = {
     "meta_ads": ("Meta Ads", "ads"), "google_ads": ("Google Ads", "ads"), "store": ("Store orders", "commerce"),
     "finance": ("SKU economics", "finance"), "ga4": ("GA4", "analytics"), "erp": ("ERP inventory", "inventory"),
+    "tiktok_ads": ("TikTok Ads", "ads"), "amazon_ads": ("Amazon Ads", "ads"),        # Stage 2 simulated channels
+    "amazon_marketplace": ("Amazon marketplace orders", "commerce"),
 }
+
+
+def source_meta(src: str) -> tuple[str, str]:
+    """(display name, kind) of a connector; a source added later shows its id rather than failing the page."""
+    return SOURCE_META.get(src, (src.replace("_", " ").title(), "other"))
 MIX_UNCERTAIN_SHARE = 0.20  # spec §8.1 coverage rule
 WINDOW_DAYS = 28
 
@@ -106,7 +113,7 @@ def _freshness_text(newest, age) -> str:
 @router.get("/sources", response_model=list[SourceOut])
 def sources(request: Request) -> list[SourceOut]:
     cfg = sources_config()["sources"]
-    return [SourceOut(id=src, name=SOURCE_META[src][0], kind=SOURCE_META[src][1], score=score, status=status,
+    return [SourceOut(id=src, name=source_meta(src)[0], kind=source_meta(src)[1], score=score, status=status,
                       freshness=_freshness_text(newest, age), provenance=cfg[src]["provenance"])
             for _, src, newest, age, _, _, _, score, status, _, _ in _latest_health(_db(request))]
 
@@ -117,7 +124,7 @@ def health(request: Request) -> list[SourceHealthOut]:
     out = []
     for as_of, src, newest, age, fr, comp, cons, score, status, hard, checks in _latest_health(_db(request)):
         out.append(SourceHealthOut(
-            id=src, name=SOURCE_META[src][0], kind=SOURCE_META[src][1], score=score, status=status,
+            id=src, name=source_meta(src)[0], kind=source_meta(src)[1], score=score, status=status,
             freshness=_freshness_text(newest, age), provenance=cfg[src]["provenance"], as_of=as_of.isoformat(),
             newest_date=newest.isoformat() if newest else None, age_hours=age, freshness_score=fr,
             completeness=comp, consistency=cons, hard_failures=json.loads(hard),
