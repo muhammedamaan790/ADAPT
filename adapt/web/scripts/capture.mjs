@@ -10,6 +10,7 @@ const browser = await chromium.launch({
 const errors = [];
 for (const [name, viewport] of [
   ['desktop', { width: 1440, height: 1000 }],
+  ['tablet', { width: 820, height: 1180 }],
   ['mobile', { width: 390, height: 844 }],
 ]) {
   const context = await browser.newContext({ viewport });
@@ -24,6 +25,15 @@ for (const [name, viewport] of [
     await page.getByRole('heading', { level: 1 }).waitFor();
     await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: `../../.impeccable/review/${name}-${slug}.png`, fullPage: true });
+    if (name === 'mobile' && route === '/') {
+      await page.getByRole('button', { name: 'Open navigation' }).click();
+      await page.waitForTimeout(260);
+      await page.screenshot({
+        path: '../../.impeccable/review/mobile-navigation.png',
+        fullPage: false,
+      });
+      await page.getByRole('button', { name: 'Close navigation' }).first().click();
+    }
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
     if (overflow) errors.push(`${name} ${slug} overflow`);
   }
@@ -53,7 +63,7 @@ for (const [name, viewport] of [
       path: '../../.impeccable/review/desktop-tracking.png',
       fullPage: true,
     });
-  } else {
+  } else if (name === 'mobile') {
     await page.goto('http://127.0.0.1:5173/decisions');
     await page.locator('.allocation-mobile').waitFor();
     await page
@@ -63,5 +73,5 @@ for (const [name, viewport] of [
   await context.close();
 }
 await browser.close();
-console.log(JSON.stringify({ errors, captures: 10 }));
+console.log(JSON.stringify({ errors, captures: 14 }));
 if (errors.length) process.exitCode = 1;
