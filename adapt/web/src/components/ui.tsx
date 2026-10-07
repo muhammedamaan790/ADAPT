@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertCircle, Check, CheckCircle2, ChevronDown, Info, Loader2, X } from 'lucide-react';
+import { useEffect, useRef, useState, useId, type ReactNode } from 'react';
+import { AlertCircle, Check, Inbox, ChevronDown, Info, Loader2, X } from 'lucide-react';
 import type { Metric } from '../api/contracts';
 import { humanStatus, money, percent } from '../lib/format';
 
@@ -48,7 +48,7 @@ export function Status({ value }: { value: string }) {
 export function Empty({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="empty">
-      <CheckCircle2 size={28} />
+      <Inbox size={28} aria-hidden="true" />
       <h3>{title}</h3>
       <p>{children}</p>
     </div>
@@ -86,6 +86,9 @@ export function InlineError({ error }: { error: Error | null }) {
 }
 export function MetricTile({ metric }: { metric: Metric }) {
   const [open, setOpen] = useState(false);
+  const lineageId = useId();
+  const popover = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ left: 16, top: 100 });
   const value =
     metric.value === null
       ? '—'
@@ -102,7 +105,15 @@ export function MetricTile({ metric }: { metric: Metric }) {
           className="icon-button"
           aria-label={`Lineage for ${metric.label}`}
           aria-expanded={open}
-          onClick={() => setOpen(!open)}
+          aria-controls={lineageId}
+          onClick={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            setPosition({
+              left: Math.max(16, Math.min(box.left, window.innerWidth - 304)),
+              top: Math.min(box.bottom + 8, Math.max(16, window.innerHeight - 320)),
+            });
+            popover.current?.togglePopover();
+          }}
         >
           <Info size={14} />
         </button>
@@ -113,26 +124,39 @@ export function MetricTile({ metric }: { metric: Metric }) {
         {value}
       </strong>
       {metric.change !== null ? (
-        <small className={metric.change < 0 ? 'text-danger' : 'text-success'}>
+        <small
+          className={
+            /spend/i.test(metric.label)
+              ? 'muted'
+              : metric.change < 0
+                ? 'text-danger'
+                : 'text-success'
+          }
+        >
           {metric.change > 0 ? '+' : ''}
           {percent(metric.change)} <span className="muted">vs prior 7 days</span>
         </small>
       ) : (
         <small className="muted">No comparison supplied</small>
       )}
-      {open && (
-        <div className="lineage">
-          <b>Derived metric</b>
-          <p>{metric.formula}</p>
-          <span>{metric.source}</span>
-          <span>Available: {metric.available_at}</span>
-          <div>
-            {metric.provenance_inputs.map((p) => (
-              <Badge key={p}>{p}</Badge>
-            ))}
-          </div>
+      <div
+        className="lineage"
+        id={lineageId}
+        ref={popover}
+        popover="auto"
+        style={position}
+        onToggle={(event) => setOpen(event.currentTarget.matches(':popover-open'))}
+      >
+        <b>Derived metric</b>
+        <p>{metric.formula}</p>
+        <span>{metric.source}</span>
+        <span>Available: {metric.available_at}</span>
+        <div>
+          {metric.provenance_inputs.map((p) => (
+            <Badge key={p}>{p}</Badge>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

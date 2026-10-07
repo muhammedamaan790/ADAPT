@@ -175,12 +175,13 @@ function OpportunityDetail({ opportunity: o }: { opportunity: Opportunity }) {
           </div>
         </dl>
         <p className="workbench-copy">{o.reason}</p>
-        <div className="badge-row">
-          {o.provenance.map((p) => (
-            <Badge key={p}>{p}</Badge>
-          ))}
-        </div>
-        <SectionTitle title="Evidence graph" />
+        <SectionTitle title="Evidence graph">
+          <div className="badge-row">
+            {o.provenance.map((p) => (
+              <Badge key={p}>{p}</Badge>
+            ))}
+          </div>
+        </SectionTitle>
         <div className="evidence-graph">
           <div>
             <span>Signal</span>

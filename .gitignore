@@ -7,6 +7,9 @@ playwright-report/
 test-results/
 .artifacts/
 .impeccable/review/
+.impeccable/build/map-inspections/
+.impeccable/build/scaffold/
+.impeccable/build/comp-grid.png
 *.log
 *.tsbuildinfo
 .DS_Store

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
 import {
   Activity,
@@ -19,6 +19,7 @@ import {
   BookOpen,
   Database,
   ChartNoAxesCombined,
+  Menu,
 } from 'lucide-react';
 import { CommandCenter } from './pages/CommandCenter';
 import { DecisionCenter } from './pages/DecisionCenter';
@@ -56,13 +57,63 @@ const routeNames: Record<string, string> = {
   data: 'Data Hub',
 };
 
+const navigation = [
+  {
+    label: 'Operate',
+    items: [
+      { to: '/', label: 'Command Center', icon: LayoutDashboard },
+      { to: '/decisions', label: 'Decision Center', icon: Workflow },
+      { to: '/executions', label: 'Execution & Ledger', icon: ListChecks },
+    ],
+  },
+  {
+    label: 'Analyze',
+    items: [
+      { to: '/anomalies', label: 'Anomalies', icon: Radar },
+      { to: '/opportunities', label: 'Opportunity Map', icon: TrendingUp },
+      { to: '/optimizer', label: 'Optimizer', icon: SlidersHorizontal },
+      { to: '/outcomes', label: 'Outcomes', icon: ChartNoAxesCombined },
+      { to: '/learning', label: 'Learning', icon: BookOpen },
+    ],
+  },
+  {
+    label: 'Workspace',
+    items: [
+      { to: '/data', label: 'Data Hub', icon: Database },
+      { to: '/scenarios', label: 'Scenario Lab', icon: FlaskConical },
+      { to: '/connection', label: 'Backend Connection', icon: PlugZap },
+    ],
+  },
+];
+
+function Navigation({ close }: { close?: () => void }) {
+  return (
+    <nav aria-label="Primary navigation" className="navigation-groups">
+      {navigation.map((group) => (
+        <div className="navigation-group" key={group.label}>
+          <p className="navigation-label">{group.label}</p>
+          {group.items.map(({ to, label, icon: Icon }) => (
+            <NavLink key={to} to={to} end={to === '/'} title={label} onClick={close}>
+              <Icon size={18} aria-hidden="true" />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
 export function App() {
   const [dark, setDark] = useState(() => localStorage.getItem('adapt.theme') === 'dark');
   const [collapsed, setCollapsed] = useState(false);
-  const [morePages, setMorePages] = useState(false);
+  const [mobileNav, setMobileNav] = useState(false);
   const [copilot, setCopilot] = useState(false);
   const overview = useOverview();
   const route = useLocation().pathname;
+  useEffect(() => {
+    document.title = `${routeNames[route.split('/')[1]] || 'Command Center'} · ADAPT`;
+  }, [route]);
   const toggleTheme = () => {
     setDark(!dark);
     localStorage.setItem('adapt.theme', dark ? 'light' : 'dark');
@@ -75,8 +126,11 @@ export function App() {
       <aside className="sidebar">
         <Link to="/" className="brand" aria-label="ADAPT Command Center">
           <span className="brand-mark">
-            <svg viewBox="0 0 32 32" aria-hidden="true">
-              <path d="M5 25 16 6 27 25M10 19h12" />
+            <svg viewBox="0 0 256 256" aria-hidden="true">
+              <g fill="currentColor" transform="translate(3 -6)">
+                <path d="M32 80H80V178H176V224H80L32 176Z" />
+                <path d="M112 32H176L224 80V144H176V78H112Z" />
+              </g>
             </svg>
           </span>
           <span>
@@ -93,65 +147,7 @@ export function App() {
             <small>Decision workspace · INR</small>
           </div>
         </Link>
-        <nav aria-label="Primary navigation">
-          <NavLink to="/" end>
-            <LayoutDashboard size={19} />
-            <span>Command Center</span>
-          </NavLink>
-          <NavLink to="/decisions">
-            <Workflow size={19} />
-            <span>Decision Center</span>
-          </NavLink>
-          <NavLink to="/scenarios">
-            <FlaskConical size={19} />
-            <span>Scenario Lab</span>
-          </NavLink>
-          <NavLink to="/anomalies">
-            <Radar size={19} />
-            <span>Anomalies</span>
-          </NavLink>
-          <NavLink to="/optimizer">
-            <SlidersHorizontal size={19} />
-            <span>Optimizer</span>
-          </NavLink>
-          <NavLink to="/executions">
-            <ListChecks size={19} />
-            <span>Execution & Ledger</span>
-          </NavLink>
-          <NavLink to="/connection">
-            <PlugZap size={19} />
-            <span>Backend Connection</span>
-          </NavLink>
-          <button
-            className="more-pages"
-            aria-expanded={morePages}
-            aria-controls="insight-navigation"
-            onClick={() => setMorePages(!morePages)}
-          >
-            More pages
-          </button>
-          <div
-            id="insight-navigation"
-            className={`insight-navigation ${morePages ? 'expanded' : ''}`}
-          >
-            <NavLink to="/opportunities">
-              <TrendingUp size={19} />
-              <span>Opportunity Map</span>
-            </NavLink>
-            <NavLink to="/outcomes">
-              <ChartNoAxesCombined size={19} />
-              <span>Outcomes</span>
-            </NavLink>
-            <NavLink to="/learning">
-              <BookOpen size={19} />
-              <span>Learning</span>
-            </NavLink>
-            <NavLink to="/data">
-              <Database size={19} />
-              <span>Data Hub</span>
-            </NavLink>
-          </div>
-        </nav>
+        <Navigation />
         <div className="sidebar-bottom">
           <div className="mode-box">
             <ShieldCheck size={20} />
@@ -185,6 +181,13 @@ export function App() {
       </aside>
       <div className="workspace-main">
         <header className="topbar">
+          <button
+            className="icon-button mobile-menu-button"
+            aria-label="Open navigation"
+            onClick={() => setMobileNav(true)}
+          >
+            <Menu size={20} />
+          </button>
           <div className="breadcrumb">
             Workspace <span>/</span>{' '}
             <strong>{routeNames[route.split('/')[1]] || 'Command Center'}</strong>
@@ -196,6 +199,7 @@ export function App() {
               onClick={() => setCopilot(true)}
             >
               <MessageSquare size={18} />
+              <span className="copilot-label">Copilot</span>
             </button>
             <Badge tone={dataMode === 'fixture' ? 'warning' : 'accent'}>
               {dataMode === 'fixture' ? 'FRONTEND FIXTURES' : 'API MODE'}
@@ -263,6 +267,11 @@ export function App() {
           </span>
         </footer>
       </div>
+      {mobileNav && (
+        <Modal title="Navigation" close={() => setMobileNav(false)}>
+          <Navigation close={() => setMobileNav(false)} />
+        </Modal>
+      )}
       {copilot && (
         <ViewBoundary
           fallback={

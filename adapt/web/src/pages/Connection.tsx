@@ -96,28 +96,40 @@ export function Connection() {
         ) : connection.error ? (
           <ErrorState error={connection.error} retry={() => void connection.refetch()} />
         ) : (
-          <ul className="connection-list">
-            {connection.data?.map((p) => (
-              <li key={p.path}>
-                <div className="ledger-heading">
-                  <strong>{p.name}</strong>
-                  <Badge
-                    tone={
-                      p.status === 'READY'
-                        ? 'success'
-                        : p.status === 'MISSING' || p.status === 'AUTH_REQUIRED'
-                          ? 'warning'
-                          : 'danger'
-                    }
-                  >
-                    {humanStatus(p.status)}
-                  </Badge>
-                </div>
-                <code>{p.path}</code>
-                <p>{p.detail}</p>
-              </li>
-            ))}
-          </ul>
+          <>
+            {ready === 0 && (
+              <p className="connection-summary" role="status">
+                No backend endpoints passed the readiness checks. Confirm the backend is running at{' '}
+                <code>{apiBase}</code>, then use Check endpoints to retry. Endpoint details below
+                distinguish connection failures, missing routes and authentication requirements.
+              </p>
+            )}
+            <details className="endpoint-details" open={ready > 0}>
+              <summary>Inspect endpoint results ({connection.data?.length || 0})</summary>
+              <ul className="connection-list">
+                {connection.data?.map((p) => (
+                  <li key={p.path}>
+                    <div className="ledger-heading">
+                      <strong>{p.name}</strong>
+                      <Badge
+                        tone={
+                          p.status === 'READY'
+                            ? 'success'
+                            : p.status === 'MISSING' || p.status === 'AUTH_REQUIRED'
+                              ? 'warning'
+                              : 'danger'
+                        }
+                      >
+                        {humanStatus(p.status)}
+                      </Badge>
+                    </div>
+                    <code>{p.path}</code>
+                    <p>{p.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </>
         )}
         <p className="caption">
           Several endpoints are proposed frontend contracts. Entity-specific detail routes and

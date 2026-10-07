@@ -8,11 +8,10 @@ import {
   Package,
   RotateCw,
   ShieldCheck,
-  Sparkles,
   TrendingUp,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useIsFetching } from '@tanstack/react-query';
 import { useOverview } from '../hooks/workspace';
 import { Badge, Empty, ErrorState, Loading, MetricTile, SectionTitle } from '../components/ui';
 import { TrendChart } from '../components/charts';
@@ -21,21 +20,28 @@ import { dateTime, money } from '../lib/format';
 export function CommandCenter() {
   const { data, isPending, error, refetch } = useOverview();
   const cache = useQueryClient();
+  const refreshing = useIsFetching({ queryKey: ['overview'] }) > 0;
   if (isPending) return <Loading />;
   if (error || !data)
     return (
       <ErrorState error={error || new Error('No overview returned')} retry={() => void refetch()} />
     );
   return (
-    <>
+    <div className="command-center">
       <div className="page-heading">
         <div>
           <h1>Command Center</h1>
           <p>Your advertising decisions, with the evidence behind them.</p>
         </div>
-        <button className="button secondary" onClick={() => void cache.invalidateQueries()}>
-          <RotateCw size={14} />
-          Refresh data
+        <button
+          className="button secondary"
+          aria-label="Refresh data"
+          aria-busy={refreshing}
+          disabled={refreshing}
+          onClick={() => void cache.invalidateQueries()}
+        >
+          <RotateCw size={14} className={refreshing ? 'spin' : ''} />
+          {refreshing ? 'Refreshing…' : 'Refresh data'}
         </button>
       </div>
       <div className="context-line">
@@ -43,13 +49,9 @@ export function CommandCenter() {
           <i className="status-dot" />
           Last report {dateTime(data.decision_ts)}
         </span>
-        <span>World day {data.world_day} · Last 7 days</span>
-        <Badge tone="accent">Financial overview</Badge>
+        <span>World day {data.world_day} · Financials: last 7 days</span>
       </div>
       <section className="brief">
-        <div className="brief-icon">
-          <Sparkles size={21} />
-        </div>
         <div>
           <h2>Your morning brief</h2>
           <p>{data.brief}</p>
@@ -64,6 +66,33 @@ export function CommandCenter() {
         ))}
       </section>
       <div className="overview-grid">
+        <section className="panel performance-panel">
+          <SectionTitle title="Campaign efficiency">
+            <Badge>Reconciled</Badge>
+          </SectionTitle>
+          <p className="section-description">
+            Hero campaign · actual return vs the baseline forecast
+          </p>
+          <TrendChart data={data.series} small />
+          <div className="chart-insight">
+            <ArrowDownRight size={19} />
+            <p>
+              <strong>
+                {data.scenario === 'S7'
+                  ? 'Expected budget change.'
+                  : data.scenario === 'S5'
+                    ? 'Validate tracking before scaling.'
+                    : 'Investigate before scaling.'}
+              </strong>{' '}
+              {data.scenario === 'S7'
+                ? 'No efficiency incident is open.'
+                : 'The Decision Center shows accounting drivers and inventory limits.'}
+            </p>
+          </div>
+          <Link to="/decisions" className="text-link">
+            Open the investigation <ArrowRight size={15} />
+          </Link>
+        </section>
         <section className="panel attention-panel">
           <SectionTitle title="What needs your attention">
             <Badge>{data.attention.length} items</Badge>
@@ -118,33 +147,6 @@ export function CommandCenter() {
             </Empty>
           )}
         </section>
-        <section className="panel performance-panel">
-          <SectionTitle title="Campaign efficiency">
-            <Badge tone="warning">Reconciled</Badge>
-          </SectionTitle>
-          <p className="section-description">
-            Hero campaign · actual return vs the baseline forecast
-          </p>
-          <TrendChart data={data.series} small />
-          <div className="chart-insight">
-            <ArrowDownRight size={19} />
-            <p>
-              <strong>
-                {data.scenario === 'S7'
-                  ? 'Expected budget change.'
-                  : data.scenario === 'S5'
-                    ? 'Validate tracking before scaling.'
-                    : 'Investigate before scaling.'}
-              </strong>{' '}
-              {data.scenario === 'S7'
-                ? 'No efficiency incident is open.'
-                : 'The Decision Center shows accounting drivers and inventory limits.'}
-            </p>
-          </div>
-          <Link to="/decisions" className="text-link">
-            Open the investigation <ArrowRight size={15} />
-          </Link>
-        </section>
       </div>
       <section className="panel source-panel">
         <SectionTitle title="A unified view, from six sources">
@@ -194,6 +196,6 @@ export function CommandCenter() {
           ))}
         </div>
       </section>
-    </>
+    </div>
   );
 }
