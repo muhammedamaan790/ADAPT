@@ -22,7 +22,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from adapt.core.db import Database
-from adapt.execute.adapters import MockGoogleAdapter, MockMetaAdapter
+from adapt.execute.adapters import build_adapters
 from adapt.ingest.http import SourceHttp
 from adapt.reconcile.build import logical_now
 from evalharness.strategies import REGISTRY, Envelope
@@ -39,7 +39,7 @@ class Fork:
         self.client = self._stack.enter_context(TestClient(create_app(world_dir=self.dir / "world")))
         self.db = Database(self.dir / "workspace.duckdb")
         self.http = SourceHttp("http://testserver", client=self.client, sleep=lambda s: None)
-        self.adapters = {"google": MockGoogleAdapter(self.client), "meta": MockMetaAdapter(self.client)}
+        self.adapters = build_adapters(self.client)  # every platform as its mock (TikTok / Amazon when seeded)
         self.store = self.client.app.state.store
         truth = self.store.ctx.truth
         self.platform_of = {c.budget_id: c.platform for c in truth.catalog.campaigns}
@@ -190,6 +190,9 @@ def run_decision_eval(seeded_dir: Path, work_dir: Path, days: int, strategies=No
             f = forks[n]
             out["strategies"][n] = {**realized(f.store, lo, hi),
                                     "violations": violations(f.store, lo, hi, strat[n].env.box),
+                                    # spec §22.7: every forced safety intervention is listed per strategy
+                                    "forced_interventions": sum(1 for e in strat[n].log
+                                                                if e.get("forced_intervention")),
                                     "seconds_per_day": timing[n] / max(days, 1), "log": strat[n].log}
             sigs[n] = exogenous_signature(f.store, lo, hi)
         ref = sigs[names[0]]

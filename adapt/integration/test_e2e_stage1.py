@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from adapt.api.main import create_app
 from adapt.api.runtime import bootstrap
 from adapt.config.settings import Settings
+from adapt.economics.inventory_risk import risk_config
 
 H = {"X-Request-ID": "t", "Idempotency-Key": "t"}
 START = date(2026, 10, 1)
@@ -59,7 +60,8 @@ def test_stage1_closed_loop_through_the_api(api):
 
     decisions = ok(api.get("/api/v1/decisions"))
     d = next(x for x in decisions if x["class"] == "OPTIMIZATION" and x["status"] == "PENDING_APPROVAL")
-    assert d["inventory_risk_after"]["kind"] == "PROJECTED_SHORTFALL" and d["checks"]
+    # the stage's inventory predicate (config/inventory_risk.yaml): PROJECTED_SHORTFALL in Stage 1, NB2 in Stage 2
+    assert d["inventory_risk_after"]["kind"] == risk_config()["predicate"] and d["checks"]
     assert all(c["passed"] for c in d["checks"]) and d["why_not"] and d["legs"]
     assert d["budget_ceiling"] >= sum(leg["after"] for leg in d["legs"])
     assert {leg["platform"] for leg in d["legs"]} <= {"Meta", "Google"} and d["title"] and d["summary"]
@@ -140,7 +142,7 @@ def test_stage1_closed_loop_through_the_api(api):
                       json={"decision_hash": s["decision_hash"], "reason": "reviewed: restock confirmed"},
                       headers=hdr(52)))
     assert rej["status"] == "REJECTED"
-    assert api.post("/api/v1/sim/scenario/S6", json={}, headers=hdr(53)).status_code == 422   # not Stage 1
+    assert api.post("/api/v1/sim/scenario/S9", json={}, headers=hdr(53)).status_code == 422   # not injectable
 
     # Scenario Lab reset: world and workspace back to the day-0 baseline
     ok(api.post("/api/v1/sim/reset?seed=42", json={}, headers=hdr(60)))

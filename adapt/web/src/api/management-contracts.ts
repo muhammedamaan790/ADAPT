@@ -93,6 +93,8 @@ export const evaluationReportSchema = z
         }),
       )
       .max(400),
+    // headline results from scripts/run_eval.py: primary paired CI, oracle capture, detection, diagnosis, safety
+    summary: z.record(z.string(), z.unknown()).optional(),
   })
   .strict()
   .superRefine((r, ctx) => {

@@ -46,7 +46,9 @@ class RequestConfig:
 
 
 NARRATOR_REQUEST = RequestConfig(stream=False, tools=False, strict_schema=True)
-COPILOT_REQUEST = RequestConfig(stream=True, tools=True, strict_schema=False)
+# tool calling without a strict schema; non-streaming to Groq (each tool step needs the whole message), and the answer
+# reaches the browser over the SSE contract
+COPILOT_REQUEST = RequestConfig(stream=False, tools=True, strict_schema=False)
 
 
 class GroqClient:
@@ -144,6 +146,35 @@ class GroqClient:
                 return model, parsed, False
         raise LLMUnavailable("; ".join(errors) or "no model available")
 
+
+    # ---- one Copilot tool-calling step over the chain ---------------------------------------------------------------
+    def chat_tools(self, messages: list[dict], tools: list[dict],
+                   request: RequestConfig = COPILOT_REQUEST) -> tuple[str, dict]:
+        """(model, assistant message with optional tool_calls). Never a strict schema, never cached (a conversation)."""
+        if not request.tools or request.strict_schema:
+            raise ValueError("the copilot request uses tool calling and no strict schema")
+        errors = []
+        for model in self.chain():
+            body = {"model": model, "messages": messages, "tools": tools, "tool_choice": "auto", "stream": False,
+                    "temperature": self.cfg["temperature"], "max_completion_tokens": self.cfg["max_tokens"]}
+            for attempt in range(int(self.cfg["max_retries_429"]) + 1):
+                try:
+                    r = self.http.post(f"{self.base}/chat/completions", headers=self._headers(), json=body)
+                except httpx.HTTPError as exc:
+                    errors.append(f"{model}: {exc}")
+                    break
+                if r.status_code == 429 and attempt < int(self.cfg["max_retries_429"]):
+                    self.sleep(float(self.cfg["backoff_s"]) * 2 ** attempt)
+                    continue
+                if r.status_code != 200:
+                    errors.append(f"{model}: HTTP {r.status_code}")
+                    break
+                try:
+                    return model, r.json()["choices"][0]["message"]
+                except (KeyError, IndexError, ValueError, TypeError) as exc:
+                    errors.append(f"{model}: unparseable response ({exc})")
+                    break
+        raise LLMUnavailable("; ".join(errors) or "no model available")
 
 def from_settings(settings, db=None) -> GroqClient:
     """The app's narrator client: GROQ_API_KEY from the backend .env (no key -> offline templates)."""

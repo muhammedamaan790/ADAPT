@@ -36,6 +36,8 @@ const DecisionInsights = lazy(() =>
   import('../components/DecisionInsights').then((m) => ({ default: m.DecisionInsights })),
 );
 import { TrendChart, Waterfall } from '../components/charts';
+import { Narrative } from '../components/Narrative';
+import { ConfidencePanel } from '../components/ConfidencePanel';
 import { dateTime, humanStatus, money, percent, signedMoney } from '../lib/format';
 
 export function DecisionCenter() {
@@ -237,6 +239,7 @@ export function DecisionCenter() {
       </nav>
       <div className="decision-layout">
         <div className="decision-main">
+          <Narrative kind="decision" id={d.decision_id} />
           <section className="panel" id="why">
             <SectionTitle title="The signal behind the decision">
               <Badge tone="warning">Probable driver</Badge>
@@ -296,6 +299,7 @@ export function DecisionCenter() {
               ))}
             </div>
           </section>
+          <ConfidencePanel decision={d} />
           <section className="panel" id="allocation">
             <SectionTitle
               title={
@@ -403,13 +407,32 @@ export function DecisionCenter() {
                 <div className="inventory-summary">
                   <PackageIcon />
                   <div>
-                    <strong>Projected stock shortfall after action</strong>
-                    <p>
-                      {Object.entries(d.inventory_risk_after.by_sku)
-                        .map(([sku, units]) => `${sku}: ${units} units`)
-                        .join(' · ')}
-                    </p>
-                    <small>Deterministic projection · not a stockout probability</small>
+                    {d.inventory_risk_after.kind === 'STOCKOUT_PROBABILITY' ? (
+                      <>
+                        <strong>Model P(stockout) after action</strong>
+                        <p>
+                          {Object.entries(d.inventory_risk_after.by_sku)
+                            .filter(([, p]) => p > 0.005)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 8)
+                            .map(([sku, p]) => `${sku}: ${percent(p)}`)
+                            .join(' · ') || 'No SKU above 0.5%'}
+                        </p>
+                        <small>
+                          NB2 demand model over the horizon · model-derived, not calibrated
+                        </small>
+                      </>
+                    ) : (
+                      <>
+                        <strong>Projected stock shortfall after action</strong>
+                        <p>
+                          {Object.entries(d.inventory_risk_after.by_sku)
+                            .map(([sku, units]) => `${sku}: ${units} units`)
+                            .join(' · ')}
+                        </p>
+                        <small>Deterministic projection · not a stockout probability</small>
+                      </>
+                    )}
                   </div>
                 </div>
               </>

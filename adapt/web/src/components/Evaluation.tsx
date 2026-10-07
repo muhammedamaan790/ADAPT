@@ -7,7 +7,8 @@ import {
   type EvaluationReport,
 } from '../api/management-contracts';
 import { Badge, Disclosure, ErrorState, InlineError, Loading, SectionTitle } from './ui';
-import { money, dateTime } from '../lib/format';
+import { money, dateTime, percent } from '../lib/format';
+import { z } from 'zod';
 import { downloadText } from '../lib/csv';
 export function Evaluation() {
   const query = useQuery({
@@ -194,6 +195,7 @@ export function Evaluation() {
                 </tbody>
               </table>
             </div>
+            {report.summary && <EvalSummary summary={report.summary} />}
             <p className="notice">{report.fairness_statement}</p>
             <Disclosure title="Report provenance & evaluation envelope">
               <p>
@@ -211,5 +213,107 @@ export function Evaluation() {
         )}
       </section>
     </>
+  );
+}
+
+const ci = z.object({
+  mean: z.number().nullable(),
+  ci95: z.tuple([z.number(), z.number()]).nullable(),
+  seeds: z.number(),
+  excludes_zero: z.boolean().optional(),
+});
+const summarySchema = z.object({
+  primary: ci.nullable().optional(),
+  comparisons: z.record(z.string(), ci).optional(),
+  oracle_capture: z
+    .object({
+      median_pct: z.number().nullable(),
+      interpretable: z.number(),
+      NOT_INTERPRETABLE: z.number(),
+    })
+    .optional(),
+  safety_violations: z.record(z.string(), z.number()).optional(),
+  replay: z.object({ decisions: z.number(), matched: z.number() }).optional(),
+  verdicts: z.record(z.string(), z.number()).optional(),
+  detection: z
+    .object({
+      f1: z.number().nullable(),
+      precision: z.number().nullable(),
+      recall: z.number().nullable(),
+      median_latency_days: z.number().nullable(),
+    })
+    .optional(),
+  diagnosis: z
+    .object({ scored: z.number(), top1: z.number().nullable(), top3: z.number().nullable() })
+    .optional(),
+  negative_set: z.object({ items: z.number(), accuracy: z.number().nullable() }).optional(),
+});
+
+/** Headline results exactly as the report states them, including missed targets; no interval is computed here. */
+function EvalSummary({ summary }: { summary: Record<string, unknown> }) {
+  const parsed = summarySchema.safeParse(summary);
+  if (!parsed.success)
+    return <p className="notice">The report summary does not match the expected shape.</p>;
+  const s = parsed.data;
+  const band = (c?: z.infer<typeof ci> | null) =>
+    !c || c.mean === null
+      ? 'not reported'
+      : `${money(c.mean)} per seed` +
+        (c.ci95 ? ` (95% paired CI ${money(c.ci95[0])} to ${money(c.ci95[1])})` : '');
+  const pct = (x?: number | null) => (x === null || x === undefined ? 'not reported' : percent(x));
+  const violations = Object.values(s.safety_violations || {}).reduce((n, x) => n + x, 0);
+  return (
+    <Disclosure title="Headline results (as reported)">
+      <p>
+        <strong>Primary · U(adapt vs safe-static):</strong> {band(s.primary)}
+        {s.primary?.excludes_zero !== undefined &&
+          (s.primary.excludes_zero ? ' · interval excludes 0' : ' · interval includes 0')}
+      </p>
+      <p>
+        <strong>Secondary · U(adapt vs safe-contribution):</strong>{' '}
+        {band(s.comparisons?.['U(adapt vs safe-contribution)'])}
+      </p>
+      {s.oracle_capture && (
+        <p>
+          Oracle capture (median):{' '}
+          {s.oracle_capture.median_pct === null
+            ? 'not interpretable'
+            : `${s.oracle_capture.median_pct.toFixed(0)}%`}{' '}
+          over {s.oracle_capture.interpretable} seeds · {s.oracle_capture.NOT_INTERPRETABLE} not
+          interpretable. A clairvoyant benchmark, not an upper bound.
+        </p>
+      )}
+      {s.detection && (
+        <p>
+          Detection F1 {pct(s.detection.f1)} (precision {pct(s.detection.precision)}, recall{' '}
+          {pct(s.detection.recall)}) · median latency{' '}
+          {s.detection.median_latency_days === null
+            ? 'not reported'
+            : `${s.detection.median_latency_days} days`}
+        </p>
+      )}
+      {s.diagnosis && (
+        <p>
+          Diagnosis top-1 {pct(s.diagnosis.top1)} · top-3 {pct(s.diagnosis.top3)} over{' '}
+          {s.diagnosis.scored} detected incidents
+        </p>
+      )}
+      {s.negative_set && (
+        <p>Negative set (no incident expected): {pct(s.negative_set.accuracy)} correct</p>
+      )}
+      <p>
+        Safety violations across strategies: {violations}
+        {s.replay &&
+          ` · replay ${s.replay.matched} / ${s.replay.decisions} decision hashes reproduced`}
+      </p>
+      {s.verdicts && (
+        <p>
+          ADAPT outcome verdicts:{' '}
+          {Object.entries(s.verdicts)
+            .map(([k, n]) => `${k} ${n}`)
+            .join(' / ')}
+        </p>
+      )}
+    </Disclosure>
   );
 }

@@ -47,7 +47,7 @@ MAX_FAILURES, FAILURE_WINDOW = 5, 300
 PUBLIC = {("GET", "/api/v1/health"), ("POST", "/api/v1/auth/login"), ("POST", "/api/v1/auth/logout"),
           ("GET", "/api/v1/auth/me")}
 VIEWER_WRITES = [r"/decisions/[^/]+/simulate", r"/optimizer/whatif", r"/creatives/score", r"/copilot/chat",
-                 r"/copilot/sql"]
+                 r"/copilot/sql", r"/ingest/mapping/suggest"]
 ADMIN_WRITES = [r"/policy", r"/objective", r"/models/[^/]+/(promote|rollback)", r"/workspaces"]
 
 

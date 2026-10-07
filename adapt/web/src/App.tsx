@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
+import { PlatformBanner } from './components/PlatformBanner';
 import {
   Activity,
   ArrowUpRight,
@@ -277,6 +278,7 @@ export function App() {
           </div>
         )}
         <main id="main" tabIndex={-1}>
+          <PlatformBanner />
           <ViewBoundary key={route}>
             <Suspense fallback={<Loading label="Loading workspace" />}>
               <Routes>

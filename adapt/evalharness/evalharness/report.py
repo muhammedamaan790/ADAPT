@@ -31,7 +31,9 @@ def build(decision_runs: dict[int, dict], detection_runs: dict[int, dict] | None
     strategies = sorted({s for r in decision_runs.values() for s in r["strategies"]})
     per_seed = {seed: {s: {k: v for k, v in r["strategies"][s].items() if k != "log"} for s in r["strategies"]}
                 for seed, r in decision_runs.items()}
-    out = {"N": len(seeds), "seeds": seeds, "per_seed": per_seed, "comparisons": {}}
+    out = {"N": len(seeds), "seeds": seeds, "per_seed": per_seed, "comparisons": {},
+           "per_seed_meta": {seed: {k: r.get(k) for k in ("start_day", "days", "budget_ceiling", "reserve")}
+                             for seed, r in decision_runs.items()}}
     for s in strategies:
         if s == "safe-static":
             continue

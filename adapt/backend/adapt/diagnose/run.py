@@ -85,13 +85,13 @@ def decompose(db, inc: Incident) -> tuple[dict, dict | None]:
 
 
 def diagnose_incident(db, inc: Incident, materiality_m: float | None = None) -> dict:
-    """Level 1 (exact accounting) + level 2 (evidence modules, ranked) + level 3 (gated synthetic control, ROAS
-    family) for one incident (reads only)."""
+    """Level 1 (exact accounting) + level 2 (evidence modules, ranked) + level 3 (ROAS family: gated synthetic
+    control, or DiD when the top supporting driver is inventory or price) for one incident (reads only)."""
     funnel, dd = decompose(db, inc)
     evidence = [module(db, inc) for module in MODULES.values()]
     ranking = rank(evidence, inc.metric, funnel, inc.direction)
     return {"funnel": funnel, "drilldown": dd, "evidence": evidence, "ranking": ranking,
-            "causal": causal.estimate(db, inc, materiality_m)}
+            "causal": causal.estimate(db, inc, materiality_m, causal.method_for(ranking.get("top_driver")))}
 
 
 def incident_from_row(aid, scope, ids_json, platform, metric, lo, hi, direction=None) -> Incident:

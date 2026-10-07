@@ -27,6 +27,7 @@ import {
   Status,
 } from '../components/ui';
 import { money, percent } from '../lib/format';
+import { stage2 } from '../api/stage2';
 
 export function DataHub() {
   const health = useQuery({ queryKey: ['data-health'], queryFn: insights.dataHealth });
@@ -281,14 +282,18 @@ function ImportWizard() {
       const parsed = parseCsv(await file.text());
       setCsv(parsed);
       setName(file.name);
-      setMapping(
-        Object.fromEntries(
-          importFields[type].map((k) => [
-            k,
-            parsed.headers.find((h) => h.toLowerCase() === k) || '',
-          ]),
-        ),
+      const exact = Object.fromEntries(
+        importFields[type].map((k) => [k, parsed.headers.find((h) => h.toLowerCase() === k) || '']),
       );
+      setMapping(exact);
+      // the backend mapper fills fields the exact match missed (synonyms, then fuzzy similarity >= 80)
+      const suggested = await stage2.suggestMapping(type, parsed.headers).catch(() => null);
+      if (suggested)
+        setMapping((m) =>
+          Object.fromEntries(
+            importFields[type].map((k) => [k, m[k] || suggested.mapping[k]?.header || '']),
+          ),
+        );
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Could not read this file.'));
     } finally {

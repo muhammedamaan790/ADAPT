@@ -21,9 +21,9 @@ def due_days(db, today) -> list:
     return [last.date() + timedelta(days=k) for k in range(1, (today - last.date()).days + 1)]
 
 
-def catch_up(db, http, adapters: dict | None = None) -> list[dict]:
+def catch_up(db, http, adapters: dict | None = None, llm=None) -> list[dict]:
     today = world_today(http)
     out = []
     for day in due_days(db, today):
-        out.append(run_cycle(db, http, logical_now(day), adapters))
+        out.append(run_cycle(db, http, logical_now(day), adapters, llm=llm))
     return out

@@ -64,8 +64,10 @@ export const checkSchema = z.object({
   passed: z.boolean(),
   detail: z.string(),
 });
+// TikTok and Amazon are the Stage 2 simulated channels (opt-in per world).
+export const platformSchema = z.enum(['Meta', 'Google', 'TikTok', 'Amazon']);
 export const legSchema = z.object({
-  platform: z.enum(['Meta', 'Google']),
+  platform: platformSchema,
   entity: z.string(),
   budget_id: z.string(),
   before: money.nonnegative(),
@@ -102,7 +104,8 @@ export const decisionSchema = z.object({
     calibrated_pred: money,
   }),
   inventory_risk_after: z.object({
-    kind: z.literal('PROJECTED_SHORTFALL'),
+    // PROJECTED_SHORTFALL: units short (Stage 1). STOCKOUT_PROBABILITY: model P(stockout) in [0, 1] (Stage 2 NB2).
+    kind: z.enum(['PROJECTED_SHORTFALL', 'STOCKOUT_PROBABILITY']),
     by_sku: z.record(z.string(), finite.nonnegative()),
   }),
   unallocated: money.nonnegative(),
@@ -122,6 +125,26 @@ export const decisionSchema = z.object({
   provenance_inputs: z.array(provenanceSchema),
   created_at: z.string(),
   horizon_days: finite.int().positive(),
+  // Stage 3: the confidence index (spec §8.4; informational, never authorizes autonomy by itself) and the autonomy
+  // verdict when the decision's channels are in Simulation Autonomous mode
+  confidence: z
+    .object({
+      overall: finite.min(0).max(1),
+      band: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+      region: z.enum(['R1', 'R2', 'R3']),
+      data_quality: finite.min(0).max(1),
+      prediction_quality: finite.min(0).max(1),
+      track_record: finite.min(0).max(1),
+      constraint_coverage: z.boolean(),
+    })
+    .optional(),
+  autonomy: z
+    .object({
+      at: z.string(),
+      result: z.enum(['EXECUTED', 'DOWNGRADED']),
+      gates: z.array(z.object({ id: z.string(), passed: z.boolean(), detail: z.string() })),
+    })
+    .optional(),
 });
 export const evidenceSchema = z.object({
   decision_id: z.string(),
@@ -241,3 +264,48 @@ export type Execution = z.infer<typeof executionSchema>;
 export type Outcome = z.infer<typeof outcomeSchema>;
 export type AppEvent = z.infer<typeof eventSchema>;
 export type Metric = z.infer<typeof metricSchema>;
+
+// Guarded narrative (spec §11): prose whose numbers, directions and entities were checked against claim atoms.
+export const narrativeSchema = z.object({
+  kind: z.enum(['incident', 'decision', 'brief']),
+  ref_id: z.string(),
+  headline: z.string(),
+  sentences: z.array(
+    z.object({
+      text: z.string(),
+      atom_ids: z.array(z.string()),
+      evidence_ids: z.array(z.string()),
+      claim_levels: z.array(z.string()),
+    }),
+  ),
+  next_step: z.object({
+    kind: z.enum(['VIEW_DECISION', 'APPROVE_REVIEW', 'RECONCILE', 'INVESTIGATE', 'NONE']),
+    ref_id: z.string().nullable(),
+  }),
+  source: z.string(),
+  badge: z.string(),
+  fallback_reason: z.string().nullable().optional(),
+  not_estimable_reason: z.string().nullable().optional(),
+});
+export const platformsSchema = z.object({
+  platforms: z.array(
+    z.object({
+      platform: z.string(),
+      mode: z.enum(['MOCK', 'LIVE']),
+      ok: z.boolean(),
+      label: z.string(),
+      reason: z.string().nullable().optional(),
+      checks: z.record(z.string(), z.boolean()),
+    }),
+  ),
+  sim_out_of_sync: z.array(
+    z.object({
+      leg_id: z.string(),
+      budget_id: z.string(),
+      amount: finite,
+      state: z.enum(['MIRROR_PENDING', 'MIRROR_FAILED']),
+    }),
+  ),
+});
+export type Narrative = z.infer<typeof narrativeSchema>;
+export type Platforms = z.infer<typeof platformsSchema>;

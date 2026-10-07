@@ -124,15 +124,16 @@ def divergent(db) -> list[dict]:
         list(DIVERGENT))]
 
 
-def advance_world(db, world_client, days: int, request_id: str, base_url: str = "") -> dict:
+def advance_world(db, world_client, days: int, request_id: str, base_url: str = "",
+                  actor_id: str | None = None) -> dict:
     """The only path ADAPT uses to advance the simulated world (Scenario Lab / scheduler): refused while the
     simulation diverges from a verified live change."""
     pending = divergent(db)
     if pending:
         raise SimOutOfSync(f"sim divergence pending on {len(pending)} leg(s): " +
                            ", ".join(f"{p['budget_id']} ({p['state']})" for p in pending))
-    r = world_client.post(f"{base_url.rstrip('/')}/control/advance", json={"days": days},
-                          headers={"X-Request-ID": request_id})
+    headers = {"X-Request-ID": request_id} | ({"X-Actor-ID": actor_id} if actor_id else {})
+    r = world_client.post(f"{base_url.rstrip('/')}/control/advance", json={"days": days}, headers=headers)
     if r.status_code != 200:
         raise RuntimeError(f"world advance HTTP {r.status_code}: {r.text[:200]}")
     return r.json()

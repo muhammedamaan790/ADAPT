@@ -24,7 +24,7 @@ from adapt.economics.state import guardrails_config, objectives_config
 
 CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
 SAFETY_MAY_REDUCE_UNDER = {"TRACKING_FREEZE", "DATA_DEPENDENCY"}  # precedence 1 > 2: safety may cut, never raise
-ROLES_THAT_APPROVE = {"manager", "admin"}
+ROLES_THAT_APPROVE = {"manager", "admin", "autonomy"}  # "autonomy": the qualified auto-execute step only
 
 DDL = """
 CREATE SCHEMA IF NOT EXISTS ops;

@@ -167,3 +167,27 @@ verbs. Rupee amounts use lakh / crore. Every decision therefore has a rationale 
 
 Setting `ADAPT_CONTRACT_SAMPLES=<dir>` dumps the real responses for the zod check. The browser half of the gate is
 the frontend's Playwright journey (D5).
+
+## Stage 2 endpoints (wired to the Stage 2 engine; `integration/test_api_stage2.py`)
+| Endpoint | Engine | Failure states |
+|---|---|---|
+| `GET /objective`, `PUT /objective {workspace_id, revision, objective, reason}` | `decide.alternatives.selected_objective / set_objective` (PROFIT, GROWTH, INVENTORY_CLEARANCE) | 403 not admin; 409 stale revision; 422 an objective that is not built |
+| `/optimizer/context`, `/optimizer/run`, `/optimizer/whatif`, `/decisions/{id}/modify` | run under the workspace objective; what-if values GROWTH as Δnet revenue and CLEARANCE with the optimizer's own objective | a request for another objective is 409 (run, modify) or NOT_ESTIMABLE (what-if), never silently swapped |
+| `POST /decisions/{id}/simulate` → `alternatives[]` | the decision's Conservative / Aggressive sensitivity scenarios with their policy result | empty for non-PROFIT objectives |
+| `POST /decisions/{id}/alternatives/{name}/choose {decision_hash}` | `decide.alternatives.choose_alternative`: a new decision (own snapshot + hash) superseding the pending one | 409 stale hash or not PENDING_APPROVAL; 404 unknown scenario |
+| `GET /decisions/{id}/narrative`, `GET /anomalies/{id}/narrative` | `agent.narrator`: the guarded narrative the pipeline's `narrate` step stored (generated once on demand for older items) | template + `fallback_reason` when the LLM is offline or the guard rejects it twice |
+| `GET /overview` → `brief` | `agent.brief.daily_brief` from the same run | deterministic Stage 1 brief when none is stored |
+| `GET /anomalies[/{id}]` → `causal` | `intel.causal_estimates` (gated synthetic control) | `NOT_ESTIMABLE` with the failed gate as the reason |
+| `GET /platforms/health` | `execute.adapters.platform_health` + `execute.mirror.divergent` | a failing live check is `ok: false` with the reason; `sim_out_of_sync` lists unmirrored verified live legs |
+| `POST /sim/advance` | `execute.mirror.advance_world` (the only advance path; one mirror retry first) | 409 `SIM OUT OF SYNC` while a leg is MIRROR_PENDING / MIRROR_FAILED (T41) |
+| `POST /executions/{id}/reconcile?target=sim` | `execute.mirror.resolve_manually` after a fresh live read-back | 409 in mock mode or without a MIRROR_FAILED leg |
+| `POST /models/demand/rollback {version, registry_revision, artifact_hash, reason}` | `learn.governance.rollback`; the next forecast loads the restored champion | 409 stale champion or registry revision; 422 for families without a rollback target (response curves) |
+| `POST /models/{name}/promote` | none | 422 always: promotion follows the layered rule (§10.2) and is never manual |
+| `GET /eval/report`, `GET /learning/uplift` | `evidence/eval.json` from `scripts/run_eval.py` (`ADAPT_EVAL_REPORT_PATH` overrides) | NOT_AVAILABLE until the report exists |
+| `GET /sim/scenarios`, `POST /sim/scenario/{key}` | every world scenario: S1–S8, S10–S12, DEMO_01 | S9 (a ranking property, not an injected scenario) is NOT_BUILT |
+
+TikTok and Amazon legs, executions and anomalies are served as `TikTok` / `Amazon`. `inventory_risk_after.kind` is
+whatever the stage predicate produced (`PROJECTED_SHORTFALL` units, or `STOCKOUT_PROBABILITY` in [0, 1]).
+The runtime builds the Google adapter with the workspace and the `.env` credentials, so
+`ADAPT_GOOGLE_EXECUTION_MODE=live` executes through the live adapter (never a mock fallback).
+
