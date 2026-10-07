@@ -1,0 +1,42 @@
+"""Runtime settings, loaded from environment variables (prefix ADAPT_) and an optional .env file."""
+
+from functools import lru_cache
+from pathlib import Path
+from typing import Literal
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CONFIG_DIR = Path(__file__).resolve().parent
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="ADAPT_", env_file=REPO_ROOT / ".env", extra="ignore")
+
+    env: Literal["dev", "test", "demo"] = "dev"
+    data_dir: Path = REPO_ROOT / "data"
+    workspace: str = "demo"
+    world_url: str = "http://127.0.0.1:8100"
+
+    brand_timezone: str = "Asia/Kolkata"
+    currency: str = "INR"
+
+    # Execution mode is fixed at startup per platform; there is never an automatic fallback (principle 11).
+    google_execution_mode: Literal["mock", "live"] = "mock"
+    meta_execution_mode: Literal["mock"] = "mock"
+
+    groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
+
+    @property
+    def workspace_db_path(self) -> Path:
+        return self.data_dir / "workspaces" / f"{self.workspace}.duckdb"
+
+    @property
+    def artifacts_dir(self) -> Path:
+        return self.data_dir / "artifacts" / "sha256"
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
