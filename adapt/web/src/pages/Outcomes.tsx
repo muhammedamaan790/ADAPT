@@ -14,6 +14,7 @@ import {
 } from '../components/ui';
 import { dateTime, money, signedMoney } from '../lib/format';
 import { downloadText } from '../lib/csv';
+import { OutcomeComparison } from '../components/FinancialComparison';
 
 export function Outcomes() {
   const outcomes = useOutcomes();
@@ -126,6 +127,7 @@ export function Outcomes() {
                 <dd>{signedMoney(o.measured - o.predicted)}</dd>
               </div>
             </dl>
+            <OutcomeComparison predicted={o.predicted} measured={o.measured} />
             <p className="workbench-copy">{o.method}</p>
             <Disclosure title="Measurement context">
               <p>

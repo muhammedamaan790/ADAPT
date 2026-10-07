@@ -23,6 +23,7 @@ import {
   SectionTitle,
 } from '../components/ui';
 import { money, percent, signedMoney } from '../lib/format';
+import { CampaignEconomics } from '../components/CampaignEconomics';
 
 export function Optimizer() {
   const context = useQuery({ queryKey: ['optimizer-context'], queryFn: api.optimizerContext });
@@ -151,6 +152,7 @@ function AllocationEditor({
           <strong>{money(c.budget_ceiling - total)}</strong>
         </div>
       </div>
+      <CampaignEconomics campaigns={c.campaigns} />
       <div className="optimizer-layout">
         <section className="panel">
           <SectionTitle title="Allocation workbench">

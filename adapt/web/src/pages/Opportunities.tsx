@@ -6,7 +6,8 @@ import { insights } from '../api/insights';
 import { useAction } from '../hooks/workspace';
 import type { Opportunity } from '../api/insight-contracts';
 import { Badge, Empty, ErrorState, InlineError, Loading, SectionTitle } from '../components/ui';
-import { money, percent } from '../lib/format';
+import { money } from '../lib/format';
+import { CreativeSignals } from '../components/CreativeSignals';
 import { dataMode } from '../api/client';
 
 export function Opportunities() {
@@ -91,23 +92,7 @@ export function Opportunities() {
         ) : !fatigue.data?.length ? (
           <p className="workbench-copy">No creative fatigue evidence supplied for this scenario.</p>
         ) : (
-          <ul className="connection-list">
-            {fatigue.data?.map((c) => (
-              <li key={c.creative_id}>
-                <div className="ledger-heading">
-                  <strong>{c.name}</strong>
-                  <Badge tone={c.status === 'REVIEW' ? 'warning' : 'success'}>
-                    {c.status.toLowerCase()}
-                  </Badge>
-                </div>
-                <p>
-                  {c.entity} · CTR change {percent(c.ctr_change)} · frequency{' '}
-                  {c.frequency.toFixed(1)}
-                </p>
-                <p>{c.reason}</p>
-              </li>
-            ))}
-          </ul>
+          <CreativeSignals creatives={fatigue.data!} />
         )}
       </section>
       <section className="panel">
