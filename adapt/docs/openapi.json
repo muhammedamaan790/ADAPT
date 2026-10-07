@@ -1,0 +1,3899 @@
+{
+ "components": {
+  "schemas": {
+   "Ack": {
+    "properties": {
+     "ok": {
+      "const": true,
+      "default": true,
+      "title": "Ok",
+      "type": "boolean"
+     }
+    },
+    "title": "Ack",
+    "type": "object"
+   },
+   "AllocationInput": {
+    "properties": {
+     "decision_hash": {
+      "title": "Decision Hash",
+      "type": "string"
+     },
+     "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+     },
+     "legs": {
+      "items": {
+       "$ref": "#/components/schemas/AllocationLeg"
+      },
+      "minItems": 1,
+      "title": "Legs",
+      "type": "array"
+     },
+     "objective": {
+      "enum": [
+       "PROFIT",
+       "GROWTH",
+       "ACQUISITION",
+       "INVENTORY_CLEARANCE",
+       "MARGIN_PROTECTION",
+       "BALANCED"
+      ],
+      "title": "Objective",
+      "type": "string"
+     },
+     "policy_version": {
+      "title": "Policy Version",
+      "type": "string"
+     }
+    },
+    "required": [
+     "decision_id",
+     "decision_hash",
+     "objective",
+     "policy_version",
+     "legs"
+    ],
+    "title": "AllocationInput",
+    "type": "object"
+   },
+   "AllocationLeg": {
+    "properties": {
+     "after": {
+      "minimum": 0.0,
+      "title": "After",
+      "type": "integer"
+     },
+     "budget_id": {
+      "title": "Budget Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "budget_id",
+     "after"
+    ],
+    "title": "AllocationLeg",
+    "type": "object"
+   },
+   "Anomaly": {
+    "properties": {
+     "actual": {
+      "title": "Actual",
+      "type": "number"
+     },
+     "anomaly_id": {
+      "title": "Anomaly Id",
+      "type": "string"
+     },
+     "baseline": {
+      "title": "Baseline",
+      "type": "number"
+     },
+     "causal": {
+      "$ref": "#/components/schemas/Causal"
+     },
+     "change": {
+      "title": "Change",
+      "type": "number"
+     },
+     "decision_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decision Id"
+     },
+     "detected_at": {
+      "title": "Detected At",
+      "type": "string"
+     },
+     "direction": {
+      "enum": [
+       "UP",
+       "DOWN",
+       "FLAT"
+      ],
+      "title": "Direction",
+      "type": "string"
+     },
+     "driver": {
+      "title": "Driver",
+      "type": "string"
+     },
+     "entity": {
+      "title": "Entity",
+      "type": "string"
+     },
+     "gates": {
+      "items": {
+       "$ref": "#/components/schemas/Check"
+      },
+      "title": "Gates",
+      "type": "array"
+     },
+     "impact": {
+      "title": "Impact",
+      "type": "number"
+     },
+     "impact_label": {
+      "title": "Impact Label",
+      "type": "string"
+     },
+     "kind": {
+      "enum": [
+       "EFFICIENCY",
+       "TRACKING",
+       "BUDGET_CHANGE"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "metric": {
+      "title": "Metric",
+      "type": "string"
+     },
+     "platform": {
+      "enum": [
+       "Meta",
+       "Google"
+      ],
+      "title": "Platform",
+      "type": "string"
+     },
+     "provenance_inputs": {
+      "items": {
+       "enum": [
+        "PUBLIC-SAMPLE",
+        "CALIBRATED",
+        "SIMULATED",
+        "LIVE"
+       ],
+       "type": "string"
+      },
+      "title": "Provenance Inputs",
+      "type": "array"
+     },
+     "resolution_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Resolution Reason"
+     },
+     "status": {
+      "enum": [
+       "OPEN",
+       "ACKNOWLEDGED",
+       "RESOLVED"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "anomaly_id",
+     "title",
+     "entity",
+     "platform",
+     "metric",
+     "kind",
+     "status",
+     "direction",
+     "actual",
+     "baseline",
+     "change",
+     "impact",
+     "impact_label",
+     "detected_at",
+     "decision_id",
+     "driver",
+     "provenance_inputs",
+     "gates",
+     "causal",
+     "resolution_reason"
+    ],
+    "title": "Anomaly",
+    "type": "object"
+   },
+   "AnomalyStatusBody": {
+    "properties": {
+     "reason": {
+      "default": "",
+      "title": "Reason",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "OPEN",
+       "ACKNOWLEDGED",
+       "RESOLVED"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status"
+    ],
+    "title": "AnomalyStatusBody",
+    "type": "object"
+   },
+   "ApproveBody": {
+    "properties": {
+     "decision_hash": {
+      "title": "Decision Hash",
+      "type": "string"
+     },
+     "execute": {
+      "default": true,
+      "title": "Execute",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "decision_hash"
+    ],
+    "title": "ApproveBody",
+    "type": "object"
+   },
+   "Attention": {
+    "properties": {
+     "decision_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decision Id"
+     },
+     "description": {
+      "title": "Description",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "impact": {
+      "title": "Impact",
+      "type": "number"
+     },
+     "kind": {
+      "enum": [
+       "incident",
+       "opportunity",
+       "inventory",
+       "outcome"
+      ],
+      "title": "Kind",
+      "type": "string"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "decision_id",
+     "kind",
+     "title",
+     "description",
+     "impact",
+     "label"
+    ],
+    "title": "Attention",
+    "type": "object"
+   },
+   "Causal": {
+    "properties": {
+     "assumptions": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+     },
+     "effect_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Effect Pct"
+     },
+     "lower_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lower Pct"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "ESTIMABLE",
+       "NOT_ESTIMABLE"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "upper_pct": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Upper Pct"
+     }
+    },
+    "required": [
+     "status",
+     "reason",
+     "effect_pct",
+     "lower_pct",
+     "upper_pct",
+     "assumptions"
+    ],
+    "title": "Causal",
+    "type": "object"
+   },
+   "Check": {
+    "properties": {
+     "detail": {
+      "title": "Detail",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "passed": {
+      "title": "Passed",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "id",
+     "label",
+     "passed",
+     "detail"
+    ],
+    "title": "Check",
+    "type": "object"
+   },
+   "CheckOut": {
+    "properties": {
+     "detail": {
+      "title": "Detail",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "passed": {
+      "title": "Passed",
+      "type": "boolean"
+     }
+    },
+    "required": [
+     "id",
+     "passed",
+     "detail"
+    ],
+    "title": "CheckOut",
+    "type": "object"
+   },
+   "ContextCampaign": {
+    "properties": {
+     "after": {
+      "minimum": 0.0,
+      "title": "After",
+      "type": "number"
+     },
+     "before": {
+      "minimum": 0.0,
+      "title": "Before",
+      "type": "number"
+     },
+     "budget_id": {
+      "title": "Budget Id",
+      "type": "string"
+     },
+     "entity": {
+      "title": "Entity",
+      "type": "string"
+     },
+     "inventory_gate": {
+      "enum": [
+       "ALLOW",
+       "LIMIT",
+       "BLOCK"
+      ],
+      "title": "Inventory Gate",
+      "type": "string"
+     },
+     "margin": {
+      "title": "Margin",
+      "type": "number"
+     },
+     "marginal_caa": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Marginal Caa"
+     },
+     "max_budget": {
+      "minimum": 0.0,
+      "title": "Max Budget",
+      "type": "number"
+     },
+     "min_budget": {
+      "minimum": 0.0,
+      "title": "Min Budget",
+      "type": "number"
+     },
+     "note": {
+      "title": "Note",
+      "type": "string"
+     },
+     "platform": {
+      "enum": [
+       "Meta",
+       "Google"
+      ],
+      "title": "Platform",
+      "type": "string"
+     },
+     "roas": {
+      "title": "Roas",
+      "type": "number"
+     }
+    },
+    "required": [
+     "platform",
+     "entity",
+     "budget_id",
+     "before",
+     "after",
+     "margin",
+     "roas",
+     "marginal_caa",
+     "inventory_gate",
+     "min_budget",
+     "max_budget",
+     "note"
+    ],
+    "title": "ContextCampaign",
+    "type": "object"
+   },
+   "Counts": {
+    "properties": {
+     "failed": {
+      "title": "Failed",
+      "type": "number"
+     },
+     "inconclusive": {
+      "title": "Inconclusive",
+      "type": "number"
+     },
+     "neutral": {
+      "title": "Neutral",
+      "type": "number"
+     },
+     "success": {
+      "title": "Success",
+      "type": "number"
+     }
+    },
+    "required": [
+     "success",
+     "neutral",
+     "failed",
+     "inconclusive"
+    ],
+    "title": "Counts",
+    "type": "object"
+   },
+   "Decision": {
+    "properties": {
+     "budget_ceiling": {
+      "minimum": 0.0,
+      "title": "Budget Ceiling",
+      "type": "number"
+     },
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/Check"
+      },
+      "minItems": 1,
+      "title": "Checks",
+      "type": "array"
+     },
+     "class": {
+      "enum": [
+       "OPTIMIZATION",
+       "SAFETY",
+       "OPERATIONAL",
+       "EXPLORATION"
+      ],
+      "title": "Class",
+      "type": "string"
+     },
+     "cost_of_inaction_7d": {
+      "title": "Cost Of Inaction 7D",
+      "type": "number"
+     },
+     "created_at": {
+      "title": "Created At",
+      "type": "string"
+     },
+     "decision_hash": {
+      "title": "Decision Hash",
+      "type": "string"
+     },
+     "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+     },
+     "evidence_ids": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Evidence Ids",
+      "type": "array"
+     },
+     "expected": {
+      "$ref": "#/components/schemas/Expected"
+     },
+     "follows": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Follows"
+     },
+     "horizon_days": {
+      "exclusiveMinimum": 0.0,
+      "title": "Horizon Days",
+      "type": "integer"
+     },
+     "inventory_risk_after": {
+      "$ref": "#/components/schemas/InventoryRisk"
+     },
+     "legs": {
+      "items": {
+       "$ref": "#/components/schemas/Leg"
+      },
+      "title": "Legs",
+      "type": "array"
+     },
+     "objective": {
+      "enum": [
+       "PROFIT",
+       "GROWTH",
+       "ACQUISITION",
+       "INVENTORY_CLEARANCE",
+       "MARGIN_PROTECTION",
+       "BALANCED"
+      ],
+      "title": "Objective",
+      "type": "string"
+     },
+     "policy_version": {
+      "title": "Policy Version",
+      "type": "string"
+     },
+     "provenance_inputs": {
+      "items": {
+       "enum": [
+        "PUBLIC-SAMPLE",
+        "CALIBRATED",
+        "SIMULATED",
+        "LIVE"
+       ],
+       "type": "string"
+      },
+      "title": "Provenance Inputs",
+      "type": "array"
+     },
+     "reserve_floor": {
+      "minimum": 0.0,
+      "title": "Reserve Floor",
+      "type": "number"
+     },
+     "snapshot_id": {
+      "title": "Snapshot Id",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "DRAFT",
+       "PENDING_APPROVAL",
+       "APPROVED",
+       "REJECTED",
+       "EXPIRED",
+       "SUPERSEDED",
+       "EXECUTING",
+       "EXECUTED",
+       "PARTIAL",
+       "BLOCKED"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "summary": {
+      "title": "Summary",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     },
+     "trigger": {
+      "$ref": "#/components/schemas/Trigger"
+     },
+     "type": {
+      "title": "Type",
+      "type": "string"
+     },
+     "unallocated": {
+      "minimum": 0.0,
+      "title": "Unallocated",
+      "type": "number"
+     },
+     "valuation_status": {
+      "anyOf": [
+       {
+        "enum": [
+         "AVAILABLE",
+         "NOT_ESTIMABLE"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Valuation Status"
+     },
+     "why_not": {
+      "items": {
+       "$ref": "#/components/schemas/WhyNot"
+      },
+      "title": "Why Not",
+      "type": "array"
+     }
+    },
+    "required": [
+     "decision_id",
+     "title",
+     "summary",
+     "class",
+     "type",
+     "objective",
+     "status",
+     "trigger",
+     "legs",
+     "expected",
+     "inventory_risk_after",
+     "unallocated",
+     "reserve_floor",
+     "budget_ceiling",
+     "cost_of_inaction_7d",
+     "checks",
+     "evidence_ids",
+     "why_not",
+     "snapshot_id",
+     "decision_hash",
+     "policy_version",
+     "provenance_inputs",
+     "created_at",
+     "horizon_days"
+    ],
+    "title": "Decision",
+    "type": "object"
+   },
+   "Driver": {
+    "properties": {
+     "available_at": {
+      "title": "Available At",
+      "type": "string"
+     },
+     "detail": {
+      "title": "Detail",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "level": {
+      "enum": [
+       "ACCOUNTING IDENTITY",
+       "PROBABLE DRIVER",
+       "WEAK EVIDENCE"
+      ],
+      "title": "Level",
+      "type": "string"
+     },
+     "observations": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Observations",
+      "type": "array"
+     },
+     "score": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Score",
+      "type": "number"
+     },
+     "source": {
+      "title": "Source",
+      "type": "string"
+     },
+     "title": {
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "title",
+     "score",
+     "level",
+     "detail",
+     "observations",
+     "source",
+     "available_at"
+    ],
+    "title": "Driver",
+    "type": "object"
+   },
+   "Evaluation": {
+    "properties": {
+     "allocated": {
+      "minimum": 0.0,
+      "title": "Allocated",
+      "type": "number"
+     },
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/Check"
+      },
+      "minItems": 1,
+      "title": "Checks",
+      "type": "array"
+     },
+     "decision_hash": {
+      "title": "Decision Hash",
+      "type": "string"
+     },
+     "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+     },
+     "estimate": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Expected"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "estimate_status": {
+      "enum": [
+       "AVAILABLE",
+       "NOT_ESTIMABLE"
+      ],
+      "title": "Estimate Status",
+      "type": "string"
+     },
+     "explanation": {
+      "title": "Explanation",
+      "type": "string"
+     },
+     "objective": {
+      "enum": [
+       "PROFIT",
+       "GROWTH",
+       "ACQUISITION",
+       "INVENTORY_CLEARANCE",
+       "MARGIN_PROTECTION",
+       "BALANCED"
+      ],
+      "title": "Objective",
+      "type": "string"
+     },
+     "objective_value": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ObjectiveValue"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "unallocated": {
+      "minimum": 0.0,
+      "title": "Unallocated",
+      "type": "number"
+     }
+    },
+    "required": [
+     "decision_id",
+     "decision_hash",
+     "objective",
+     "allocated",
+     "unallocated",
+     "checks",
+     "estimate_status",
+     "estimate",
+     "explanation"
+    ],
+    "title": "Evaluation",
+    "type": "object"
+   },
+   "Event": {
+    "properties": {
+     "at": {
+      "title": "At",
+      "type": "string"
+     },
+     "decision_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decision Id"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "message": {
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "at",
+     "kind",
+     "message",
+     "decision_id"
+    ],
+    "title": "Event",
+    "type": "object"
+   },
+   "EvidenceOut": {
+    "properties": {
+     "chart": {
+      "items": {
+       "$ref": "#/components/schemas/Point"
+      },
+      "title": "Chart",
+      "type": "array"
+     },
+     "chart_metric": {
+      "title": "Chart Metric",
+      "type": "string"
+     },
+     "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+     },
+     "decomposition": {
+      "items": {
+       "$ref": "#/components/schemas/Labelled"
+      },
+      "title": "Decomposition",
+      "type": "array"
+     },
+     "decomposition_kind": {
+      "enum": [
+       "ROAS",
+       "NOT_APPLICABLE"
+      ],
+      "title": "Decomposition Kind",
+      "type": "string"
+     },
+     "decomposition_total": {
+      "title": "Decomposition Total",
+      "type": "number"
+     },
+     "drivers": {
+      "items": {
+       "$ref": "#/components/schemas/Driver"
+      },
+      "title": "Drivers",
+      "type": "array"
+     }
+    },
+    "required": [
+     "decision_id",
+     "chart",
+     "chart_metric",
+     "decomposition_kind",
+     "decomposition",
+     "decomposition_total",
+     "drivers"
+    ],
+    "title": "EvidenceOut",
+    "type": "object"
+   },
+   "ExecLeg": {
+    "properties": {
+     "after": {
+      "minimum": 0.0,
+      "title": "After",
+      "type": "number"
+     },
+     "before": {
+      "minimum": 0.0,
+      "title": "Before",
+      "type": "number"
+     },
+     "budget_id": {
+      "title": "Budget Id",
+      "type": "string"
+     },
+     "entity": {
+      "title": "Entity",
+      "type": "string"
+     },
+     "external_state": {
+      "enum": [
+       "PLANNED",
+       "PREREAD_OK",
+       "SENT",
+       "VERIFIED",
+       "UNKNOWN",
+       "FAILED",
+       "CONFLICT",
+       "RECONCILED_VERIFIED",
+       "ABANDONED"
+      ],
+      "title": "External State",
+      "type": "string"
+     },
+     "mode": {
+      "enum": [
+       "MOCK",
+       "LIVE"
+      ],
+      "title": "Mode",
+      "type": "string"
+     },
+     "platform": {
+      "enum": [
+       "Meta",
+       "Google"
+      ],
+      "title": "Platform",
+      "type": "string"
+     },
+     "read_back_budget": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Read Back Budget"
+     },
+     "sim_sync_state": {
+      "enum": [
+       "NOT_REQUIRED",
+       "MIRROR_PENDING",
+       "MIRRORED",
+       "MIRROR_FAILED",
+       "MIRROR_RESOLVED_MANUALLY"
+      ],
+      "title": "Sim Sync State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "platform",
+     "entity",
+     "budget_id",
+     "before",
+     "after",
+     "mode",
+     "external_state",
+     "sim_sync_state"
+    ],
+    "title": "ExecLeg",
+    "type": "object"
+   },
+   "Execution": {
+    "properties": {
+     "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+     },
+     "detail": {
+      "title": "Detail",
+      "type": "string"
+     },
+     "execution_id": {
+      "title": "Execution Id",
+      "type": "string"
+     },
+     "legs": {
+      "items": {
+       "$ref": "#/components/schemas/ExecLeg"
+      },
+      "title": "Legs",
+      "type": "array"
+     },
+     "started_at": {
+      "title": "Started At",
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "PENDING",
+       "EXECUTING",
+       "SUCCEEDED",
+       "PARTIAL",
+       "COMPENSATING",
+       "COMPENSATED",
+       "COMPENSATION_FAILED",
+       "HUMAN_RESOLUTION_REQUIRED",
+       "RESOLVED_MANUALLY",
+       "ACCEPTED_PARTIAL",
+       "BLOCKED"
+      ],
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "execution_id",
+     "decision_id",
+     "state",
+     "legs",
+     "started_at",
+     "detail"
+    ],
+    "title": "Execution",
+    "type": "object"
+   },
+   "Expected": {
+    "properties": {
+     "calibrated_pred": {
+      "title": "Calibrated Pred",
+      "type": "number"
+     },
+     "delta_net_revenue": {
+      "title": "Delta Net Revenue",
+      "type": "number"
+     },
+     "p10": {
+      "title": "P10",
+      "type": "number"
+     },
+     "p50": {
+      "title": "P50",
+      "type": "number"
+     },
+     "p90": {
+      "title": "P90",
+      "type": "number"
+     },
+     "prob_loss": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Prob Loss",
+      "type": "number"
+     },
+     "raw_pred": {
+      "title": "Raw Pred",
+      "type": "number"
+     }
+    },
+    "required": [
+     "p10",
+     "p50",
+     "p90",
+     "prob_loss",
+     "delta_net_revenue",
+     "raw_pred",
+     "calibrated_pred"
+    ],
+    "title": "Expected",
+    "type": "object"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "title": "Detail",
+      "type": "array"
+     }
+    },
+    "title": "HTTPValidationError",
+    "type": "object"
+   },
+   "HealthResponse": {
+    "properties": {
+     "database": {
+      "enum": [
+       "ok",
+       "error"
+      ],
+      "title": "Database",
+      "type": "string"
+     },
+     "execution_modes": {
+      "additionalProperties": {
+       "enum": [
+        "mock",
+        "live"
+       ],
+       "type": "string"
+      },
+      "title": "Execution Modes",
+      "type": "object"
+     },
+     "llm_mode": {
+      "enum": [
+       "groq",
+       "offline"
+      ],
+      "title": "Llm Mode",
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "ok",
+       "degraded"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "version": {
+      "title": "Version",
+      "type": "string"
+     },
+     "workspace": {
+      "title": "Workspace",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status",
+     "version",
+     "workspace",
+     "database",
+     "execution_modes",
+     "llm_mode"
+    ],
+    "title": "HealthResponse",
+    "type": "object"
+   },
+   "InventoryRisk": {
+    "properties": {
+     "by_sku": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "title": "By Sku",
+      "type": "object"
+     },
+     "kind": {
+      "const": "PROJECTED_SHORTFALL",
+      "title": "Kind",
+      "type": "string"
+     }
+    },
+    "required": [
+     "kind",
+     "by_sku"
+    ],
+    "title": "InventoryRisk",
+    "type": "object"
+   },
+   "Labelled": {
+    "properties": {
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "value": {
+      "title": "Value",
+      "type": "number"
+     }
+    },
+    "required": [
+     "label",
+     "value"
+    ],
+    "title": "Labelled",
+    "type": "object"
+   },
+   "LedgerEntry": {
+    "properties": {
+     "action": {
+      "enum": [
+       "SET_BUDGET",
+       "VERIFY",
+       "RESTORE_SETTINGS",
+       "RECONCILE"
+      ],
+      "title": "Action",
+      "type": "string"
+     },
+     "after": {
+      "title": "After",
+      "type": "number"
+     },
+     "at": {
+      "title": "At",
+      "type": "string"
+     },
+     "before": {
+      "title": "Before",
+      "type": "number"
+     },
+     "budget_id": {
+      "title": "Budget Id",
+      "type": "string"
+     },
+     "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+     },
+     "entity": {
+      "title": "Entity",
+      "type": "string"
+     },
+     "execution_id": {
+      "title": "Execution Id",
+      "type": "string"
+     },
+     "ledger_id": {
+      "title": "Ledger Id",
+      "type": "string"
+     },
+     "mode": {
+      "enum": [
+       "MOCK",
+       "LIVE"
+      ],
+      "title": "Mode",
+      "type": "string"
+     },
+     "note": {
+      "title": "Note",
+      "type": "string"
+     },
+     "platform": {
+      "enum": [
+       "Meta",
+       "Google"
+      ],
+      "title": "Platform",
+      "type": "string"
+     },
+     "request_id": {
+      "title": "Request Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "ledger_id",
+     "execution_id",
+     "decision_id",
+     "at",
+     "action",
+     "budget_id",
+     "entity",
+     "platform",
+     "before",
+     "after",
+     "mode",
+     "request_id",
+     "note"
+    ],
+    "title": "LedgerEntry",
+    "type": "object"
+   },
+   "Leg": {
+    "properties": {
+     "after": {
+      "minimum": 0.0,
+      "title": "After",
+      "type": "number"
+     },
+     "before": {
+      "minimum": 0.0,
+      "title": "Before",
+      "type": "number"
+     },
+     "budget_id": {
+      "title": "Budget Id",
+      "type": "string"
+     },
+     "entity": {
+      "title": "Entity",
+      "type": "string"
+     },
+     "platform": {
+      "enum": [
+       "Meta",
+       "Google"
+      ],
+      "title": "Platform",
+      "type": "string"
+     }
+    },
+    "required": [
+     "platform",
+     "entity",
+     "budget_id",
+     "before",
+     "after"
+    ],
+    "title": "Leg",
+    "type": "object"
+   },
+   "LoopStep": {
+    "properties": {
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "state": {
+      "enum": [
+       "complete",
+       "current",
+       "waiting"
+      ],
+      "title": "State",
+      "type": "string"
+     }
+    },
+    "required": [
+     "label",
+     "state"
+    ],
+    "title": "LoopStep",
+    "type": "object"
+   },
+   "MappingCoverageOut": {
+    "properties": {
+     "coverage": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Coverage",
+      "type": "number"
+     },
+     "note": {
+      "title": "Note",
+      "type": "string"
+     },
+     "unmapped": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Unmapped",
+      "type": "array"
+     }
+    },
+    "required": [
+     "coverage",
+     "unmapped",
+     "note"
+    ],
+    "title": "MappingCoverageOut",
+    "type": "object"
+   },
+   "Metric": {
+    "properties": {
+     "available_at": {
+      "title": "Available At",
+      "type": "string"
+     },
+     "change": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Change"
+     },
+     "format": {
+      "enum": [
+       "money",
+       "ratio",
+       "count"
+      ],
+      "title": "Format",
+      "type": "string"
+     },
+     "formula": {
+      "title": "Formula",
+      "type": "string"
+     },
+     "key": {
+      "title": "Key",
+      "type": "string"
+     },
+     "label": {
+      "title": "Label",
+      "type": "string"
+     },
+     "provenance_inputs": {
+      "items": {
+       "enum": [
+        "PUBLIC-SAMPLE",
+        "CALIBRATED",
+        "SIMULATED",
+        "LIVE"
+       ],
+       "type": "string"
+      },
+      "title": "Provenance Inputs",
+      "type": "array"
+     },
+     "reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Reason"
+     },
+     "source": {
+      "title": "Source",
+      "type": "string"
+     },
+     "value": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Value"
+     }
+    },
+    "required": [
+     "key",
+     "label",
+     "value",
+     "format",
+     "change",
+     "formula",
+     "source",
+     "available_at",
+     "provenance_inputs"
+    ],
+    "title": "Metric",
+    "type": "object"
+   },
+   "ObjectiveValue": {
+    "properties": {
+     "label": {
+      "minLength": 1,
+      "title": "Label",
+      "type": "string"
+     },
+     "unit": {
+      "enum": [
+       "INR",
+       "CUSTOMERS",
+       "SCORE"
+      ],
+      "title": "Unit",
+      "type": "string"
+     },
+     "value": {
+      "title": "Value",
+      "type": "number"
+     }
+    },
+    "required": [
+     "value",
+     "label",
+     "unit"
+    ],
+    "title": "ObjectiveValue",
+    "type": "object"
+   },
+   "OptimizerContext": {
+    "properties": {
+     "budget_ceiling": {
+      "minimum": 0.0,
+      "title": "Budget Ceiling",
+      "type": "number"
+     },
+     "campaigns": {
+      "items": {
+       "$ref": "#/components/schemas/ContextCampaign"
+      },
+      "title": "Campaigns",
+      "type": "array"
+     },
+     "decision_hash": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decision Hash"
+     },
+     "decision_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Decision Id"
+     },
+     "horizon_days": {
+      "exclusiveMinimum": 0.0,
+      "title": "Horizon Days",
+      "type": "integer"
+     },
+     "max_daily_change": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Max Daily Change",
+      "type": "number"
+     },
+     "objective": {
+      "default": "PROFIT",
+      "enum": [
+       "PROFIT",
+       "GROWTH",
+       "ACQUISITION",
+       "INVENTORY_CLEARANCE",
+       "MARGIN_PROTECTION",
+       "BALANCED"
+      ],
+      "title": "Objective",
+      "type": "string"
+     },
+     "policy_version": {
+      "title": "Policy Version",
+      "type": "string"
+     },
+     "reserve_floor": {
+      "minimum": 0.0,
+      "title": "Reserve Floor",
+      "type": "number"
+     },
+     "supported_objectives": {
+      "items": {
+       "enum": [
+        "PROFIT",
+        "GROWTH",
+        "ACQUISITION",
+        "INVENTORY_CLEARANCE",
+        "MARGIN_PROTECTION",
+        "BALANCED"
+       ],
+       "type": "string"
+      },
+      "title": "Supported Objectives",
+      "type": "array"
+     }
+    },
+    "required": [
+     "decision_id",
+     "decision_hash",
+     "supported_objectives",
+     "budget_ceiling",
+     "reserve_floor",
+     "max_daily_change",
+     "policy_version",
+     "horizon_days",
+     "campaigns"
+    ],
+    "title": "OptimizerContext",
+    "type": "object"
+   },
+   "OptimizerRunBody": {
+    "properties": {
+     "objective": {
+      "default": "PROFIT",
+      "enum": [
+       "PROFIT",
+       "GROWTH",
+       "ACQUISITION",
+       "INVENTORY_CLEARANCE",
+       "MARGIN_PROTECTION",
+       "BALANCED"
+      ],
+      "title": "Objective",
+      "type": "string"
+     }
+    },
+    "title": "OptimizerRunBody",
+    "type": "object"
+   },
+   "Outcome": {
+    "properties": {
+     "calibration_applied": {
+      "title": "Calibration Applied",
+      "type": "boolean"
+     },
+     "class": {
+      "title": "Class",
+      "type": "string"
+     },
+     "counterfactual": {
+      "title": "Counterfactual",
+      "type": "number"
+     },
+     "decision_id": {
+      "title": "Decision Id",
+      "type": "string"
+     },
+     "factor_after": {
+      "title": "Factor After",
+      "type": "number"
+     },
+     "factor_before": {
+      "title": "Factor Before",
+      "type": "number"
+     },
+     "matured_at": {
+      "title": "Matured At",
+      "type": "string"
+     },
+     "measured": {
+      "title": "Measured",
+      "type": "number"
+     },
+     "method": {
+      "title": "Method",
+      "type": "string"
+     },
+     "outcome_id": {
+      "title": "Outcome Id",
+      "type": "string"
+     },
+     "predicted": {
+      "title": "Predicted",
+      "type": "number"
+     },
+     "verdict": {
+      "enum": [
+       "SUCCESS",
+       "NEUTRAL",
+       "FAILED",
+       "INCONCLUSIVE"
+      ],
+      "title": "Verdict",
+      "type": "string"
+     },
+     "world": {
+      "enum": [
+       "SIMULATED",
+       "REAL"
+      ],
+      "title": "World",
+      "type": "string"
+     }
+    },
+    "required": [
+     "outcome_id",
+     "decision_id",
+     "world",
+     "class",
+     "verdict",
+     "predicted",
+     "measured",
+     "counterfactual",
+     "factor_before",
+     "factor_after",
+     "matured_at",
+     "method",
+     "calibration_applied"
+    ],
+    "title": "Outcome",
+    "type": "object"
+   },
+   "Overview": {
+    "properties": {
+     "attention": {
+      "items": {
+       "$ref": "#/components/schemas/Attention"
+      },
+      "title": "Attention",
+      "type": "array"
+     },
+     "brief": {
+      "title": "Brief",
+      "type": "string"
+     },
+     "calibration": {
+      "title": "Calibration",
+      "type": "number"
+     },
+     "counts": {
+      "$ref": "#/components/schemas/Counts"
+     },
+     "decision_ts": {
+      "title": "Decision Ts",
+      "type": "string"
+     },
+     "loop": {
+      "items": {
+       "$ref": "#/components/schemas/LoopStep"
+      },
+      "title": "Loop",
+      "type": "array"
+     },
+     "metrics": {
+      "items": {
+       "$ref": "#/components/schemas/Metric"
+      },
+      "title": "Metrics",
+      "type": "array"
+     },
+     "scenario": {
+      "title": "Scenario",
+      "type": "string"
+     },
+     "series": {
+      "items": {
+       "$ref": "#/components/schemas/Point"
+      },
+      "title": "Series",
+      "type": "array"
+     },
+     "sources": {
+      "items": {
+       "$ref": "#/components/schemas/Source"
+      },
+      "title": "Sources",
+      "type": "array"
+     },
+     "workspace": {
+      "title": "Workspace",
+      "type": "string"
+     },
+     "world_day": {
+      "title": "World Day",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "workspace",
+     "decision_ts",
+     "world_day",
+     "scenario",
+     "brief",
+     "metrics",
+     "sources",
+     "attention",
+     "series",
+     "loop",
+     "calibration",
+     "counts"
+    ],
+    "title": "Overview",
+    "type": "object"
+   },
+   "PlatformRecon": {
+    "properties": {
+     "over_attribution": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Over Attribution"
+     },
+     "over_attribution_reason": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Over Attribution Reason"
+     },
+     "platform": {
+      "title": "Platform",
+      "type": "string"
+     },
+     "platform_conversions": {
+      "title": "Platform Conversions",
+      "type": "number"
+     },
+     "session_click_ratio": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Session Click Ratio"
+     },
+     "store_attributed_orders": {
+      "title": "Store Attributed Orders",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "platform",
+     "platform_conversions",
+     "store_attributed_orders",
+     "over_attribution",
+     "session_click_ratio"
+    ],
+    "title": "PlatformRecon",
+    "type": "object"
+   },
+   "Point": {
+    "properties": {
+     "actual": {
+      "title": "Actual",
+      "type": "number"
+     },
+     "baseline": {
+      "title": "Baseline",
+      "type": "number"
+     },
+     "date": {
+      "title": "Date",
+      "type": "string"
+     }
+    },
+    "required": [
+     "date",
+     "actual",
+     "baseline"
+    ],
+    "title": "Point",
+    "type": "object"
+   },
+   "ReconciliationOut": {
+    "properties": {
+     "attribution_excess": {
+      "title": "Attribution Excess",
+      "type": "number"
+     },
+     "note": {
+      "title": "Note",
+      "type": "string"
+     },
+     "platform_revenue": {
+      "title": "Platform Revenue",
+      "type": "number"
+     },
+     "platforms": {
+      "items": {
+       "$ref": "#/components/schemas/PlatformRecon"
+      },
+      "title": "Platforms",
+      "type": "array"
+     },
+     "store_revenue": {
+      "title": "Store Revenue",
+      "type": "number"
+     },
+     "window_end": {
+      "title": "Window End",
+      "type": "string"
+     },
+     "window_start": {
+      "title": "Window Start",
+      "type": "string"
+     }
+    },
+    "required": [
+     "platform_revenue",
+     "store_revenue",
+     "attribution_excess",
+     "note",
+     "window_start",
+     "window_end",
+     "platforms"
+    ],
+    "title": "ReconciliationOut",
+    "type": "object"
+   },
+   "RecoveryBody": {
+    "properties": {
+     "decision_hash": {
+      "title": "Decision Hash",
+      "type": "string"
+     },
+     "final_resolution": {
+      "anyOf": [
+       {
+        "enum": [
+         "COMPENSATED",
+         "ACCEPTED_PARTIAL",
+         "BLOCKED"
+        ],
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Final Resolution"
+     },
+     "reason": {
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "decision_hash",
+     "reason"
+    ],
+    "title": "RecoveryBody",
+    "type": "object"
+   },
+   "RejectBody": {
+    "properties": {
+     "decision_hash": {
+      "title": "Decision Hash",
+      "type": "string"
+     },
+     "reason": {
+      "minLength": 1,
+      "title": "Reason",
+      "type": "string"
+     }
+    },
+    "required": [
+     "decision_hash",
+     "reason"
+    ],
+    "title": "RejectBody",
+    "type": "object"
+   },
+   "ScenarioCatalog": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/ScenarioItem"
+      },
+      "maxItems": 13,
+      "title": "Items",
+      "type": "array"
+     },
+     "note": {
+      "minLength": 1,
+      "title": "Note",
+      "type": "string"
+     },
+     "stage": {
+      "minLength": 1,
+      "title": "Stage",
+      "type": "string"
+     }
+    },
+    "required": [
+     "stage",
+     "note",
+     "items"
+    ],
+    "title": "ScenarioCatalog",
+    "type": "object"
+   },
+   "ScenarioItem": {
+    "properties": {
+     "category": {
+      "minLength": 1,
+      "title": "Category",
+      "type": "string"
+     },
+     "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+     },
+     "key": {
+      "enum": [
+       "DEMO_01",
+       "S1",
+       "S2",
+       "S3",
+       "S4",
+       "S5",
+       "S6",
+       "S7",
+       "S8",
+       "S9",
+       "S10",
+       "S11",
+       "S12"
+      ],
+      "title": "Key",
+      "type": "string"
+     },
+     "missing_modules": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Missing Modules",
+      "type": "array"
+     },
+     "status": {
+      "enum": [
+       "AVAILABLE",
+       "NOT_BUILT"
+      ],
+      "title": "Status",
+      "type": "string"
+     },
+     "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+     }
+    },
+    "required": [
+     "key",
+     "title",
+     "description",
+     "category",
+     "status",
+     "missing_modules"
+    ],
+    "title": "ScenarioItem",
+    "type": "object"
+   },
+   "Source": {
+    "properties": {
+     "freshness": {
+      "title": "Freshness",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "provenance": {
+      "enum": [
+       "PUBLIC-SAMPLE",
+       "CALIBRATED",
+       "SIMULATED",
+       "LIVE"
+      ],
+      "title": "Provenance",
+      "type": "string"
+     },
+     "score": {
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Score",
+      "type": "number"
+     },
+     "status": {
+      "enum": [
+       "GREEN",
+       "YELLOW",
+       "RED"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "kind",
+     "score",
+     "status",
+     "freshness",
+     "provenance"
+    ],
+    "title": "Source",
+    "type": "object"
+   },
+   "SourceHealthOut": {
+    "properties": {
+     "age_hours": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Age Hours"
+     },
+     "as_of": {
+      "title": "As Of",
+      "type": "string"
+     },
+     "checks": {
+      "items": {
+       "$ref": "#/components/schemas/CheckOut"
+      },
+      "title": "Checks",
+      "type": "array"
+     },
+     "completeness": {
+      "title": "Completeness",
+      "type": "number"
+     },
+     "consistency": {
+      "title": "Consistency",
+      "type": "number"
+     },
+     "freshness": {
+      "title": "Freshness",
+      "type": "string"
+     },
+     "freshness_score": {
+      "title": "Freshness Score",
+      "type": "number"
+     },
+     "hard_failures": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Hard Failures",
+      "type": "array"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "newest_date": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Newest Date"
+     },
+     "provenance": {
+      "enum": [
+       "PUBLIC-SAMPLE",
+       "CALIBRATED",
+       "SIMULATED",
+       "LIVE"
+      ],
+      "title": "Provenance",
+      "type": "string"
+     },
+     "score": {
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Score",
+      "type": "number"
+     },
+     "status": {
+      "enum": [
+       "GREEN",
+       "YELLOW",
+       "RED"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "kind",
+     "score",
+     "status",
+     "freshness",
+     "provenance",
+     "as_of",
+     "newest_date",
+     "age_hours",
+     "freshness_score",
+     "completeness",
+     "consistency",
+     "hard_failures",
+     "checks"
+    ],
+    "title": "SourceHealthOut",
+    "type": "object"
+   },
+   "SourceOut": {
+    "properties": {
+     "freshness": {
+      "title": "Freshness",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "string"
+     },
+     "kind": {
+      "title": "Kind",
+      "type": "string"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "provenance": {
+      "enum": [
+       "PUBLIC-SAMPLE",
+       "CALIBRATED",
+       "SIMULATED",
+       "LIVE"
+      ],
+      "title": "Provenance",
+      "type": "string"
+     },
+     "score": {
+      "maximum": 100.0,
+      "minimum": 0.0,
+      "title": "Score",
+      "type": "number"
+     },
+     "status": {
+      "enum": [
+       "GREEN",
+       "YELLOW",
+       "RED"
+      ],
+      "title": "Status",
+      "type": "string"
+     }
+    },
+    "required": [
+     "id",
+     "name",
+     "kind",
+     "score",
+     "status",
+     "freshness",
+     "provenance"
+    ],
+    "title": "SourceOut",
+    "type": "object"
+   },
+   "Trigger": {
+    "properties": {
+     "anomaly_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Anomaly Id"
+     },
+     "opportunity_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Opportunity Id"
+     }
+    },
+    "required": [
+     "anomaly_id",
+     "opportunity_id"
+    ],
+    "title": "Trigger",
+    "type": "object"
+   },
+   "ValidationError": {
+    "properties": {
+     "ctx": {
+      "title": "Context",
+      "type": "object"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "title": "Location",
+      "type": "array"
+     },
+     "msg": {
+      "title": "Message",
+      "type": "string"
+     },
+     "type": {
+      "title": "Error Type",
+      "type": "string"
+     }
+    },
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError",
+    "type": "object"
+   },
+   "WhyNot": {
+    "properties": {
+     "entity": {
+      "title": "Entity",
+      "type": "string"
+     },
+     "metric": {
+      "title": "Metric",
+      "type": "string"
+     },
+     "reason": {
+      "title": "Reason",
+      "type": "string"
+     },
+     "rule_id": {
+      "title": "Rule Id",
+      "type": "string"
+     }
+    },
+    "required": [
+     "entity",
+     "rule_id",
+     "reason",
+     "metric"
+    ],
+    "title": "WhyNot",
+    "type": "object"
+   }
+  }
+ },
+ "info": {
+  "title": "ADAPT API",
+  "version": "0.1.0"
+ },
+ "openapi": "3.1.0",
+ "paths": {
+  "/api/v1/anomalies": {
+   "get": {
+    "operationId": "anomalies_api_v1_anomalies_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Anomaly"
+         },
+         "title": "Response Anomalies Api V1 Anomalies Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Anomalies",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/anomalies/{anomaly_id}": {
+   "get": {
+    "operationId": "anomaly_api_v1_anomalies__anomaly_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "anomaly_id",
+      "required": true,
+      "schema": {
+       "title": "Anomaly Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Anomaly"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Anomaly",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/anomalies/{anomaly_id}/status": {
+   "post": {
+    "operationId": "anomaly_status_api_v1_anomalies__anomaly_id__status_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "anomaly_id",
+      "required": true,
+      "schema": {
+       "title": "Anomaly Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AnomalyStatusBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Anomaly"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Anomaly Status",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/data/health": {
+   "get": {
+    "operationId": "health_api_v1_data_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/SourceHealthOut"
+         },
+         "title": "Response Health Api V1 Data Health Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health",
+    "tags": [
+     "data"
+    ]
+   }
+  },
+  "/api/v1/data/mapping-coverage": {
+   "get": {
+    "operationId": "mapping_coverage_api_v1_data_mapping_coverage_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/MappingCoverageOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Mapping Coverage",
+    "tags": [
+     "data"
+    ]
+   }
+  },
+  "/api/v1/data/reconciliation": {
+   "get": {
+    "operationId": "reconciliation_api_v1_data_reconciliation_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ReconciliationOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Reconciliation",
+    "tags": [
+     "data"
+    ]
+   }
+  },
+  "/api/v1/data/sources": {
+   "get": {
+    "operationId": "sources_api_v1_data_sources_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/SourceOut"
+         },
+         "title": "Response Sources Api V1 Data Sources Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Sources",
+    "tags": [
+     "data"
+    ]
+   }
+  },
+  "/api/v1/decisions": {
+   "get": {
+    "operationId": "decisions_api_v1_decisions_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Decision"
+         },
+         "title": "Response Decisions Api V1 Decisions Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Decisions",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/decisions/{decision_id}": {
+   "get": {
+    "operationId": "decision_api_v1_decisions__decision_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "decision_id",
+      "required": true,
+      "schema": {
+       "title": "Decision Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Decision",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/decisions/{decision_id}/approve": {
+   "post": {
+    "description": "Hash-bound approval; with execute=true the saga runs immediately (Stage 1: Approve mode, mock platforms).",
+    "operationId": "approve_api_v1_decisions__decision_id__approve_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "decision_id",
+      "required": true,
+      "schema": {
+       "title": "Decision Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ApproveBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Approve",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/decisions/{decision_id}/evidence": {
+   "get": {
+    "operationId": "evidence_api_v1_decisions__decision_id__evidence_get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "decision_id",
+      "required": true,
+      "schema": {
+       "title": "Decision Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/EvidenceOut"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Evidence",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/decisions/{decision_id}/modify": {
+   "post": {
+    "description": "A user edit becomes a NEW decision (follows the original, separately valued, policy-checked, hash-bound);\nthe original is superseded if still pending. Never an in-place mutation.",
+    "operationId": "modify_api_v1_decisions__decision_id__modify_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "decision_id",
+      "required": true,
+      "schema": {
+       "title": "Decision Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AllocationInput"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Modify",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/decisions/{decision_id}/reject": {
+   "post": {
+    "operationId": "reject_api_v1_decisions__decision_id__reject_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "decision_id",
+      "required": true,
+      "schema": {
+       "title": "Decision Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RejectBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reject",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/events": {
+   "get": {
+    "operationId": "events_api_v1_events_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Event"
+         },
+         "title": "Response Events Api V1 Events Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Events",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/executions": {
+   "get": {
+    "operationId": "executions_api_v1_executions_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Execution"
+         },
+         "title": "Response Executions Api V1 Executions Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Executions",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/executions/{execution_id}/reconcile": {
+   "post": {
+    "operationId": "reconcile_api_v1_executions__execution_id__reconcile_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "execution_id",
+      "required": true,
+      "schema": {
+       "title": "Execution Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RecoveryBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Execution"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Reconcile",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/executions/{execution_id}/retry": {
+   "post": {
+    "operationId": "retry_api_v1_executions__execution_id__retry_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "execution_id",
+      "required": true,
+      "schema": {
+       "title": "Execution Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RecoveryBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Execution"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Retry",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/executions/{execution_id}/rollback": {
+   "post": {
+    "operationId": "rollback_api_v1_executions__execution_id__rollback_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "execution_id",
+      "required": true,
+      "schema": {
+       "title": "Execution Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RecoveryBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Execution"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Rollback",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/executions/{execution_id}/verify": {
+   "post": {
+    "operationId": "verify_api_v1_executions__execution_id__verify_post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "execution_id",
+      "required": true,
+      "schema": {
+       "title": "Execution Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RecoveryBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Execution"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Verify",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/health": {
+   "get": {
+    "operationId": "health_api_v1_health_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HealthResponse"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Health",
+    "tags": [
+     "system"
+    ]
+   }
+  },
+  "/api/v1/ledger": {
+   "get": {
+    "operationId": "ledger_api_v1_ledger_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/LedgerEntry"
+         },
+         "title": "Response Ledger Api V1 Ledger Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Ledger",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/optimizer/context": {
+   "get": {
+    "operationId": "optimizer_context_api_v1_optimizer_context_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/OptimizerContext"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Optimizer Context",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/optimizer/run": {
+   "post": {
+    "operationId": "optimizer_run_api_v1_optimizer_run_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OptimizerRunBody"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Decision"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Optimizer Run",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/optimizer/whatif": {
+   "post": {
+    "description": "Value an edited allocation with the same portfolio_economics + policy validation (not executable).",
+    "operationId": "whatif_api_v1_optimizer_whatif_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AllocationInput"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Evaluation"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Whatif",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/outcomes": {
+   "get": {
+    "operationId": "outcomes_api_v1_outcomes_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Outcome"
+         },
+         "title": "Response Outcomes Api V1 Outcomes Get",
+         "type": "array"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Outcomes",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/overview": {
+   "get": {
+    "operationId": "overview_api_v1_overview_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Overview"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Overview",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/pipeline/status": {
+   "get": {
+    "operationId": "pipeline_status_api_v1_pipeline_status_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "title": "Response Pipeline Status Api V1 Pipeline Status Get",
+         "type": "object"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Pipeline Status",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/sim/advance": {
+   "post": {
+    "description": "Advance the world `days` days, then (background job) run the pipeline for every new day.",
+    "operationId": "sim_advance_api_v1_sim_advance_post",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "days",
+      "required": false,
+      "schema": {
+       "default": 1,
+       "maximum": 14,
+       "minimum": 1,
+       "title": "Days",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ack"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Sim Advance",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/sim/fault/{kind}": {
+   "post": {
+    "operationId": "sim_fault_api_v1_sim_fault__kind__post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "kind",
+      "required": true,
+      "schema": {
+       "title": "Kind",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ack"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Sim Fault",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/sim/reset": {
+   "post": {
+    "description": "Restore the world to its seeded baseline AND the workspace to its baseline copy (no stale app data).",
+    "operationId": "sim_reset_api_v1_sim_reset_post",
+    "parameters": [
+     {
+      "in": "query",
+      "name": "seed",
+      "required": false,
+      "schema": {
+       "default": 42,
+       "title": "Seed",
+       "type": "integer"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ack"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Sim Reset",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/sim/scenario/{key}": {
+   "post": {
+    "operationId": "sim_scenario_api_v1_sim_scenario__key__post",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "key",
+      "required": true,
+      "schema": {
+       "title": "Key",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "X-Request-ID",
+      "required": true,
+      "schema": {
+       "title": "X-Request-Id",
+       "type": "string"
+      }
+     },
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": true,
+      "schema": {
+       "title": "Idempotency-Key",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ack"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      },
+      "description": "Validation Error"
+     }
+    },
+    "summary": "Sim Scenario",
+    "tags": [
+     "loop"
+    ]
+   }
+  },
+  "/api/v1/sim/scenarios": {
+   "get": {
+    "operationId": "sim_scenarios_api_v1_sim_scenarios_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ScenarioCatalog"
+        }
+       }
+      },
+      "description": "Successful Response"
+     }
+    },
+    "summary": "Sim Scenarios",
+    "tags": [
+     "loop"
+    ]
+   }
+  }
+ }
+}

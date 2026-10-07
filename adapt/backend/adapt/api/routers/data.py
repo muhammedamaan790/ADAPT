@@ -79,7 +79,7 @@ class ReconciliationOut(BaseModel):
 
 
 def _db(request: Request):
-    return request.app.state.db
+    return request.app.state.runtime.db  # the runtime swaps the connection on /sim/reset
 
 
 def _require(db, table: str) -> None:
