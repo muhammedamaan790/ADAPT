@@ -27,7 +27,7 @@ All reads return JSON. List reads below return arrays (no pagination envelope in
 | GET | `/anomalies/{id}` | `anomalySchema` |
 | POST | `/anomalies/{id}/status` | `{status,reason}` → updated `anomalySchema` |
 | GET | `/optimizer/context` | **Proposed read endpoint**, `optimizerContextSchema` |
-| POST | `/optimizer/run` | `{objective:"PROFIT"}` → `decisionSchema` |
+| POST | `/optimizer/run` | `{objective}` from backend-supported objectives → matching `decisionSchema`; Stage 1 enables PROFIT only |
 | POST | `/optimizer/whatif` | `allocationInputSchema` → `evaluationSchema` |
 | POST | `/decisions/{id}/modify` | `allocationInputSchema` → a new `decisionSchema`, never in-place mutation |
 | GET | `/ledger` | `ledgerSchema[]` |

@@ -38,7 +38,7 @@ export function DecisionInsights({ decision: d }: { decision: Decision }) {
       decision_id: d.decision_id,
       decision_hash: d.decision_hash,
       policy_version: d.policy_version,
-      objective: 'PROFIT',
+      objective: d.objective,
       legs: a.legs.map((l) => ({ budget_id: l.budget_id, after: l.after })),
     });
   });

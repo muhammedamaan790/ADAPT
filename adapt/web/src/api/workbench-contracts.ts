@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { checkSchema, decisionSchema, legSchema, provenanceSchema } from './contracts';
+import {
+  checkSchema,
+  decisionSchema,
+  legSchema,
+  provenanceSchema,
+  objectiveSchema,
+} from './contracts';
 
 export const anomalySchema = z.object({
   anomaly_id: z.string(),
@@ -31,11 +37,12 @@ export const anomalySchema = z.object({
   resolution_reason: z.string().nullable(),
 });
 export type Anomaly = z.infer<typeof anomalySchema>;
-export const objectiveSchema = z.enum(['PROFIT', 'GROWTH', 'INVENTORY_CLEARANCE']);
+export { objectiveSchema } from './contracts';
 export const optimizerContextSchema = z.object({
   decision_id: z.string().nullable(),
   decision_hash: z.string().nullable(),
   supported_objectives: z.array(objectiveSchema),
+  objective: objectiveSchema.default('PROFIT'),
   budget_ceiling: z.number().finite().nonnegative(),
   reserve_floor: z.number().finite().nonnegative(),
   max_daily_change: z.number().min(0).max(1),
@@ -69,6 +76,14 @@ export const evaluationSchema = z
     decision_id: z.string(),
     decision_hash: z.string(),
     objective: objectiveSchema,
+    objective_value: z
+      .object({
+        value: z.number().finite(),
+        label: z.string().min(1),
+        unit: z.enum(['INR', 'CUSTOMERS', 'SCORE']),
+      })
+      .nullable()
+      .default(null),
     allocated: z.number().finite().nonnegative(),
     unallocated: z.number().finite().nonnegative(),
     checks: z.array(checkSchema).min(1),

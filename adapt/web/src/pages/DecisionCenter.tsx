@@ -203,7 +203,10 @@ export function DecisionCenter() {
             {d.decision_id} · {dateTime(d.created_at)} · {d.horizon_days}-day horizon
           </p>
         </div>
-        <Badge tone="accent">PROFIT · APPROVE MODE</Badge>
+        <Badge tone="accent">
+          {d.objective.replaceAll('_', ' ')} ·{' '}
+          {dataMode === 'fixture' ? 'APPROVE MODE' : 'CHANNEL POLICY'}
+        </Badge>
       </div>
       {d.follows && (
         <p className="notice">

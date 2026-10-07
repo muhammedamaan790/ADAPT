@@ -44,7 +44,7 @@ export function CommandCenter() {
           Last report {dateTime(data.decision_ts)}
         </span>
         <span>World day {data.world_day} · Last 7 days</span>
-        <Badge tone="accent">PROFIT</Badge>
+        <Badge tone="accent">Financial overview</Badge>
       </div>
       <section className="brief">
         <div className="brief-icon">

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { policy } from '../api/policy';
 import {
   ArrowRight,
   Beaker,
@@ -12,10 +14,10 @@ import {
 import { Link } from 'react-router-dom';
 import { api, dataMode } from '../api/client';
 import type { ScenarioKey } from '../api/contracts';
-import { scenarios } from '../api/fixtures';
 import { useAction, useEvents, useExecutions, useOverview } from '../hooks/workspace';
 import {
   Badge,
+  Disclosure,
   Empty,
   ErrorState,
   InlineError,
@@ -29,6 +31,7 @@ import { Evaluation } from '../components/Evaluation';
 export function ScenarioLab() {
   const [section, setSection] = useState<'scenarios' | 'evaluation'>('scenarios');
   const overview = useOverview();
+  const catalog = useQuery({ queryKey: ['scenario-catalog'], queryFn: policy.scenarios });
   const events = useEvents();
   const executions = useExecutions();
   const [selected, setSelected] = useState<ScenarioKey>('DEMO_01');
@@ -37,7 +40,7 @@ export function ScenarioLab() {
   const [resetDialog, setResetDialog] = useState(false);
   const [scenarioDialog, setScenarioDialog] = useState(false);
   const scenario = useAction(async (key: ScenarioKey) => {
-    await api.scenario(key);
+    await policy.loadScenario(key);
   });
   const advance = useAction(async (n: number) => {
     await api.advance(n);
@@ -120,7 +123,17 @@ export function ScenarioLab() {
   const cannotAdvance = busy || pending || executions.isPending || executions.isError;
   const seedValid =
     /^\d+$/.test(seed) && Number.isSafeInteger(Number(seed)) && Number(seed) <= 2147483647;
-  const chosen = scenarios.find((s) => s.key === selected)!;
+  const available = catalog.data?.items.filter((s) => s.status === 'AVAILABLE') || [];
+  const later = catalog.data?.items.filter((s) => s.status === 'NOT_BUILT') || [];
+  const chosen = available.find((s) => s.key === selected) || available[0];
+  const cannotLoad =
+    busy ||
+    pending ||
+    executions.isPending ||
+    executions.isError ||
+    catalog.isPending ||
+    catalog.isError ||
+    !chosen;
   return (
     <>
       <div className="page-heading">
@@ -128,9 +141,7 @@ export function ScenarioLab() {
           <h1>Scenario Lab</h1>
           <p>Follow a controlled scenario from signal to measured outcome.</p>
         </div>
-        <Badge tone="accent">
-          Stage 1 · {dataMode === 'fixture' ? 'UI examples' : 'World controls'}
-        </Badge>
+        <Badge tone="accent">{catalog.data?.stage || 'Scenario catalog unavailable'}</Badge>
       </div>
       {navigation}
       <div className="lab-intro">
@@ -151,20 +162,30 @@ export function ScenarioLab() {
       <div className="lab-layout">
         <section className="panel scenario-selector">
           <SectionTitle title="Choose a scenario">
-            <Badge>{scenarios.length} available</Badge>
+            <Badge>{available.length} available</Badge>
           </SectionTitle>
-          <p className="section-description">Stage 1 subset · Meta + Google · human approval</p>
+          <p className="section-description">{catalog.data?.note}</p>
+          {catalog.isPending && <Loading label="Loading scenario capabilities" />}
+          {catalog.error && (
+            <ErrorState error={catalog.error} retry={() => void catalog.refetch()} />
+          )}
+          {!catalog.isPending && !catalog.error && !available.length && (
+            <Empty title="No supported scenarios">
+              Required backend modules must be built before a scenario can be loaded.
+            </Empty>
+          )}
           <div className="scenario-list">
-            {scenarios.map((s) => (
+            {available.map((s) => (
               <label
-                className={`scenario-option ${selected === s.key ? 'selected' : ''}`}
+                className={`scenario-option ${chosen?.key === s.key ? 'selected' : ''}`}
                 key={s.key}
               >
                 <input
                   type="radio"
                   name="scenario"
                   value={s.key}
-                  checked={selected === s.key}
+                  checked={chosen?.key === s.key}
+                  disabled={busy}
                   onChange={() => setSelected(s.key)}
                 />
                 <span className="scenario-key">{s.key}</span>
@@ -172,7 +193,7 @@ export function ScenarioLab() {
                   <strong>{s.title}</strong>
                   <p>{s.description}</p>
                 </div>
-                {selected === s.key && <CheckCircle2 size={17} />}
+                {chosen?.key === s.key && <CheckCircle2 size={17} />}
               </label>
             ))}
           </div>
@@ -182,7 +203,7 @@ export function ScenarioLab() {
             </span>
             <button
               className="button primary"
-              disabled={busy || !!pending}
+              disabled={!!cannotLoad}
               onClick={() => {
                 scenario.reset();
                 setScenarioDialog(true);
@@ -193,6 +214,30 @@ export function ScenarioLab() {
             </button>
           </div>
           <InlineError error={scenario.error} />
+          {later.length > 0 && (
+            <Disclosure title="Later-stage scenarios">
+              <ul className="connection-list">
+                {later.map((s) => (
+                  <li key={s.key}>
+                    <div className="ledger-heading">
+                      <strong>
+                        {s.key} · {s.title}
+                      </strong>
+                      <Badge tone="warning">Not built</Badge>
+                    </div>
+                    <p>{s.description}</p>
+                    <p className="caption">
+                      Required modules:{' '}
+                      {s.missing_modules.length
+                        ? s.missing_modules.join(', ')
+                        : 'backend qualification pending'}
+                      . Loading is unavailable.
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </Disclosure>
+          )}
         </section>
         <aside className="lab-controls">
           <section className="panel">
@@ -324,8 +369,13 @@ export function ScenarioLab() {
           </ol>
         )}
       </section>
-      {scenarioDialog && (
-        <Modal title={`Load ${chosen.key}?`} close={() => setScenarioDialog(false)}>
+      {scenarioDialog && chosen && (
+        <Modal
+          title={`Load ${chosen.key}?`}
+          close={() => {
+            if (!scenario.isPending) setScenarioDialog(false);
+          }}
+        >
           <p>
             {chosen.title}. Loading a scenario replaces the current workspace’s example decisions,
             outcomes and events.
@@ -341,9 +391,9 @@ export function ScenarioLab() {
             </button>
             <button
               className="button primary"
-              disabled={scenario.isPending}
+              disabled={!!cannotLoad}
               onClick={() =>
-                scenario.mutate(selected, { onSuccess: () => setScenarioDialog(false) })
+                scenario.mutate(chosen.key, { onSuccess: () => setScenarioDialog(false) })
               }
             >
               Confirm load
@@ -352,7 +402,12 @@ export function ScenarioLab() {
         </Modal>
       )}
       {resetDialog && (
-        <Modal title="Reset the workspace?" close={() => setResetDialog(false)}>
+        <Modal
+          title="Reset the workspace?"
+          close={() => {
+            if (!reset.isPending) setResetDialog(false);
+          }}
+        >
           <p>
             This removes the current {dataMode === 'fixture' ? 'local fixture' : 'simulation'}{' '}
             decisions, execution states, outcomes and event history. Seed: {seed}.

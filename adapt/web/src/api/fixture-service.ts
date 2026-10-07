@@ -3,7 +3,8 @@ import {
   executionSchema,
   outcomeSchema,
   eventSchema,
-  scenarioKeys,
+  fixtureScenarioKeys,
+  type Objective,
   type AppEvent,
   type Decision,
   type Execution,
@@ -82,7 +83,7 @@ export function loadFixtureState() {
     const value = JSON.parse(localStorage.getItem(fixtureKey()) || 'null');
     if (
       value?.version === 1 &&
-      scenarioKeys.includes(value.scenario) &&
+      fixtureScenarioKeys.includes(value.scenario) &&
       Array.isArray(value.decisions) &&
       Array.isArray(value.events) &&
       Array.isArray(value.executions) &&
@@ -345,6 +346,8 @@ export const fixtureService = {
     return clone(d);
   },
   async scenario(key: ScenarioKey) {
+    if (!fixtureScenarioKeys.includes(key))
+      throw new Error('This scenario requires backend modules. No substitute fixture was loaded.');
     if (hasUnresolved()) throw new Error('Finish the current execution before changing scenarios.');
     state = {
       ...initial(),
@@ -451,6 +454,7 @@ export const fixtureService = {
       decision_id: d.decision_id,
       decision_hash: d.decision_hash,
       objective: 'PROFIT',
+      objective_value: null,
       allocated,
       unallocated: d.budget_ceiling - allocated,
       checks: [
@@ -477,7 +481,11 @@ export const fixtureService = {
         : 'The UI accepts custom allocations but does not invent their profit or risk. Connect portfolio_economics to value them.',
     };
   },
-  async runOptimizer() {
+  async runOptimizer(objective: Objective = 'PROFIT') {
+    if (objective !== 'PROFIT')
+      throw new Error(
+        'This objective requires a connected optimizer. No PROFIT result was substituted.',
+      );
     const d = activeDecision();
     if (!d || d.class !== 'OPTIMIZATION' || !['PENDING_APPROVAL', 'DRAFT'].includes(d.status))
       throw new Error('No eligible optimization proposal in this scenario.');

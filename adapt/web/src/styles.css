@@ -2922,6 +2922,32 @@ summary::-webkit-details-marker {
   color: var(--muted);
   opacity: 1;
 }
+.objective-picker {
+  max-width: 420px;
+}
+.readiness-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+  margin: 24px 0;
+}
+.readiness-section {
+  min-width: 0;
+  border-top: 1px solid var(--rule);
+  padding-top: 20px;
+}
+.readiness-checks {
+  list-style: none;
+  padding: 0;
+}
+.readiness-checks li {
+  border-top: 1px solid var(--rule);
+  padding: 14px 0;
+}
+.readiness-checks p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
 .workspace strong {
   overflow-wrap: anywhere;
 }
@@ -3128,6 +3154,10 @@ table caption {
   .workspace-create {
     flex-direction: column;
     align-items: stretch;
+  }
+  .readiness-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
   .mobile-filter-toggle {
     display: flex;

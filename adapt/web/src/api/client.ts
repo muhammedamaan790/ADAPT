@@ -7,6 +7,7 @@ import {
   outcomeSchema,
   overviewSchema,
   type ScenarioKey,
+  type Objective,
 } from './contracts';
 import { fixtureService, loadFixtureState } from './fixture-service';
 import {
@@ -32,13 +33,18 @@ export class ApiError extends Error {
     this.name = 'ApiError';
   }
 }
-export async function request<T>(path: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
+export async function request<T>(
+  path: string,
+  schema: z.ZodType<T>,
+  body?: unknown,
+  writeMethod: 'POST' | 'PUT' = 'POST',
+): Promise<T> {
   const mutation = body !== undefined;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
   try {
     const response = await fetch(`${base}${path}`, {
-      method: mutation ? 'POST' : 'GET',
+      method: mutation ? writeMethod : 'GET',
       credentials: 'include',
       signal: controller.signal,
       headers: {
@@ -80,7 +86,7 @@ export async function request<T>(path: string, schema: z.ZodType<T>, body?: unkn
     clearTimeout(timer);
   }
 }
-const ack = z.object({ ok: z.boolean() });
+const ack = z.object({ ok: z.literal(true) });
 export const api =
   dataMode === 'fixture'
     ? fixtureService
@@ -112,15 +118,45 @@ export const api =
         anomalyStatus: (id: string, status: Anomaly['status'], reason: string) =>
           request(`/anomalies/${encodeURIComponent(id)}/status`, anomalySchema, { status, reason }),
         optimizerContext: () => request('/optimizer/context', optimizerContextSchema),
-        evaluateAllocation: (input: AllocationInput) =>
-          request('/optimizer/whatif', evaluationSchema, input),
-        runOptimizer: () => request('/optimizer/run', decisionSchema, { objective: 'PROFIT' }),
-        modify: (input: AllocationInput) =>
-          request(
+        evaluateAllocation: async (input: AllocationInput) => {
+          const result = await request('/optimizer/whatif', evaluationSchema, input);
+          if (
+            result.decision_id !== input.decision_id ||
+            result.decision_hash !== input.decision_hash ||
+            result.objective !== input.objective
+          )
+            throw new ApiError(
+              409,
+              'Valuation belongs to another proposal or objective. Reload before evaluating.',
+            );
+          return result;
+        },
+        runOptimizer: async (objective: Objective = 'PROFIT') => {
+          const d = await request('/optimizer/run', decisionSchema, { objective });
+          if (d.objective !== objective)
+            throw new ApiError(
+              409,
+              'Optimizer returned another objective. Review the current proposal.',
+            );
+          return d;
+        },
+        modify: async (input: AllocationInput) => {
+          const d = await request(
             `/decisions/${encodeURIComponent(input.decision_id)}/modify`,
             decisionSchema,
             input,
-          ),
+          );
+          if (
+            d.objective !== input.objective ||
+            d.decision_id === input.decision_id ||
+            d.follows !== input.decision_id
+          )
+            throw new ApiError(
+              409,
+              'Revision identity or objective does not match this proposal. Refresh decision history before retrying.',
+            );
+          return d;
+        },
         ledger: () => request('/ledger', z.array(ledgerSchema)),
         fault: (type: 'UNKNOWN' | 'FAILED') => request(`/sim/fault/${type}`, ack, {}),
         recover: (input: RecoveryInput) =>
