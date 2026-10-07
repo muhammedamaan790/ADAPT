@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -287,6 +288,29 @@ class WorldStore:
                 return digest.hexdigest()
             finally:
                 cur.close()
+
+    def snapshot_to(self, target: str | Path) -> None:
+        """Write a consistent copy of the state file (used for the post-seeding baseline).
+
+        DuckDB holds the file exclusively on Windows, so the connection is closed (which checkpoints) for the copy
+        and reopened, all under the world lock.
+        """
+        with self._lock:
+            self._con.close()
+            try:
+                shutil.copyfile(self.path, target)
+            finally:
+                self._con = duckdb.connect(self.path)
+
+    def restore_from(self, baseline: str | Path) -> None:
+        """Replace the whole state (log included) with a snapshot, under the world lock."""
+        with self._lock:
+            self._con.close()
+            shutil.copyfile(baseline, self.path)
+            wal = Path(self.path + ".wal")
+            if wal.exists():
+                wal.unlink()
+            self._con = duckdb.connect(self.path)
 
     def close(self) -> None:
         self._con.close()

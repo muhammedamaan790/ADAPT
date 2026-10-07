@@ -17,6 +17,7 @@ It is strictly increasing and concave in s, so a spend that hits any target is f
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from dataclasses import asdict, dataclass, field, replace
@@ -400,6 +401,23 @@ CREATE TABLE gt_incidents (
 )"""
 
 
+def truth_fingerprint(truth: Truth) -> str:
+    """sha256 over every drawn parameter. Used to prove a rebuilt Truth equals the one recorded at seeding."""
+    payload = {
+        "campaigns": [asdict(t) for t in truth.campaigns.values()],
+        "creatives": [asdict(t) for t in truth.creatives.values()],
+        "elasticity": truth.elasticity,
+        "lead_time": truth.sku_lead_time,
+        "skus": [asdict(s) for s in truth.catalog.skus],
+        "category_rates": truth.category_rates.round(9).to_dict(orient="records"),
+        "demand": truth.demand.round(9).to_dict(orient="list"),
+        "future_level": truth.future_level,
+        "warehouse": truth.warehouse,
+    }
+    text = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 def write_truth(truth: Truth, path: str | Path, overwrite: bool = False) -> None:
     path = Path(path)
     if path.exists():
@@ -427,7 +445,12 @@ def write_truth(truth: Truth, path: str | Path, overwrite: bool = False) -> None
             con.execute(f"CREATE TABLE {name} AS SELECT * FROM frame")
             con.unregister("frame")
         con.execute("CREATE TABLE meta (key VARCHAR PRIMARY KEY, value JSON)")
-        meta = {**truth.meta, "source_shares": truth.source_shares, "warehouse": truth.warehouse}
+        cfg = truth.config
+        meta = {**truth.meta, "source_shares": truth.source_shares, "warehouse": truth.warehouse,
+                "config": {"seed": cfg.seed, "backbone_dir": str(cfg.backbone_dir),
+                           "global_ads_csv": str(cfg.global_ads_csv) if cfg.global_ads_csv else None,
+                           "brand_scale": cfg.brand_scale, "history_end_date": cfg.history_end_date.isoformat()},
+                "fingerprint": truth_fingerprint(truth)}
         con.executemany("INSERT INTO meta VALUES (?, ?)", [(k, json.dumps(v, default=str)) for k, v in meta.items()])
         con.execute(GT_INCIDENTS_DDL)
     finally:
@@ -437,3 +460,30 @@ def write_truth(truth: Truth, path: str | Path, overwrite: bool = False) -> None
 def open_truth(path: str | Path) -> duckdb.DuckDBPyConnection:
     """Truth is only ever opened read-only after seeding."""
     return duckdb.connect(str(path), read_only=True)
+
+
+class TruthMismatch(RuntimeError):
+    """The rebuilt truth differs from the recorded one (inputs or code changed since seeding)."""
+
+
+def load_truth(path: str | Path) -> Truth:
+    """Rebuild the Truth from the config recorded in the truth file and prove it matches the recorded fingerprint.
+
+    The truth file stays the record; rebuilding (deterministic, ~1 s) avoids a second deserialisation path that
+    could drift from build_truth. A changed backbone, prior file or code fails loudly instead of silently
+    running a different world.
+    """
+    con = open_truth(path)
+    try:
+        meta = {k: json.loads(v) for k, v in con.execute("SELECT key, value FROM meta").fetchall()}
+    finally:
+        con.close()
+    c = meta["config"]
+    cfg = WorldConfig(seed=int(c["seed"]), backbone_dir=Path(c["backbone_dir"]),
+                      global_ads_csv=Path(c["global_ads_csv"]) if c["global_ads_csv"] else None,
+                      brand_scale=float(c["brand_scale"]), history_end_date=date.fromisoformat(c["history_end_date"]))
+    truth = build_truth(cfg)
+    got = truth_fingerprint(truth)
+    if got != meta["fingerprint"]:
+        raise TruthMismatch(f"{path}: rebuilt truth fingerprint {got[:12]} != recorded {meta['fingerprint'][:12]}")
+    return truth

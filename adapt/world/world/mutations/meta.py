@@ -1,7 +1,9 @@
 """Mock Meta Marketing API v25.0 (Graph shapes): campaign daily_budget/status update + read-back (spec §9.3).
 
-daily_budget is in minor units (paise for INR) as a string; status is ACTIVE | PAUSED on the wire.
-Graph errors are HTTP 400 with an error code, except a service outage (503) and a lost response (504).
+daily_budget is in minor units of the ad account currency (USD cents, see world.accounts) as a string; the
+world stores INR at the fixed simulation rate, so a cent value round-trips exactly through read-back.
+status is ACTIVE | PAUSED on the wire. Graph errors are HTTP 400 with an error code, except a service outage
+(503) and a lost response (504).
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from fastapi import APIRouter, Header, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from world.accounts import inr_to_meta, meta_to_inr
 from world.state import UnknownEntity, WorldStore
 
 router = APIRouter(prefix="/meta/v25.0", tags=["mock-meta"])
@@ -60,7 +63,7 @@ def update_campaign(
             return meta_error(400, 100, "daily_budget must be an integer in minor units", False)
         if minor < 0:
             return meta_error(400, 100, "daily_budget must be >= 0", False)
-        payload["amount"] = minor / MINOR_UNITS
+        payload["amount"] = meta_to_inr(minor / MINOR_UNITS)
     if body.status is not None:
         if body.status not in WIRE_TO_STATE:
             return meta_error(400, 100, "status must be ACTIVE or PAUSED", False)
@@ -88,5 +91,6 @@ def read_campaign(campaign_id: str, request: Request, fields: str = Query(defaul
     if not rows:
         return meta_error(400, 100, f"Object with ID '{campaign_id}' does not exist", False)
     amount, status = rows[0]
-    full = {"id": campaign_id, "daily_budget": str(round(amount * MINOR_UNITS)), "status": STATE_TO_WIRE[status]}
+    full = {"id": campaign_id, "daily_budget": str(round(inr_to_meta(amount) * MINOR_UNITS)),
+            "status": STATE_TO_WIRE[status]}
     return JSONResponse({f: full[f] for f in wanted})

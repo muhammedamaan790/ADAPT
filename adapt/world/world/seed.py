@@ -19,6 +19,7 @@ from world.step import make_store, manager_budgets
 from world.truth import Truth, WorldConfig, build_truth, write_truth
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+BASELINE_NAME = "sim_state.baseline.duckdb"  # the world right after its history; /control/reset restores it
 
 
 def seed_world(cfg: WorldConfig, out_dir: str | Path, overwrite: bool = False) -> tuple[WorldStore, Truth]:
@@ -45,6 +46,7 @@ def seed_world(cfg: WorldConfig, out_dir: str | Path, overwrite: bool = False) -
                          {"platform": platform_of[budget_id], "budget_id": budget_id, "amount": amount,
                           "status": "ENABLED"})
         store.commit("advance", f"seed{s}:advance:{from_day}", "seeder", {"days": int(to_day) - int(from_day) + 1})
+    store.snapshot_to(out / BASELINE_NAME)
     return store, truth
 
 

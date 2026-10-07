@@ -31,11 +31,11 @@ $env:PYTHONPATH="world"; uv run python -m world.seed --seed 42 --overwrite
 ```
 Writes `data/world/seed42/sim_truth.duckdb` (hidden truth, read-only afterwards) and `sim_state.duckdb` (the world after its history, clock at day 0). See `docs/contracts/world_truth.md` and `world_step.md`.
 
-## Run the world service (simulated outside world + mock Google/Meta APIs)
+## Run the world service (simulated outside world + mock Google/Meta/store/GA4/ERP APIs)
 ```powershell
-uv run uvicorn world.main:app --app-dir world --port 8100
+$env:WORLD_DIR="data/world/seed42"; uv run uvicorn world.main:app --app-dir world --port 8100
 ```
-State lives in `data/world/sim_state.duckdb`. Control routes: `POST /control/reset|advance|fault|budget` (each needs an `X-Request-ID` header; a repeated ID is applied once), `GET /control/log`. Mock platforms: `/google/v25/customers/{cid}/campaignBudgets:mutate`, `/google/v25/customers/{cid}/googleAds:search`, `/meta/v25.0/{campaign_id}`.
+Control routes: `POST /control/reset|advance|fault|budget` (each needs an `X-Request-ID` header; a repeated ID is applied once), `GET /control/log`. Reset restores the post-history baseline. Reporting and mutation endpoints are listed in `docs/contracts/world_reporting.md`. Without `WORLD_DIR` the service runs a bare control-plane store (no reporting).
 
 ## Run the API
 ```powershell

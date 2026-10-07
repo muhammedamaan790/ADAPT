@@ -45,6 +45,10 @@ CREATE TABLE IF NOT EXISTS creative_state (creative_id VARCHAR PRIMARY KEY, cum_
 CREATE TABLE IF NOT EXISTS price_state (
     sku VARCHAR PRIMARY KEY, price_inr DOUBLE NOT NULL, base_price_inr DOUBLE NOT NULL
 );
+CREATE TABLE IF NOT EXISTS price_history (
+    sku VARCHAR NOT NULL, price_inr DOUBLE NOT NULL, effective_from_day INTEGER NOT NULL,
+    PRIMARY KEY (sku, effective_from_day)
+);
 CREATE TABLE IF NOT EXISTS inventory_state (
     sku VARCHAR PRIMARY KEY, on_hand BIGINT NOT NULL, inbound_qty BIGINT NOT NULL, inbound_day INTEGER,
     reorder_point BIGINT NOT NULL, order_qty BIGINT NOT NULL, lead_time_days INTEGER NOT NULL
@@ -151,6 +155,7 @@ def op_init_world(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any], ctx: 
     demand = expected_sku_demand(truth, day)
     for s in truth.catalog.skus:
         cur.execute("INSERT OR REPLACE INTO price_state VALUES (?, ?, ?)", [s.sku, s.unit_price_inr, s.unit_price_inr])
+        cur.execute("INSERT OR REPLACE INTO price_history VALUES (?, ?, ?)", [s.sku, s.unit_price_inr, day])
         lead = truth.sku_lead_time[s.sku]
         d = demand[s.sku]
         cur.execute(

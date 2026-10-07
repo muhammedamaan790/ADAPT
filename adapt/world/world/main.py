@@ -1,7 +1,9 @@
 """world-service public listener (spec §2). Serves only what real platforms would, plus /control/*.
 
 Ground truth is never routed here; it gets a separate loopback, token-gated listener in eval mode only.
-Run: uv run uvicorn world.main:app --app-dir world --port 8100
+Run a seeded world (after `python -m world.seed --seed 42`):
+  $env:WORLD_DIR="data/world/seed42"; uv run uvicorn world.main:app --app-dir world --port 8100
+Without WORLD_DIR the service runs a bare control-plane store (budgets, faults, clock; no reporting).
 """
 
 from __future__ import annotations
@@ -17,7 +19,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from world.mutations import google, meta
+from world.reporting import ga4_erp
+from world.reporting import google as google_reporting
+from world.reporting import meta as meta_reporting
+from world.reporting import store as store_reporting
+from world.seed import BASELINE_NAME
 from world.state import CommitResult, WorldStateConflict, WorldStore
+from world.step import make_store
+from world.truth import load_truth
 
 DEFAULT_STATE_PATH = Path(__file__).resolve().parents[2] / "data" / "world" / "sim_state.duckdb"
 
@@ -59,13 +68,22 @@ def _commit_response(c: CommitResult) -> CommitResponse:
     return CommitResponse(seq=c.seq, replayed=c.replayed, result=c.result)
 
 
-def create_app(state_path: str | Path | None = None) -> FastAPI:
+def create_app(state_path: str | Path | None = None, world_dir: str | Path | None = None) -> FastAPI:
+    wdir = Path(world_dir) if world_dir else (Path(os.environ["WORLD_DIR"]) if os.environ.get("WORLD_DIR") else None)
     path = Path(state_path or os.environ.get("WORLD_STATE_PATH", DEFAULT_STATE_PATH))
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        app.state.store = WorldStore(path)
+        if wdir is not None:
+            if not (wdir / "sim_truth.duckdb").exists():
+                raise RuntimeError(f"{wdir} is not a seeded world (run: python -m world.seed --seed N)")
+            truth = load_truth(wdir / "sim_truth.duckdb")
+            app.state.store = make_store(wdir / "sim_state.duckdb", truth)
+            app.state.baseline = wdir / BASELINE_NAME
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            app.state.store = WorldStore(path)
+            app.state.baseline = None
         try:
             yield
         finally:
@@ -98,7 +116,22 @@ def create_app(state_path: str | Path | None = None) -> FastAPI:
         x_request_id: str = Header(...),
         x_actor_id: str = Header(default="scenario-lab"),
     ) -> CommitResponse:
-        return _commit_response(store(request).commit("reset", x_request_id, x_actor_id, body.model_dump()))
+        """Seeded world: restore the post-history baseline (fast). Bare store: clear state and set the clock."""
+        s = store(request)
+        if s.ctx.truth is None:
+            return _commit_response(s.commit("reset", x_request_id, x_actor_id, body.model_dump()))
+        seeded = s.ctx.truth.config.seed
+        if body.seed != seeded:
+            raise WorldStateConflict(f"this world service runs seed {seeded}; seed {body.seed} needs "
+                                     f"`python -m world.seed --seed {body.seed}` and WORLD_DIR pointing at it")
+        baseline = request.app.state.baseline
+        if baseline is None or not Path(baseline).exists():
+            raise WorldStateConflict("no baseline snapshot for this world; reseed it")
+        s.restore_from(baseline)
+        clock = s.clock()
+        last = s.log()[-1]["seq"]
+        return CommitResponse(seq=last, replayed=False, result={"seed": clock[0], "day": clock[1],
+                                                                "restored": "baseline"})
 
     @app.post("/control/advance", response_model=CommitResponse)
     def advance(
@@ -131,6 +164,10 @@ def create_app(state_path: str | Path | None = None) -> FastAPI:
 
     app.include_router(google.router)
     app.include_router(meta.router)
+    app.include_router(google_reporting.router)
+    app.include_router(meta_reporting.router)
+    app.include_router(store_reporting.router)
+    app.include_router(ga4_erp.router)
 
     @app.get("/control/log")
     def log(request: Request) -> list[dict]:

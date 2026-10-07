@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from world.main import create_app
+from world.priors import benchmarks
 
 CID = "1234567890"
 G_RES = f"customers/{CID}/campaignBudgets/555"
@@ -63,8 +64,15 @@ def test_google_rejects_non_multiple_micros_and_foreign_resources(client):
 
 def test_google_unsupported_gaql_is_a_400(client):
     r = client.post(f"/google/v25/customers/{CID}/googleAds:search",
-                    json={"query": "SELECT campaign.status FROM campaign"})
+                    json={"query": "SELECT keyword_view.resource_name FROM keyword_view"})
     assert r.status_code == 400
+    r = client.post(f"/google/v25/customers/{CID}/googleAds:search",
+                    json={"query": "SELECT campaign_budget.id, metrics.clicks FROM campaign_budget"})
+    assert r.status_code == 400  # metrics are not selectable on campaign_budget
+    # entity reporting needs a seeded world; the bare control-plane store says so instead of returning nothing
+    r = client.post(f"/google/v25/customers/{CID}/googleAds:search",
+                    json={"query": "SELECT campaign.status FROM campaign"})
+    assert r.status_code == 503
 
 
 @pytest.mark.parametrize("name,http", [("rate_limit", 429), ("unavailable", 503), ("bad_request", 400)])
@@ -94,14 +102,20 @@ def test_google_same_request_id_never_mutates_twice(client):
 
 
 # ---- Meta -------------------------------------------------------------------------------------------
-def test_meta_update_and_read_back_in_minor_units(client):
+FX = benchmarks()["fx_usd_inr"]
+META_3000_INR_CENTS = str(round(3000 / FX * 100))  # the account is billed in USD cents
+
+
+def test_meta_update_and_read_back_in_account_currency_minor_units(client):
     r = client.get("/meta/v25.0/238000001", params={"fields": "daily_budget,status"})
-    assert r.json() == {"daily_budget": "300000", "status": "ACTIVE"}
+    assert r.json() == {"daily_budget": META_3000_INR_CENTS, "status": "ACTIVE"}
     r = client.post("/meta/v25.0/238000001", json={"daily_budget": "250000", "status": "PAUSED"},
                     headers={"X-Request-ID": "mm1"})
     assert r.status_code == 200 and r.json() == {"success": True}
     r = client.get("/meta/v25.0/238000001", params={"fields": "id,daily_budget,status"})
-    assert r.json() == {"id": "238000001", "daily_budget": "250000", "status": "PAUSED"}
+    assert r.json() == {"id": "238000001", "daily_budget": "250000", "status": "PAUSED"}  # exact round trip
+    inr = client.app.state.store.read("SELECT amount FROM budgets_state WHERE budget_id = '238000001'")[0][0]
+    assert inr == pytest.approx(2500 * FX)  # the world keeps INR
 
 
 def test_meta_errors(client):
@@ -115,7 +129,8 @@ def test_meta_rate_limit_is_graph_code_17(client):
     fault(client, "meta", "rate_limit", "f1")
     r = client.post("/meta/v25.0/238000001", json={"daily_budget": "100000"}, headers={"X-Request-ID": "x"})
     assert r.status_code == 400 and r.json()["error"]["code"] == 17 and r.json()["error"]["is_transient"]
-    assert client.get("/meta/v25.0/238000001", params={"fields": "daily_budget"}).json()["daily_budget"] == "300000"
+    after = client.get("/meta/v25.0/238000001", params={"fields": "daily_budget"}).json()["daily_budget"]
+    assert after == META_3000_INR_CENTS
 
 
 def test_faults_are_per_platform_and_counted(client):

@@ -1,4 +1,4 @@
-"""Mock Google Ads API v25 (REST shapes): campaign budget mutate + a GAQL subset for read-back (spec §9.3, §9.4).
+"""Mock Google Ads API v25 (REST shapes): campaign budget mutate (spec §9.3, §9.4). Read-back: reporting/google.py.
 
 Budgets are stored in brand currency (INR); the wire format is amountMicros as an int64 string.
 The mock accepts one operation per mutate request (the ADAPT adapter sends one leg per request).
@@ -20,12 +20,6 @@ router = APIRouter(prefix="/google/v25", tags=["mock-google"])
 MICROS = 1_000_000
 MICROS_INCREMENT = 10_000  # Google requires budget amounts in multiples of 0.01 currency units
 RESOURCE_RE = re.compile(r"^customers/(?P<cid>\d+)/campaignBudgets/(?P<bid>[^/]+)$")
-GAQL_RE = re.compile(
-    r"^\s*SELECT\s+(?P<fields>[\w.,\s]+?)\s+FROM\s+campaign_budget"
-    r"(?:\s+WHERE\s+campaign_budget\.id\s*=\s*(?P<bid>\w+))?\s*$",
-    re.IGNORECASE,
-)
-GAQL_FIELDS = {"campaign_budget.resource_name", "campaign_budget.id", "campaign_budget.amount_micros"}
 
 FAULT_HTTP = {
     "rate_limit": (429, "RESOURCE_EXHAUSTED", "Too many requests."),
@@ -47,10 +41,6 @@ class MutateOperation(BaseModel):
 
 class MutateRequest(BaseModel):
     operations: list[MutateOperation]
-
-
-class SearchRequest(BaseModel):
-    query: str
 
 
 def google_error(code: int, status: str, message: str, error_code: str | None = None) -> JSONResponse:
@@ -97,38 +87,4 @@ def mutate_campaign_budgets(
     return JSONResponse({"results": [{"resourceName": op.update.resourceName}]})
 
 
-@router.post("/customers/{customer_id}/googleAds:search")
-def search(customer_id: str, body: SearchRequest, request: Request) -> JSONResponse:
-    m = GAQL_RE.match(body.query)
-    if m is None:
-        return google_error(400, "INVALID_ARGUMENT", "mock GAQL supports SELECT ... FROM campaign_budget [WHERE id]")
-    fields = [f.strip().lower() for f in m["fields"].split(",")]
-    unknown = [f for f in fields if f not in GAQL_FIELDS]
-    if unknown:
-        return google_error(400, "INVALID_ARGUMENT", f"unrecognized fields: {', '.join(unknown)}")
-    sql = "SELECT budget_id, amount FROM budgets_state WHERE platform = 'google'"
-    params: list = []
-    if m["bid"]:
-        sql += " AND budget_id = ?"
-        params.append(m["bid"])
-    rows = _store(request).read(sql + " ORDER BY budget_id", params)
-    results = []
-    for budget_id, amount in rows:
-        full = {
-            "campaign_budget.resource_name": ("resourceName", f"customers/{customer_id}/campaignBudgets/{budget_id}"),
-            "campaign_budget.id": ("id", str(budget_id)),
-            "campaign_budget.amount_micros": ("amountMicros", str(round(amount * MICROS))),
-        }
-        results.append({"campaignBudget": dict(full[f] for f in fields)})
-    field_mask = ",".join(_camel(f) for f in fields)
-    return JSONResponse({"results": results, "fieldMask": field_mask})
-
-
-def _camel(field: str) -> str:
-    """campaign_budget.amount_micros -> campaignBudget.amountMicros"""
-    return ".".join(_lower_camel(part) for part in field.split("."))
-
-
-def _lower_camel(snake: str) -> str:
-    head, *rest = snake.split("_")
-    return head + "".join(p.title() for p in rest)
+# Read-back (googleAds:search, GAQL) lives in world.reporting.google: verification and reporting share one engine.
