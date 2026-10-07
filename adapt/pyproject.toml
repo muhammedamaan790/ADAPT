@@ -20,6 +20,7 @@ dependencies = [
     "structlog>=24.4",
     "rfc8785>=0.1.4",
     "kaggle>=1.6",
+    "google-auth-oauthlib>=1.2",
 ]
 
 [dependency-groups]

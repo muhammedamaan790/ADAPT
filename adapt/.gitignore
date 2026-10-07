@@ -4,10 +4,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .env
-data/raw/
-data/workspaces/
-data/world/
-data/artifacts/
+# everything under data/ is downloaded or generated (raw Kaggle files, backbone, world DBs, reports, artifacts)
+data/
 *.duckdb
 *.duckdb.wal
 evidence/tmp/

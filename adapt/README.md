@@ -18,6 +18,13 @@ uv run ruff check .          # lint
 $env:PYTHONPATH="backend;world;evalharness"; uv run lint-imports
 ```
 
+## Build the world's data backbone (once, after the Kaggle download)
+```powershell
+$env:PYTHONPATH="backend"; uv run python -m adapt.ingest.profile --raw-dir data/raw --out data/profile_report.json
+$env:PYTHONPATH="world"; uv run python -m world.backbone --raw-dir data/raw --out data/world/backbone
+```
+Produces 60 price-band SKUs in 12 categories over the last 365 days, with a checksum manifest. Design decisions are in `docs/contracts/world_backbone.md`.
+
 ## Run the world service (simulated outside world + mock Google/Meta APIs)
 ```powershell
 uv run uvicorn world.main:app --app-dir world --port 8100
