@@ -1,0 +1,20 @@
+# Policy guardrails (spec §8.3, §9.1). The optimizer's feasible set and the policy engine (C4) read this same file,
+# so they can never drift apart. Versioned with the policy.
+budget:
+  total_budget_inr: null          # B; null = the current total of all budgets (demo: B0 = B - R)
+  cash_reserve_rupees: 0          # R = max(rupees, pct x B); default 0: "sum s' <= B, unspent allowed"
+  cash_reserve_pct: 0.0
+change:
+  max_daily_change_pct: 0.20      # box [s0 (1 - d), s0 (1 + u)] per unit per day
+  max_rupees_moved_pct: 0.25      # sum |s' - s| <= this x sum s (max rupees moved per day)
+  unit_min_budget_inr: 500        # per-unit minimum while active (also the last-active-campaign floor)
+  unit_max_budget_inr: null       # per-unit maximum (null = none beyond the box)
+  cooldown_days: 3
+channel_share:                    # share of allocated spend (unallocated cash excluded); null = unconstrained
+  min: {}
+  max: {}
+inventory_gate:                   # exposure x_i = sum_k w_ik 1[at_risk_k after the change] + u_i
+  allow_below: 0.10
+  block_above: 0.50
+mix_uncertain_unmapped_share: 0.20  # u_i above this -> MIX_UNCERTAIN: no autonomous / optimizer increase
+roas_floor: null                  # optional reconciled-ROAS floor for any unit receiving an increase

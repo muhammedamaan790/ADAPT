@@ -25,6 +25,23 @@ def seeded_world(tmp_path_factory) -> Path:
     return seed_fixture_world(root / "world", bb, ga)
 
 
+@pytest.fixture(scope="session")
+def seeded_world_large(tmp_path_factory) -> Path:
+    """6x the fixture volume: creative-level modules need >= 5,000 impressions per creative per week."""
+    root = tmp_path_factory.mktemp("integration_large")
+    bb = make_backbone(root / "backbone")
+    ga = make_global_ads(root / "global_ads.csv")
+    return seed_fixture_world(root / "world", bb, ga, brand_scale=60.0)
+
+
+@pytest.fixture
+def world_large(seeded_world_large, tmp_path):
+    d = tmp_path / "world_large"
+    shutil.copytree(seeded_world_large, d)
+    with TestClient(create_app(world_dir=d)) as client:
+        yield client
+
+
 @pytest.fixture
 def world(seeded_world, tmp_path):
     d = tmp_path / "world"

@@ -150,6 +150,11 @@ def test_demand_index_shape_and_future_continuation(truth):
         assert np.mean(future) == pytest.approx(truth.future_level[code], rel=0.05)
     # the fixture's demand grows ~50% over the window, so the carried-forward level is above 1
     assert all(level > 1.1 for level in truth.future_level.values())
+    # no cliff at day 0: the first live week continues the last two history weeks (weekday pattern included)
+    for code in truth.future_level:
+        last = np.mean([truth.demand_index(code, day) for day in range(-14, 0)])
+        first = np.mean([truth.demand_index(code, day) for day in range(0, 14)])
+        assert first == pytest.approx(last, rel=0.10), code
 
 
 def test_creative_multipliers_average_one_per_campaign(truth):

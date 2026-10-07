@@ -45,6 +45,12 @@ unit_costs:                      # TheLook has no shipping or payment costs
   ship_cost_min_inr: 60
   payment_fee_pct: 0.02
 
+history_manager:                 # the seeded history's human manager (assumption; no empirical source)
+  weekly_adjust_sigma: 0.15      # weekly tweaks around the monthly plan, x LogNormal(-s^2/2, s): tests, pushes and
+                                 # pull-backs. Without them spend tracks demand exactly and no observational response
+                                 # curve is identifiable (measured on seed 42: 34 of 47 budget units unstable/rejected,
+                                 # Hill(spend) vs demand-baseline correlation 0.85-0.91)
+
 step:                            # world.step behaviour (no empirical source)
   pacing: [0.95, 1.0]            # share of the daily budget actually delivered
   delivery_optimization: 0.5     # impressions split across live creatives ~ quality^this (1 = instant optimisation,

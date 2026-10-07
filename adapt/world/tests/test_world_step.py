@@ -38,7 +38,7 @@ def test_history_is_complete_and_clock_at_day_zero(world):
     assert days == (-truth.history_days, -1, truth.history_days)
     n_campaigns = len(truth.catalog.campaigns)
     assert q(store, "SELECT count(*) FROM fact_ad_campaign_daily")[0][0] == n_campaigns * truth.history_days
-    # budget edits are in the log as human (history-manager) actions, one per budget per month
+    # budget edits are in the log as human (history-manager) actions, one per budget per weekly segment
     actors = dict(q(store, "SELECT actor_id, count(*) FROM world_log GROUP BY 1"))
     assert actors["history-manager"] % len(truth.catalog.budgets()) == 0
 

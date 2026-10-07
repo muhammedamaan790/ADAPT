@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from adapt.diagnose.decomposition import drilldown, roas_decomposition
+from adapt.diagnose.drivers import rank
+from adapt.diagnose.evidence import MODULES, Incident
 
 # metric -> (numerator column, denominator column, scale) for the drill-down; AOV drills by SKU from order lines
 DRILL = {
@@ -21,6 +23,15 @@ CREATE SCHEMA IF NOT EXISTS intel;
 CREATE TABLE IF NOT EXISTS intel.decompositions (
     anomaly_id VARCHAR NOT NULL, as_of TIMESTAMP NOT NULL, pre_start DATE, pre_end DATE, post_start DATE,
     post_end DATE, funnel JSON, drilldown JSON, PRIMARY KEY (anomaly_id, as_of)
+);
+CREATE TABLE IF NOT EXISTS intel.evidence (
+    evidence_id VARCHAR NOT NULL, anomaly_id VARCHAR NOT NULL, as_of TIMESTAMP NOT NULL, module VARCHAR NOT NULL,
+    status VARCHAR NOT NULL, score DOUBLE NOT NULL, levers JSON, "values" JSON, reason VARCHAR,
+    PRIMARY KEY (evidence_id, as_of)
+);
+CREATE TABLE IF NOT EXISTS intel.diagnoses (
+    anomaly_id VARCHAR NOT NULL, as_of TIMESTAMP NOT NULL, top_driver VARCHAR, top_level VARCHAR NOT NULL,
+    method VARCHAR NOT NULL, ranking JSON NOT NULL, PRIMARY KEY (anomaly_id, as_of)
 );
 """
 
@@ -49,38 +60,65 @@ def _sku_segments(cur, ids: list[str], lo, hi) -> dict[str, tuple[float, float]]
     return {s: (float(o), float(r or 0)) for s, o, r in rows}
 
 
-def run_diagnosis(db, as_of: datetime) -> dict:
-    def work(cur) -> dict:
-        cur.execute(DDL)
-        incidents = cur.execute("""SELECT anomaly_id, entity_ids, metric, window_start, window_end
-                                   FROM intel.anomalies WHERE is_incident AND status <> 'resolved'
-                                   AND last_detected_at = ?""", [as_of]).fetchall()
-        done = 0
-        for aid, ids_json, metric, post_lo, post_hi in incidents:
-            ids = json.loads(ids_json)
-            pre_hi = post_lo - timedelta(days=1)
-            pre_lo = post_lo - timedelta(days=28)
-            funnel = roas_decomposition(_totals(cur, ids, pre_lo, pre_hi), _totals(cur, ids, post_lo, post_hi))
-            dims: dict = {}
-            if metric in DRILL:
-                num, den, scale = DRILL[metric]
-                for dim, table, key in (("ad_set", "marts.adset_daily", "adset_id"),
-                                        ("creative", "marts.creative_daily", "ad_id")):
-                    dims[dim] = (_segments(cur, table, key, num, den, ids, pre_lo, pre_hi),
-                                 _segments(cur, table, key, num, den, ids, post_lo, post_hi))
-                dd = drilldown(dims, scale)
-            elif metric == "AOV":
-                dd = drilldown({"sku": (_sku_segments(cur, ids, pre_lo, pre_hi),
-                                        _sku_segments(cur, ids, post_lo, post_hi))})
-            else:
-                dd = None
-            dd_json = None if dd is None else {
-                "dimension": dd.dimension, "explained_share": dd.explained_share, "parent_delta": dd.parent_delta,
-                "segments": [{**asdict(s), "combined": s.combined} for s in dd.segments]}
-            cur.execute("INSERT OR REPLACE INTO intel.decompositions VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        [aid, as_of, pre_lo, pre_hi, post_lo, post_hi, json.dumps(asdict(funnel)),
-                         json.dumps(dd_json)])
-            done += 1
-        return {"decomposed": done}
+def decompose(db, inc: Incident) -> tuple[dict, dict | None]:
+    """Funnel decomposition + drill-down for one incident (reads only)."""
+    ids = inc.campaign_ids
+    with db.read() as cur:
+        funnel = roas_decomposition(_totals(cur, ids, inc.pre_start, inc.pre_end),
+                                    _totals(cur, ids, inc.post_start, inc.post_end))
+        dd = None
+        if inc.metric in DRILL:
+            num, den, scale = DRILL[inc.metric]
+            dims = {dim: (_segments(cur, table, key, num, den, ids, inc.pre_start, inc.pre_end),
+                          _segments(cur, table, key, num, den, ids, inc.post_start, inc.post_end))
+                    for dim, table, key in (("ad_set", "marts.adset_daily", "adset_id"),
+                                            ("creative", "marts.creative_daily", "ad_id"))}
+            dd = drilldown(dims, scale)
+        elif inc.metric == "AOV":
+            dd = drilldown({"sku": (_sku_segments(cur, ids, inc.pre_start, inc.pre_end),
+                                    _sku_segments(cur, ids, inc.post_start, inc.post_end))})
+    dd_json = None if dd is None else {
+        "dimension": dd.dimension, "explained_share": dd.explained_share, "parent_delta": dd.parent_delta,
+        "segments": [{**asdict(s), "combined": s.combined} for s in dd.segments]}
+    return asdict(funnel), dd_json
 
-    return db.write(work)
+
+def diagnose_incident(db, inc: Incident) -> dict:
+    """Level 1 (exact accounting) + level 2 (evidence modules) for one incident, ranked (reads only)."""
+    funnel, dd = decompose(db, inc)
+    evidence = [module(db, inc) for module in MODULES.values()]
+    ranking = rank(evidence, inc.metric, funnel)
+    return {"funnel": funnel, "drilldown": dd, "evidence": evidence, "ranking": ranking}
+
+
+def incident_from_row(aid, scope, ids_json, platform, metric, lo, hi) -> Incident:
+    ids = json.loads(ids_json)
+    if scope == "creative":
+        return Incident(aid, platform, [ids[0]], ids[1], metric, lo, hi)
+    return Incident(aid, platform, ids, None, metric, lo, hi)
+
+
+def run_diagnosis(db, as_of: datetime) -> dict:
+    db.write(lambda cur: cur.execute(DDL))
+    rows = db.query("""SELECT anomaly_id, scope, entity_ids, platform, metric, window_start, window_end
+                       FROM intel.anomalies WHERE is_incident AND status <> 'resolved' AND last_detected_at = ?""",
+                    [as_of])
+    results = [(incident_from_row(*r), None) for r in rows]
+    results = [(inc, diagnose_incident(db, inc)) for inc, _ in results]
+
+    def persist(cur) -> dict:
+        for inc, d in results:
+            cur.execute("INSERT OR REPLACE INTO intel.decompositions VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        [inc.anomaly_id, as_of, inc.pre_start, inc.pre_end, inc.post_start, inc.post_end,
+                         json.dumps(d["funnel"]), json.dumps(d["drilldown"])])
+            for e in d["evidence"]:
+                cur.execute("INSERT OR REPLACE INTO intel.evidence VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            [f"EVD-{inc.anomaly_id}-{e.module}", inc.anomaly_id, as_of, e.module, e.status, e.score,
+                             json.dumps(e.levers), json.dumps(e.values, default=str), e.reason])
+            r = d["ranking"]
+            cur.execute("INSERT OR REPLACE INTO intel.diagnoses VALUES (?, ?, ?, ?, ?, ?)",
+                        [inc.anomaly_id, as_of, r["top_driver"], r["top_level"], r["method"], json.dumps(r)])
+        return {"decomposed": len(results), "diagnosed": len(results),
+                "top_drivers": {inc.anomaly_id: d["ranking"]["top_driver"] for inc, d in results}}
+
+    return db.write(persist)
