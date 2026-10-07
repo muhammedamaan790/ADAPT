@@ -19,7 +19,20 @@ Nothing here exposes truth: no hidden parameters, no lost demand, no scenario gr
 | GA4 Data API | `POST /ga4/v1beta/properties/412345678:runReport` | dims date/sessionSource/sessionMedium/sessionCampaignId (`(not set)` for unpaid); metrics sessions/ecommercePurchases/purchaseRevenue; records ~95% of sessions and purchases |
 | ERP | `GET /erp/v1/stock?date=`, `GET /erp/v1/receipts?from=&to=` | end-of-day snapshot with open POs (`expected_arrival`); 404 for an incomplete day |
 
-## TESTS (`world/tests/test_world_reporting.py`)
+## Creative assets
+`GET /assets/creatives` = the creative_assets registry (`creative_asset_id, creative_id, asset_uri, content_type,
+thumbnail_uri, format, hook, cta, headline_text, provenance=SIMULATED`); `GET /assets/creatives/{id}.svg` and
+`{id}_thumb.svg` render a deterministic SVG card (category headline, hook line, CTA, format badge). Meta ads'
+`creative.image_url` points here.
+
+## Eval-only truth listener (`world/world/truth_api.py`)
+Started only with `WORLD_EVAL_MODE=1` (port `WORLD_EVAL_PORT`, default 8101), bound to **127.0.0.1**, same process
+as the public listener (shared store, so DuckDB's single-writer lock holds). Every route needs `X-Eval-Token`, a
+per-run `secrets.token_urlsafe(32)` written to `<world_dir>/.eval_token` and deleted on shutdown; comparison is
+constant-time; no OpenAPI is published. Routes: `/truth/gt_incidents`, `/truth/scenarios`, `/truth/campaigns`,
+`/truth/lost_demand`. The public listener returns 404 for all of them (T37).
+
+## TESTS (`world/tests/test_world_reporting.py`, `test_world_assets_truth.py`)
 Each report reconciles exactly with the world's facts: Meta ad-level insights paged with cursors (no duplicates,
 impressions/clicks/claimed conversions exact, USD spend x fx = INR spend); Google campaign- and ad-level totals
 equal and equal the facts (cost micros exact); store orders paged by `since_id` equal the day's orders with GST

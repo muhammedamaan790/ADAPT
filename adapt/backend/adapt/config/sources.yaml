@@ -1,0 +1,60 @@
+# Connector configuration (spec §1 "source contracts", channel_mapping.yaml in the spec).
+# These are ADAPT's own settings for the accounts it reads, exactly as they would be for real platforms.
+# report_lag_hours: how long after the end of an event day the source's report for that day is complete;
+# available_at (logical time) = end of the event day (00:00 IST next day) + this lag (spec §22.9).
+
+brand_timezone: Asia/Kolkata
+brand_currency: INR
+
+fx:                       # simulation_fx: fixed rates for reproducibility (spec §1); units of INR per unit
+  INR: 1.0
+  USD: 83.0
+
+sources:
+  meta_ads:
+    account_id: "1029384756"
+    api_version: v25.0
+    currency: USD
+    timezone: Asia/Kolkata
+    report_lag_hours: 6
+    provenance: CALIBRATED
+    schema_version: "meta-insights-v25.0"
+  google_ads:
+    customer_id: "6876531111"
+    api_version: v25
+    currency: INR
+    timezone: Asia/Kolkata
+    report_lag_hours: 3
+    provenance: CALIBRATED
+    schema_version: "google-ads-v25"
+  store:
+    api_version: "2025-07"
+    currency: INR
+    timezone: Asia/Kolkata
+    report_lag_hours: 0
+    provenance: CALIBRATED
+    schema_version: "store-admin-2025-07"
+  finance:
+    currency: INR
+    timezone: Asia/Kolkata
+    report_lag_hours: 0
+    provenance: PUBLIC-SAMPLE
+    schema_version: "finance-v1"
+  ga4:
+    property_id: "412345678"
+    currency: INR
+    timezone: Asia/Kolkata
+    report_lag_hours: 12
+    provenance: CALIBRATED
+    schema_version: "ga4-data-v1beta"
+  erp:
+    currency: INR
+    timezone: Asia/Kolkata
+    report_lag_hours: 2
+    provenance: CALIBRATED
+    schema_version: "erp-v1"
+
+sync:
+  backfill_days: 365      # first run pulls this much history
+  lookback_days: 3        # every later run re-pulls this many recent days (late or corrected data re-dirties dates)
+  page_limit: 250

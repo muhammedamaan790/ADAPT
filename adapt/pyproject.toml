@@ -36,7 +36,7 @@ package = false
 
 [tool.pytest.ini_options]
 pythonpath = ["backend", "world", "evalharness"]
-testpaths = ["backend/tests", "world/tests"]
+testpaths = ["backend/tests", "world/tests", "integration"]
 addopts = "-q"
 
 [tool.ruff]

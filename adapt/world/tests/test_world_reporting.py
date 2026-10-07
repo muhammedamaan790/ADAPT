@@ -36,7 +36,7 @@ def gaql(client, query, page_token=None):
 
 
 def test_health_reports_the_seeded_clock(client):
-    assert client.get("/health").json() == {"seeded": True, "seed": 42, "day": 0}
+    assert client.get("/health").json() == {"seeded": True, "seed": 42, "day": 0, "date": "2026-10-01"}
 
 
 # ---- Meta ---------------------------------------------------------------------------------------------------

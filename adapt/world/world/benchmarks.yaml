@@ -47,6 +47,8 @@ unit_costs:                      # TheLook has no shipping or payment costs
 
 step:                            # world.step behaviour (no empirical source)
   pacing: [0.95, 1.0]            # share of the daily budget actually delivered
+  delivery_optimization: 0.5     # impressions split across live creatives ~ quality^this (1 = instant optimisation,
+                                 # 0 = even split); platforms re-optimise gradually, so a fatigued creative keeps reach
   view_through_rate:             # platform-claimed extra conversions per click-through purchase (over-attribution)
     google_search: [0.05, 0.15]
     google_video: [0.15, 0.35]

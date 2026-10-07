@@ -27,8 +27,9 @@ Produces 60 price-band SKUs in 12 categories over the last 365 days, with a chec
 
 ## Seed a world (truth + 365 simulated history days, ~2 minutes)
 ```powershell
-$env:PYTHONPATH="world"; uv run python -m world.seed --seed 42 --overwrite
+$env:PYTHONPATH="world"; uv run python -m world.seed --seed 42 --overwrite --demo
 ```
+`--demo` schedules the golden-demo scenario DEMO_01 ten days before day 0. Other scenarios (S1–S5, S7) are activated at runtime with `POST /control/scenario` (see `docs/contracts/world_scenarios.md`).
 Writes `data/world/seed42/sim_truth.duckdb` (hidden truth, read-only afterwards) and `sim_state.duckdb` (the world after its history, clock at day 0). See `docs/contracts/world_truth.md` and `world_step.md`.
 
 ## Run the world service (simulated outside world + mock Google/Meta/store/GA4/ERP APIs)
@@ -36,6 +37,13 @@ Writes `data/world/seed42/sim_truth.duckdb` (hidden truth, read-only afterwards)
 $env:WORLD_DIR="data/world/seed42"; uv run uvicorn world.main:app --app-dir world --port 8100
 ```
 Control routes: `POST /control/reset|advance|fault|budget` (each needs an `X-Request-ID` header; a repeated ID is applied once), `GET /control/log`. Reset restores the post-history baseline. Reporting and mutation endpoints are listed in `docs/contracts/world_reporting.md`. Without `WORLD_DIR` the service runs a bare control-plane store (no reporting).
+
+## Sync the sources into the ADAPT workspace (A2 connectors)
+With the world service running on `ADAPT_WORLD_URL` (default `http://127.0.0.1:8100`):
+```powershell
+$env:PYTHONPATH="backend"; uv run python -m adapt.ingest.sync
+```
+First run backfills 365 days (~2 minutes for seed 42), later runs re-pull a 3-day window. Rules in `docs/contracts/connectors.md`.
 
 ## Run the API
 ```powershell

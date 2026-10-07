@@ -13,10 +13,10 @@ def client(tmp_path):
 
 
 def test_health_before_and_after_seeding(client):
-    assert client.get("/health").json() == {"seeded": False, "seed": None, "day": None}
+    assert client.get("/health").json() == {"seeded": False, "seed": None, "day": None, "date": None}
     r = client.post("/control/reset", json={"seed": 42}, headers={"X-Request-ID": "r0"})
     assert r.status_code == 200 and r.json()["seq"] == 1
-    assert client.get("/health").json() == {"seeded": True, "seed": 42, "day": 0}
+    assert client.get("/health").json() == {"seeded": True, "seed": 42, "day": 0, "date": None}
 
 
 def test_advance_is_idempotent_per_request_id(client):

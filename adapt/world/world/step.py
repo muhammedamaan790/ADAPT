@@ -25,6 +25,7 @@ import pandas as pd
 from world.funnel import FunnelInputs, n_max, prospect_funnel
 from world.priors import benchmarks
 from world.rng import generator, uniforms
+from world.scenarios import SCENARIO_SCHEMA, apply_day_events, effects_for_day, op_activate_scenario, po_blocked
 from world.state import WorldContext, WorldStateConflict, WorldStore
 from world.truth import Truth, cpm_at, frequency, spend_for_purchases
 
@@ -108,7 +109,8 @@ def manager_budgets(truth: Truth, cum: dict[str, int], from_day: int, to_day: in
             t = truth.campaigns[cid]
             live = [cr for cr in truth.catalog.creatives if cr.campaign_id == cid and cr.launch_day <= from_day]
             q = np.array([creative_quality(truth, cr.creative_id, cum.get(cr.creative_id, 0)) for cr in live])
-            served_quality = float((q * q).sum() / q.sum()) if q.size else 1.0  # delivery is weighted by quality
+            kappa = bench["step"]["delivery_optimization"]  # delivery ~ q^kappa, so served quality = E_w[q]
+            served_quality = float((q ** (1 + kappa)).sum() / (q ** kappa).sum()) if q.size else 1.0
             demand = float(np.mean([truth.demand_index(t.category_code, d) for d in days]))
             target = rates.loc[t.category_code, f"paid_{t.channel}"] * demand
             spend = spend_for_purchases(target, t, demand, ctr_mult=served_quality * noise_mult, cpm_mult=cpm_mult)
@@ -183,8 +185,9 @@ def op_set_inventory(cur: duckdb.DuckDBPyConnection, payload: dict[str, Any], ct
 
 def make_store(path, truth: Truth) -> WorldStore:
     ctx = WorldContext(truth=truth, simulate_day=lambda cur, seed, day: simulate_day(cur, truth, seed, day))
-    return WorldStore(path, ctx=ctx, extra_schema=STEP_SCHEMA,
-                      extra_ops={"init_world": op_init_world, "set_inventory": op_set_inventory})
+    return WorldStore(path, ctx=ctx, extra_schema=STEP_SCHEMA + SCENARIO_SCHEMA,
+                      extra_ops={"init_world": op_init_world, "set_inventory": op_set_inventory,
+                                 "activate_scenario": op_activate_scenario})
 
 
 # ---- the day ------------------------------------------------------------------------------------------------------
@@ -195,6 +198,12 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
     weekday = truth.config.world_date(day).weekday()
     weekly = bench["weekly_cpm_profile"]
     rho = bench["demand_on_conversion"]
+
+    apply_day_events(cur, truth, day)  # scenario one-shots (stock, prices, human budget edits) happen first
+    eff = effects_for_day(cur, truth, day)
+
+    def demand(category_code: str) -> float:
+        return truth.demand_index(category_code, day) * eff.demand_mult.get(category_code, 1.0)
 
     inventory = {r[0]: list(r[1:]) for r in cur.execute(
         "SELECT sku, on_hand, inbound_qty, inbound_day, reorder_point, order_qty, lead_time_days FROM inventory_state"
@@ -267,16 +276,19 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
             campaign_rows.append((day, c.platform, c.campaign_id, 0, 0, 0, 0, 0, 0, 0.0, None))
             continue
         cpm_noise = math.exp(sigma["cpm"] * _normal(seed, day, c.campaign_id, "noise:cpm"))
-        cpm = cpm_at(target, t) * cpm_noise * weekly[weekday]
+        cpm = cpm_at(target, t) * cpm_noise * weekly[weekday] * eff.cpm_mult.get(c.platform, 1.0)
         imps = math.floor(1000.0 * target / cpm)
         spend = imps * cpm / 1000.0
-        sat = frequency(imps, t.audience_size) ** -t.ctr_freq_gamma
+        audience = t.audience_size * eff.audience_mult.get(c.campaign_id, 1.0)
+        sat = frequency(imps, audience) ** -t.ctr_freq_gamma
         ctr_noise = math.exp(sigma["ctr"] * _normal(seed, day, c.campaign_id, "noise:ctr"))
         cvr_noise = math.exp(sigma["cvr"] * _normal(seed, day, c.campaign_id, "noise:cvr"))
-        quality = np.array([creative_quality(truth, cr.creative_id, cum.get(cr.creative_id, 0)) for cr in live])
-        weights = quality / quality.sum()
+        quality = np.array([creative_quality(truth, cr.creative_id, cum.get(cr.creative_id, 0)) *
+                            eff.creative_ctr_mult.get(cr.creative_id, 1.0) for cr in live])
+        delivery = quality ** st["delivery_optimization"]
+        weights = delivery / delivery.sum()
         creative_ctr = np.minimum(1.0, t.base_ctr * quality * sat * ctr_noise)
-        p_buy = t.p_buy * truth.demand_index(c.category_code, day) ** rho * cvr_noise * price_factor[c.category_code]
+        p_buy = t.p_buy * demand(c.category_code) ** rho * cvr_noise * price_factor[c.category_code]
         skus = cat.skus_of(c.category_code)
         sku_ids = tuple(s.sku for s in skus) + (WAREHOUSE,)
         sku_w = tuple((1 - t.cross_sell_share) * s.mix_weight for s in skus) + (t.cross_sell_share,)
@@ -286,7 +298,7 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
         min_cpm = t.base_cpm_inr * min(weekly) * math.exp(-5 * sigma["cpm"])
         inputs = FunnelInputs(
             spend=target, cpm=cpm, ctr=0.0, click_session_rate=t.click_session_rate, cvr=p_buy,
-            audience_size=max(1, int(t.audience_size)), sku_ids=sku_ids, sku_weights=sku_w, return_rates=rr,
+            audience_size=max(1, int(audience)), sku_ids=sku_ids, sku_weights=sku_w, return_rates=rr,
             creative_weights=tuple(float(w) for w in weights), creative_ctr=tuple(float(x) for x in creative_ctr),
         )
         a = prospect_funnel(seed, day, c.campaign_id, inputs, n_max(s_max, min_cpm))
@@ -311,7 +323,7 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
     # 3. unpaid demand
     rates = truth.category_rates.set_index("category_code")
     for c in cat.categories:
-        idx = truth.demand_index(c.code, day) * price_factor[c.code]
+        idx = demand(c.code) * price_factor[c.code]
         skus = cat.skus_of(c.code)
         cdf = np.cumsum([s.mix_weight for s in skus])
         cdf[-1] = 1.0
@@ -422,21 +434,23 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
         if row.impressions == 0:
             continue
         ch = cat.campaign(row.campaign_id).channel
+        rate = ga_rate * eff.ga_mult.get(ch, 1.0)
         g = generator(seed, day, row.campaign_id, "ga")
         n_orders = int(row.orders)
         value = float(by_campaign.value.get(row.campaign_id, 0.0)) if not by_campaign.empty else 0.0
-        purchases = int(g.binomial(n_orders, ga_rate))
-        ga_rows.append((day, *SOURCE_MEDIUM[ch], row.campaign_id, int(g.binomial(int(row.sessions), ga_rate)),
+        purchases = int(g.binomial(n_orders, rate))
+        ga_rows.append((day, *SOURCE_MEDIUM[ch], row.campaign_id, int(g.binomial(int(row.sessions), rate)),
                         purchases, value * purchases / n_orders if n_orders else 0.0))
     unpaid = orders[orders.campaign_id.isna()] if not orders.empty else orders
     for src in ("email", "organic"):
         sub = unpaid[unpaid.channel == src] if not unpaid.empty else unpaid
         n_orders = len(sub)
         g = generator(seed, day, f"ga:{src}", "ga")
+        rate = ga_rate * eff.ga_mult.get(src, 1.0)
         sessions = int(g.poisson(n_orders / st["unpaid_session_cvr"])) if n_orders else 0
-        purchases = int(g.binomial(n_orders, ga_rate))
+        purchases = int(g.binomial(n_orders, rate))
         value = float(sub.unit_price_inr.sum()) if n_orders else 0.0
-        ga_rows.append((day, *SOURCE_MEDIUM[src], None, int(g.binomial(max(sessions, n_orders), ga_rate)),
+        ga_rows.append((day, *SOURCE_MEDIUM[src], None, int(g.binomial(max(sessions, n_orders), rate)),
                         purchases, value * purchases / n_orders if n_orders else 0.0))
     _insert(cur, "fact_ga_daily", pd.DataFrame(ga_rows, columns=[
         "day", "source", "medium", "campaign_id", "sessions", "purchases", "revenue_inr"]))
@@ -448,13 +462,14 @@ def simulate_day(cur: duckdb.DuckDBPyConnection, truth: Truth, seed: int, day: i
         "SELECT sku, sum(units_sold), count(*) FROM fact_erp_daily WHERE day > ? GROUP BY sku", [day - window]
     ).fetchall()}
     erp_rows = []
+    blocked = po_blocked(cur, day)  # supplier delay (scenario S3 / DEMO_01): no new purchase orders
     for sku in sorted(inventory):
         on_hand, inbound_qty, inbound_day, _, _, lead = inventory[sku]
         sold_hist, n_hist = trailing.get(sku, (0, 0))
         daily = (sold_hist + units_sold.get(sku, 0)) / (n_hist + 1)
         s_point = math.ceil(daily * (lead + inv_cfg["safety_days"]))
         q = max(1, math.ceil(daily * inv_cfg["order_cover_days"]))
-        if inbound_qty == 0 and on_hand <= s_point:
+        if inbound_qty == 0 and on_hand <= s_point and sku not in blocked:
             inbound_qty, inbound_day = q, day + lead
         cur.execute("UPDATE inventory_state SET on_hand = ?, inbound_qty = ?, inbound_day = ?, reorder_point = ?, "
                     "order_qty = ? WHERE sku = ?", [on_hand, inbound_qty, inbound_day, s_point, q, sku])
