@@ -52,3 +52,21 @@ Integration (`integration/test_connectors_sync.py`, the only tests importing bot
 reconciles exactly with the world's facts per source; logical time + provenance + raw pages; re-sync is
 idempotent and the lookback window applies; `advance` brings exactly the new day; a failing GA4 is isolated and
 recorded while the others commit; unseeded world refused.
+
+## Stage 2 SIMULATED channels (optional sources)
+Enabled per world at seeding (`python -m world.seed --channels tiktok,amazon_sp`); a world without them answers with
+empty reports, and data health reports them NOT_CONFIGURED (never RED). `backend/adapt/ingest/connectors/marketplaces.py`.
+
+| Source | Native format | Normalisation | Staging |
+|---|---|---|---|
+| tiktok_ads | Business API v1.3 `report/integrated/get` (AUCTION_AD, pages), `campaign/get`, `adgroup/get`, `ad/get` | spend / conversion value USD strings → INR at the simulation FX; `stat_time_day` is labelled UTC: the source date is kept as the analysis date (the simulation shares one day grid; a real UTC account would need hourly data to re-bucket); campaign budget (USD, BUDGET_MODE_DAY) on the campaign | `stg.tiktok_ad_daily`, snapshots |
+| amazon_ads | Sponsored Products v3: `reports/spCampaigns` (ad group daily cost, purchases7d, sales7d), `reports/spPurchasedProduct` (SKU mix of SP sales), `sp/campaigns` / `adGroups` / `productAds` | INR; platform-claimed sales (incl. ~0–5% view-through) | `stg.amazon_sp_daily`, `stg.amazon_purchased_product`, snapshots |
+| amazon_marketplace | SP-API `orders/v0/orders`, `returns/v0/returns` (NextToken pages) | the SEPARATE marketplace order population (TheLook orders are never reassigned); SellerSKU = SKU, ex-tax INR | `stg.amazon_order_lines`, `stg.amazon_returns` |
+
+Canonical state: TikTok / Amazon campaigns (`channel_id` tiktok / amazon_sp) with budgets on the campaign; ad metrics
+union; marketplace lines join `core.order_items` with `sales_channel = amazon` (no UTM, never last-click attributed);
+returns join the refund contract. Amazon has no click path to an order, so Amazon campaigns' attributed sales come
+from the purchased-product report (`core.platform_attributed_daily`: net of the SKU's return rate, contribution from
+the SKU economics) and feed `marts.campaign_daily` and `core.campaign_sku`. Mock adapters: `MockTikTokAdapter`
+(USD, 2 decimals), `MockAmazonAdapter` (INR), absolute setters with separate read-back.
+Tests: `world/tests/test_world_channels.py`, `integration/test_channels_e2e.py`.

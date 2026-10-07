@@ -27,7 +27,11 @@ SOURCE_FACTS = {
     "ga4": ("stg.ga4_daily", "date", "source IS NULL"),
     "erp": ("stg.erp_stock_daily", "date", "sku IS NULL"),
     "finance": ("stg.sku_economics", "snapshot_date", "sku IS NULL"),
+    "tiktok_ads": ("stg.tiktok_ad_daily", "date", "ad_id IS NULL OR campaign_id IS NULL"),
+    "amazon_ads": ("stg.amazon_sp_daily", "date", "ad_group_id IS NULL OR campaign_id IS NULL"),
+    "amazon_marketplace": ("stg.amazon_order_lines", "date", "sku IS NULL"),
 }
+OPTIONAL = {"tiktok_ads", "amazon_ads", "amazon_marketplace"}  # Stage 2: absent from a world -> not reported
 
 
 @lru_cache
@@ -57,18 +61,18 @@ def _checks(cur, source: str, asof: str) -> list[tuple[str, bool, str]]:
     def one(sql: str) -> float:
         return cur.execute(sql).fetchone()[0] or 0
 
-    if source in ("meta_ads", "google_ads"):
+    if source in ("meta_ads", "google_ads", "tiktok_ads", "amazon_ads"):
         t = SOURCE_FACTS[source][0]
-        spend = "spend_inr" if source == "meta_ads" else "cost_inr"
+        spend = "cost_inr" if source in ("google_ads", "amazon_ads") else "spend_inr"
         bad = one(f"SELECT count(*) FROM {t} WHERE available_at <= {asof} AND ({spend} < 0 OR clicks > impressions "
                   "OR impressions < 0)")
         out.append(("ads.ranges", bad == 0, f"{bad} rows with negative spend or clicks > impressions"))
-        platform = "meta" if source == "meta_ads" else "google"
+        platform = source.split("_")[0]
         orphans = one(f"SELECT count(DISTINCT f.campaign_id) FROM {t} f WHERE f.available_at <= {asof} AND NOT EXISTS "
                       f"(SELECT 1 FROM stg.entity_snapshots s WHERE s.platform = '{platform}' "
                       "AND s.entity_type = 'campaign' AND s.entity_id = f.campaign_id)")
         out.append(("ads.referential", orphans == 0, f"{orphans} campaigns in reports but not in the account"))
-        if source == "meta_ads":
+        if source in ("meta_ads", "tiktok_ads"):
             cur_bad = one(f"SELECT count(*) FROM {t} WHERE available_at <= {asof} AND currency <> 'USD'")
             out.append(("ads.currency", cur_bad == 0, f"{cur_bad} rows in an unexpected currency"))
     elif source == "store":
@@ -106,6 +110,9 @@ def build_health(cur, as_of: datetime) -> list[dict]:
     rows = []
     status = {r[0]: r[1] for r in cur.execute("SELECT connector, status FROM ops.connector_status").fetchall()}
     for source, (table, date_col, null_key) in SOURCE_FACTS.items():
+        if source in OPTIONAL and not cur.execute(f"SELECT count(*) FROM {table}").fetchone()[0] \
+                and status.get(source) != "FAILED":
+            continue  # NOT_CONFIGURED: this world / workspace has no such channel
         newest = cur.execute(f"SELECT max({date_col}), max(available_at) FROM {table} "
                              f"WHERE available_at <= {asof}").fetchone()
         hard: list[str] = []

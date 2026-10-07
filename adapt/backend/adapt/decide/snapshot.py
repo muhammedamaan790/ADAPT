@@ -79,21 +79,26 @@ def state_to_dict(s: PortfolioState) -> dict:
         "units": [{"unit_id": u.unit_id, "channel": u.channel, "platform": u.platform, "campaign_ids": u.campaign_ids,
                    "budget": u.budget, "pacing": u.pacing, "curve": curve_to_dict(u.curve),
                    "observed_roas": u.observed_roas, "sku_weights": u.sku_weights, "unmapped_share": u.unmapped_share,
-                   "unmapped_cr": u.unmapped_cr, "is_shared": u.is_shared} for u in s.units],
+                   "unmapped_cr": u.unmapped_cr, "is_shared": u.is_shared, "categories": u.categories,
+                   "stage": u.stage} for u in s.units],
+        "cannibalization": s.cannibalization,
         "skus": {k: {"nrpu": v.nrpu, "unit_contribution": v.unit_contribution, "available": v.available,
-                     "safety_stock": v.safety_stock, "baseline_daily": v.baseline_daily, "on_hand": v.on_hand}
-                 for k, v in s.skus.items()},
+                     "safety_stock": v.safety_stock, "baseline_daily": v.baseline_daily, "on_hand": v.on_hand,
+                     "dispersion": v.dispersion} for k, v in s.skus.items()},
+        "inventory_risk": s.inventory_risk,
     }
 
 
 def state_from_dict(d: dict) -> PortfolioState:
     units = [UnitState(u["unit_id"], u["channel"], u["platform"], u["campaign_ids"], u["budget"], u["pacing"],
                        curve_from_dict(u["curve"]), u["observed_roas"], u["sku_weights"], u["unmapped_share"],
-                       u["unmapped_cr"], u["is_shared"]) for u in d["units"]]
+                       u["unmapped_cr"], u["is_shared"], u.get("categories", []), u.get("stage"))
+             for u in d["units"]]
     skus = {k: SkuState(k, v["nrpu"], v["unit_contribution"], v["available"], v["safety_stock"],
-                        v["baseline_daily"], v["on_hand"]) for k, v in d["skus"].items()}
+                        v["baseline_daily"], v["on_hand"], v.get("dispersion", 1e6)) for k, v in d["skus"].items()}
     return PortfolioState(datetime.fromisoformat(d["as_of"]), d["horizon"], units, skus, d["other_cba_daily"],
-                          d["other_net_revenue_daily"], d["n_draws"], d["meta"])
+                          d["other_net_revenue_daily"], d["n_draws"], d["meta"], d.get("cannibalization", {}),
+                          d.get("inventory_risk", {}))
 
 
 # ---- replay environment (spec §22.9) ---------------------------------------------------------------------------------

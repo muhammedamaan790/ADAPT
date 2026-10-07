@@ -14,8 +14,20 @@ defaults, tuned only on seeds 1–20). Entry points: `diagnose_incident(db, Inci
 | price | CVR, AOV | priced share ≥ 0.20 AND CVR moved opposite to price × min(1, \|Δln CVR_A − Δln CVR_other\| / 0.15) | ≥ 30 pre-window purchases on repriced SKUs | price change %, elasticity, CVR changes |
 | tracking | CVR (measurement) | \|Δln clicks\| ≤ ln 1.15 AND sessions/click drop ≥ 30% × min(1, drop / 0.50) | ≥ 300 clicks per window | session/click pre/post, orders-vs-GA divergence |
 
+| saturation (Stage 2) | CTR, CPM | frequency ratio ≥ 1.30 AND reach growth ≤ 5% AND ≥ 2/3 of eligible creatives with CTR down ≥ 15% × min(1, (frequency ratio − 1) / 1.0) | campaign scope (Meta reach per campaign; Google → NOT_APPLICABLE); daily reach ≥ 2,000 pre; ≥ 2 creatives with ≥ 5,000 impressions per window | frequency pre/post, reach change, share of creatives down, per-creative decline |
+| demand (Stage 2) | CVR | \|d\| ≥ ln 1.15 × min(1, \|d\| / ln 1.40), d = ln(actual / STL-expected unpaid orders of the incident's categories in the window) | ≥ 200 unpaid orders in the 28 pre days | demand change %, d, direction, expected vs actual |
+
 Failure states are explicit: INSUFFICIENT_DATA, NOT_APPLICABLE (with a reason), never a fabricated value.
-Demand and saturation are Stage 2; budget changes are handled by the B2 classifier.
+Budget changes are handled by the B2 classifier.
+
+**Stage 2 data proxies:** saturation's window frequency = Σ impressions / Σ daily reach (daily reach is never summed
+into a unique reach); demand uses unpaid ORDERS by category (GA4 reports unpaid sessions without a category), with
+the expectation from the same out-of-sample STL forecast the detector uses (56-day fit before the window).
+
+**Demand direction contract (lever-specific):** the module SUPPORTS the CVR lever when sign(d) = sign(c_CVR)
+(ROAS family) or the incident's own direction (CVR incidents); otherwise OFFSETTING ("demand was rising, which partly
+masked the decline"): it claims no share of any lever and is never top-1. A supporting module whose lever moved
+against the overall ROAS move is offsetting by the general rule.
 
 **Stage 1 inventory predicate:** projected shortfall = max(projected − (available − safety stock), 0) with
 available = on hand − reserved + inbound confidence × inbound arriving within 7 days, projected = the
@@ -41,11 +53,17 @@ Seed 42 (real data, re-measured on the world with weekly budget tweaks):
 - The earlier world also had a Men·Hoodies retargeting CVR drop diagnosed as inventory STRONG. That incident does
   not occur in this history.
 
+## Stage 2 world scenarios (ground truth)
+S6 category demand +40% (3-day ramp), S8 Meta retargeting audience shrunk until daily frequency ≈ 5 (reach falls,
+CTR falls on every creative), S12 fatigue + demand on one campaign (`params.without` removes one driver for the
+eval's GT effect order), S10 holiday spike, S11 excess inventory. See `world_scenarios.md`.
+
 ## TESTS
 Integration (`integration/test_evidence_scenarios.py`, on each scenario's true incident): S1 → auction top-1
 (median CPM change ≈ +45%), S2 → fatigue top-1 at the injected creative (on a 6× fixture world: in the base
 fixture each creative is below the minimum sample and the module correctly says INSUFFICIENT_DATA), S3 →
 inventory top-1 (the SKU stocked out, wasted spend > 0), S4 → price top-1 (+18% ± 0.5 pp, negative elasticity),
-S5 → tracking top-1 (sessions/click −60% ± 8 pp). Unit (`backend/tests/test_drivers.py`): signed contributions +
+S5 → tracking top-1 (sessions/click −60% ± 8 pp); Stage 2: S6 → demand top-1 (+40% ± 12 pp), S8 → saturation
+top-1 with fatigue < 0.4, S2 → saturation < 0.4, and the demand offsetting contract. Unit (`backend/tests/test_drivers.py`): signed contributions +
 unexplained = total exactly, CVR shared in proportion to scores, offsetting never leads, lever relevance,
 NOT_ASSESSABLE never wins, COLLAPSE falls back to scores.

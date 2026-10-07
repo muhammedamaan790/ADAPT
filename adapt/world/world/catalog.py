@@ -17,20 +17,26 @@ import duckdb
 from world.priors import benchmarks
 
 CHANNELS = ("google_search", "google_video", "meta_prospecting", "meta_retargeting")
+EXTRA_CHANNELS = ("tiktok", "amazon_sp")  # Stage 2 SIMULATED channels, opt-in per world (WorldConfig.extra_channels)
 PLATFORM_OF = {"google_search": "google", "google_video": "google", "meta_prospecting": "meta",
-               "meta_retargeting": "meta"}
+               "meta_retargeting": "meta", "tiktok": "tiktok", "amazon_sp": "amazon"}
 PRIOR_CHANNEL_OF = {"google_search": "google_search", "google_video": "google_video",
-                    "meta_prospecting": "meta", "meta_retargeting": "meta"}
+                    "meta_prospecting": "meta", "meta_retargeting": "meta", "tiktok": "tiktok",
+                    "amazon_sp": "amazon_sp"}
 CHANNEL_LABEL = {"google_search": "GOOGLE Search", "google_video": "GOOGLE Video",
-                 "meta_prospecting": "META Prospecting", "meta_retargeting": "META Retargeting"}
+                 "meta_prospecting": "META Prospecting", "meta_retargeting": "META Retargeting",
+                 "tiktok": "TIKTOK Prospecting", "amazon_sp": "AMAZON Sponsored"}
 ADSETS = {
     "google_search": ("generic", "product"),
     "google_video": ("in-market", "affinity"),
     "meta_prospecting": ("broad", "interest", "lookalike"),
     "meta_retargeting": ("cart abandoners", "product viewers"),
+    "tiktok": ("broad", "interest"),
+    "amazon_sp": ("auto", "manual"),
 }
 FORMATS = {"google_search": ("text",), "google_video": ("video",),
-           "meta_prospecting": ("image", "video", "carousel"), "meta_retargeting": ("carousel", "image")}
+           "meta_prospecting": ("image", "video", "carousel"), "meta_retargeting": ("carousel", "image"),
+           "tiktok": ("video",), "amazon_sp": ("sponsored_product",)}
 HOOKS = ("discount", "new arrival", "social proof", "benefit", "urgency")
 CTAS = ("Shop Now", "Buy Now", "Learn More")
 
@@ -115,7 +121,7 @@ class Catalog:
         return {b: tuple(ids) for b, ids in out.items()}
 
 
-def build_catalog(backbone_dir: str | Path, history_days: int = 365) -> Catalog:
+def build_catalog(backbone_dir: str | Path, history_days: int = 365, extra_channels: tuple[str, ...] = ()) -> Catalog:
     bench = benchmarks()
     fx = bench["fx_usd_inr"]
     costs = bench["unit_costs"]
@@ -180,4 +186,24 @@ def build_catalog(backbone_dir: str | Path, history_days: int = 365) -> Catalog:
                         # the first creative of every ad set runs from the start of history; later ones rotate in
                         launch_day=-history_days if c_i == 1 else -(30 + (h // 11) % (history_days - 30)),
                     ))
+    # Stage 2 SIMULATED channels, numbered after the base catalog so every base id is unchanged. TikTok and Amazon
+    # Sponsored Products both keep the budget on the campaign; an Amazon "ad" is an advertised product.
+    m = 0
+    for channel in (c for c in EXTRA_CHANNELS if c in extra_channels):
+        for cat in categories:
+            m += 1
+            cid = str(1_700_000_000_000_000_000 + m) if channel == "tiktok" else str(400_000_000_000 + m)
+            campaigns.append(Campaign(cid, PLATFORM_OF[channel], channel, cat.code, cid,
+                                      f"{CHANNEL_LABEL[channel]} | {cat.label}"))
+            for a_i, audience in enumerate(ADSETS[channel], start=1):
+                asid = f"{cid}{a_i:02d}"
+                adsets.append(AdSet(asid, cid, audience))
+                n_creatives = 2 if channel == "tiktok" else 1
+                for c_i in range(1, n_creatives + 1):
+                    crid = f"{asid}{c_i:02d}"
+                    h = stable_int(crid)
+                    hook = HOOKS[h % len(HOOKS)]
+                    creatives.append(Creative(creative_id=crid, adset_id=asid, campaign_id=cid,
+                                              format=FORMATS[channel][0], hook=hook, cta=CTAS[(h // 7) % len(CTAS)],
+                                              headline=f"{cat.label}: {hook}", launch_day=-history_days))
     return Catalog(categories, tuple(skus), tuple(campaigns), tuple(adsets), tuple(creatives))

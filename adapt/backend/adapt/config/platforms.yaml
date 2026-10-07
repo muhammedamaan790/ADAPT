@@ -1,11 +1,15 @@
 # Execution platforms (spec §9.4, §22.3). Execution mode is fixed at startup per platform; there is NEVER an
 # automatic fallback from live to mock: a live-mode failure blocks the leg and preserves the decision.
 execution_mode:
-  google: mock          # live = the Google Ads v25 test-account adapter (Stage 2 *); not built -> legs BLOCKED
+  google: mock          # live = the Google Ads v25 test-account adapter (Stage 2 *; ADAPT_GOOGLE_EXECUTION_MODE overrides)
   meta: mock            # a Meta sandbox is out of scope for this build
+  tiktok: mock          # Stage 2 SIMULATED channels: mock platform APIs only (spec §1)
+  amazon: mock
 retry:
   max_attempts: 3       # absolute setters only; relative mutations do not exist in the adapters
   backoff_s: 0.5
 verify:
   polls: 3              # read-back polls after a send (eventual consistency)
   interval_s: 1.0
+api_versions:
+  google: v25           # Google sunsets old versions; a sunset version fails the live health check (T23)

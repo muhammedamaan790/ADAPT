@@ -54,6 +54,34 @@ sources:
     provenance: CALIBRATED
     schema_version: "erp-v1"
 
+  # Stage 2 SIMULATED channels (spec §1): optional sources; a world without them reports nothing and they stay
+  # NOT_CONFIGURED in data health (never RED)
+  tiktok_ads:
+    advertiser_id: "7012345678901234567"
+    api_version: v1.3
+    currency: USD
+    timezone: UTC
+    report_lag_hours: 8
+    provenance: SIMULATED
+    schema_version: "tiktok-business-v1.3"
+    optional: true
+  amazon_ads:
+    profile_id: "3141592653"
+    api_version: v3
+    currency: INR
+    timezone: Asia/Kolkata
+    report_lag_hours: 12
+    provenance: SIMULATED
+    schema_version: "amazon-ads-sp-v3"
+    optional: true
+  amazon_marketplace:
+    currency: INR
+    timezone: Asia/Kolkata
+    report_lag_hours: 4
+    provenance: SIMULATED
+    schema_version: "sp-api-orders-v0"
+    optional: true
+
 sync:
   backfill_days: 365      # first run pulls this much history
   lookback_days: 3        # every later run re-pulls this many recent days (late or corrected data re-dirties dates)

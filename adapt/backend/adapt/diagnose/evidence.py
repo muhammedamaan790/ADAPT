@@ -1,13 +1,15 @@
-"""Level-2 evidence modules (B4, spec §22.1): auction, creative fatigue, inventory, price, tracking.
+"""Level-2 evidence modules (B4 + Stage 2, spec §22.1): auction, creative fatigue, inventory, price, tracking, and
+(Stage 2) audience saturation and demand.
 
 Each module returns Evidence(score in [0, 1] = gates x one magnitude term, levers, values) or an explicit
 INSUFFICIENT_DATA / NOT_APPLICABLE state, never a fabricated number. post = the incident window, pre = the 28 days
-before it; ratios use window totals. Demand and saturation are Stage 2; budget changes are handled by the
-classifier (B2).
+before it; ratios use window totals. Budget changes are handled by the classifier (B2).
 
 Data proxies (documented in docs/contracts/evidence.md): our sources have no sessions by landing SKU, so the CVR of a
 SKU group = attributed orders on those SKUs / the campaign's clicks; creative frequency uses the campaign's
 frequency (Meta reports reach per campaign; Google reports none, so the frequency gate is NOT_APPLICABLE there).
+Saturation is therefore campaign-scoped (window frequency = impressions / daily reach, never summed unique reach),
+and demand uses the category's unpaid (email + organic) ORDERS: GA4 reports unpaid sessions without a category.
 """
 
 from __future__ import annotations
@@ -39,6 +41,7 @@ class Incident:
     metric: str
     post_start: date
     post_end: date
+    direction: str | None = None   # UP | DOWN | FLAT of the incident metric (the demand module's direction contract)
 
     @property
     def pre_start(self) -> date:
@@ -202,6 +205,26 @@ def _group_cvr(db, cid_list: list[str], skus: set[str], lo: date, hi: date) -> t
     return float(sum(n for s, n in orders if s in skus)), float(clicks)
 
 
+def sku_risk(db, sku: str, as_of_day: date, horizon: int) -> dict:
+    """The stage's inventory-risk predicate for one SKU (spec §22.1 #4): Stage 1 projected shortfall; Stage 2 NB2
+    P(stockout) over the horizon from the seasonal-naive / champion P50 and the category's NB2 dispersion, at risk
+    when P > the evidence threshold (0.5)."""
+    from datetime import datetime as _dt
+
+    from adapt.economics.inventory_risk import risk_config, stockout_probability
+
+    base = projected_shortfall(db, sku, as_of_day, horizon)
+    rc = risk_config()
+    if rc["predicate"] != "STOCKOUT_PROBABILITY" or base.get("status") == INSUFFICIENT:
+        return {**base, "kind": "PROJECTED_SHORTFALL", "at_risk": base.get("shortfall", 0) > 0}
+    from adapt.predict.demand import dispersion_by_sku
+
+    r = dispersion_by_sku(db, _dt.combine(as_of_day + timedelta(days=1), _dt.min.time())).get(sku, rc["r_cap"])
+    p = float(stockout_probability(np.array([base["projected"]]), np.array([base["available"]]), np.array([r]))[0])
+    return {**base, "kind": "STOCKOUT_PROBABILITY", "stockout_probability": round(p, 4), "dispersion": r,
+            "at_risk": p > float(rc["evidence_threshold"])}
+
+
 def projected_shortfall(db, sku: str, as_of_day: date, horizon: int) -> dict:
     """Stage 1 deterministic risk (spec §0.5): available = on_hand - reserved + inbound_confidence x inbound arriving
     within H; projected = seasonal-naive baseline (last 7 days of sales repeated over H); shortfall = max(projected -
@@ -233,8 +256,8 @@ def inventory(db, inc: Incident) -> Evidence:
     w = dict(weights)
     stocked_out = {s for (s,) in db.query(f"""SELECT DISTINCT sku FROM marts.sku_daily WHERE on_hand = 0
                    AND date BETWEEN ? AND ? AND sku IN ({_in(list(w))})""", [inc.post_start, inc.post_end, *w])}
-    risk = {s: projected_shortfall(db, s, inc.post_end, c["horizon_days"]) for s in w}
-    exposed = {s for s in w if s in stocked_out or risk[s].get("shortfall", 0) > 0}
+    risk = {s: sku_risk(db, s, inc.post_end, c["horizon_days"]) for s in w}
+    exposed = {s for s in w if s in stocked_out or risk[s].get("at_risk")}
     exposed_share = sum(w[s] for s in exposed)
     if not exposed:
         return Evidence("inventory", OK, 0.0, ["CVR"], {"exposed_share": 0.0, "exposed_skus": []})
@@ -262,7 +285,7 @@ def inventory(db, inc: Incident) -> Evidence:
         "exposed_skus": sorted(exposed), "stocked_out_skus": sorted(stocked_out),
         "exposed_share": round(exposed_share, 4), "cvr_drop_exposed": round(drop_e, 4),
         "cvr_drop_other": round(drop_n, 4), "gap": round(gap, 4), "wasted_spend_inr": round(wasted, 2),
-        "risk_kind": "PROJECTED_SHORTFALL",
+        "risk_kind": next(iter({risk[s]["kind"] for s in risk if "kind" in risk[s]}), "PROJECTED_SHORTFALL"),
         "risk": {s: {k: (round(v, 2) if isinstance(v, float) else v) for k, v in risk[s].items()}
                  for s in sorted(exposed)}})
 
@@ -345,6 +368,92 @@ def tracking(db, inc: Incident) -> Evidence:
                                         and abs(orders_change) < c["orders_stable"] and ga_change < -c["drop_gate"])})
 
 
-MODULES = {"auction": auction, "fatigue": fatigue, "inventory": inventory, "price": price, "tracking": tracking}
+# ---- 6. audience saturation (levers CTR + CPM; campaign scope) -------------------------------------------------------
+def saturation(db, inc: Incident) -> Evidence:
+    c = evidence_config()["saturation"]
+    levers = ["CTR", "CPM"]
+    if len(inc.campaign_ids) != 1:
+        return Evidence("saturation", NOT_APPLICABLE, 0.0, levers, reason="saturation is campaign scoped")
+    cid = inc.campaign_ids[0]
+
+    def window(lo: date, hi: date) -> tuple[float, float, int]:
+        r = db.query("SELECT sum(impressions), sum(reach), count(*) FROM core.campaign_reach_daily "
+                     "WHERE campaign_id = ? AND date BETWEEN ? AND ? AND reach > 0", [cid, lo, hi])[0]
+        return float(r[0] or 0), float(r[1] or 0), int(r[2] or 0)
+
+    i_pre, r_pre, n_pre = window(inc.pre_start, inc.pre_end)
+    i_post, r_post, n_post = window(inc.post_start, inc.post_end)
+    if n_pre == 0 or n_post == 0:
+        return Evidence("saturation", NOT_APPLICABLE, 0.0, levers,
+                        reason="the platform reports no reach for this campaign (Google)")
+    reach_pre, reach_post = r_pre / n_pre, r_post / n_post
+    if reach_pre < c["min_daily_reach"]:
+        return Evidence("saturation", INSUFFICIENT, 0.0, levers, {"daily_reach_pre": round(reach_pre, 1)},
+                        f"daily reach below {c['min_daily_reach']:,}")
+    freq_ratio = (i_post / r_post) / (i_pre / r_pre)
+    reach_growth = reach_post / reach_pre - 1
+    rows = db.query("""SELECT ad_id, sum(impressions) FILTER (WHERE date BETWEEN ? AND ?),
+                              sum(clicks) FILTER (WHERE date BETWEEN ? AND ?),
+                              sum(impressions) FILTER (WHERE date BETWEEN ? AND ?),
+                              sum(clicks) FILTER (WHERE date BETWEEN ? AND ?)
+                       FROM marts.creative_daily WHERE campaign_id = ? GROUP BY 1 ORDER BY 1""",
+                    [inc.pre_start, inc.pre_end, inc.pre_start, inc.pre_end, inc.post_start, inc.post_end,
+                     inc.post_start, inc.post_end, cid])
+    declines = {}
+    for ad, ip, cp, iq, cq in rows:
+        if (ip or 0) >= c["min_creative_impressions"] and (iq or 0) >= c["min_creative_impressions"] and cp:
+            declines[ad] = 1 - (float(cq or 0) / iq) / (float(cp) / ip)
+    if len(declines) < c["min_creatives"]:
+        return Evidence("saturation", INSUFFICIENT, 0.0, levers, {"eligible_creatives": len(declines)},
+                        f"fewer than {c['min_creatives']} creatives with enough delivery in both windows")
+    share_declined = sum(d >= c["creative_ctr_decline"] for d in declines.values()) / len(declines)
+    gates = freq_ratio >= c["freq_ratio_gate"] and reach_growth <= c["reach_growth_max"] \
+        and share_declined >= c["broad_share"]
+    score = gates * min(1.0, (freq_ratio - 1) / c["full_score_freq_rise"])
+    return Evidence("saturation", OK, float(score), levers, {
+        "frequency_pre": round(i_pre / r_pre, 3), "frequency_post": round(i_post / r_post, 3),
+        "frequency_change_pct": round((freq_ratio - 1) * 100, 2), "reach_change_pct": round(reach_growth * 100, 2),
+        "share_creatives_ctr_down": round(share_declined, 4),
+        "creative_ctr_decline": {k: round(v, 4) for k, v in declines.items()}})
+
+
+# ---- 7. demand shift (levers CVR + volume; evidence only, never a causal control) ------------------------------------
+def demand(db, inc: Incident) -> Evidence:
+    from adapt.detect.stats import stl_forecast
+
+    c = evidence_config()["demand"]
+    levers = ["CVR"]
+    cats = [r[0] for r in db.query(f"SELECT DISTINCT product_set FROM core.campaigns WHERE campaign_id IN "
+                                   f"({_in(inc.campaign_ids)}) AND product_set IS NOT NULL", inc.campaign_ids)]
+    if not cats:
+        return Evidence("demand", NOT_APPLICABLE, 0.0, levers, reason="no product set (category) for the campaigns")
+    fit_lo = inc.post_start - timedelta(days=c["fit_days"])
+    rows = dict(db.query(f"""SELECT oi.analysis_date, count(DISTINCT oi.order_id) FROM core.order_items oi
+                             JOIN core.skus k USING (sku)
+                             WHERE oi.channel_id IN ('email', 'organic') AND k.category IN ({_in(cats)})
+                               AND oi.analysis_date BETWEEN ? AND ? GROUP BY 1""", [*cats, fit_lo, inc.post_end]))
+    days = [fit_lo + timedelta(days=k) for k in range((inc.post_end - fit_lo).days + 1)]
+    series = np.array([float(rows.get(d, 0)) for d in days])
+    n_post = (inc.post_end - inc.post_start).days + 1
+    fit, post = series[:-n_post], series[-n_post:]
+    pre_orders = float(fit[-28:].sum())
+    if pre_orders < c["min_pre_orders"]:
+        return Evidence("demand", INSUFFICIENT, 0.0, levers, {"unpaid_orders_pre": pre_orders},
+                        f"fewer than {c['min_pre_orders']} unpaid orders in the pre window")
+    expected = float(np.expm1(stl_forecast(np.log1p(fit), n_post).yhat).clip(min=0).sum())
+    actual = float(post.sum())
+    if expected <= 0 or actual <= 0:
+        return Evidence("demand", INSUFFICIENT, 0.0, levers, reason="no unpaid orders expected or observed")
+    d = math.log(actual / expected)
+    score = (abs(d) >= math.log(1 + c["min_shift"])) * min(1.0, abs(d) / math.log(1 + c["full_score_shift"]))
+    return Evidence("demand", OK, float(score), levers, {
+        "categories": sorted(cats), "unpaid_orders_post": actual, "expected_unpaid_orders_post": round(expected, 2),
+        "demand_change_pct": round(math.expm1(d) * 100, 2), "d": round(d, 6), "direction": "UP" if d > 0 else "DOWN",
+        "basis": "unpaid (email + organic) orders of the category vs the out-of-sample STL expectation"})
+
+
+MODULES = {"auction": auction, "fatigue": fatigue, "inventory": inventory, "price": price, "tracking": tracking,
+           "saturation": saturation, "demand": demand}
 DRIVER_LABEL = {"auction": "Auction pressure (platform-wide CPM)", "fatigue": "Creative fatigue",
-                "inventory": "Inventory constraint", "price": "Price change", "tracking": "Tracking break"}
+                "inventory": "Inventory constraint", "price": "Price change", "tracking": "Tracking break",
+                "saturation": "Audience saturation", "demand": "Demand shift (unpaid demand, same category)"}

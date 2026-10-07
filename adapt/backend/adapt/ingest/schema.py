@@ -83,6 +83,31 @@ CREATE TABLE IF NOT EXISTS stg.erp_receipts (
     date DATE NOT NULL, sku VARCHAR NOT NULL, quantity BIGINT NOT NULL, {META_COLS}, PRIMARY KEY (date, sku)
 );
 
+CREATE TABLE IF NOT EXISTS stg.tiktok_ad_daily (
+    date DATE NOT NULL, campaign_id VARCHAR NOT NULL, adgroup_id VARCHAR NOT NULL, ad_id VARCHAR NOT NULL,
+    impressions BIGINT NOT NULL, clicks BIGINT NOT NULL, spend_native DOUBLE NOT NULL, currency VARCHAR NOT NULL,
+    fx_rate DOUBLE NOT NULL, spend_inr DOUBLE NOT NULL, platform_conversions BIGINT NOT NULL,
+    platform_conversion_value_inr DOUBLE NOT NULL, {META_COLS}, PRIMARY KEY (date, ad_id)
+);
+CREATE TABLE IF NOT EXISTS stg.amazon_sp_daily (
+    date DATE NOT NULL, campaign_id VARCHAR NOT NULL, ad_group_id VARCHAR NOT NULL, ad_id VARCHAR,
+    impressions BIGINT NOT NULL, clicks BIGINT NOT NULL, cost_inr DOUBLE NOT NULL, purchases7d BIGINT NOT NULL,
+    sales7d_inr DOUBLE NOT NULL, {META_COLS}, PRIMARY KEY (date, ad_group_id)
+);
+CREATE TABLE IF NOT EXISTS stg.amazon_purchased_product (
+    date DATE NOT NULL, campaign_id VARCHAR NOT NULL, ad_group_id VARCHAR NOT NULL, sku VARCHAR NOT NULL,
+    purchases7d BIGINT NOT NULL, sales7d_inr DOUBLE NOT NULL, {META_COLS}, PRIMARY KEY (date, ad_group_id, sku)
+);
+CREATE TABLE IF NOT EXISTS stg.amazon_order_lines (
+    order_id BIGINT NOT NULL, line_item_id BIGINT NOT NULL, created_at TIMESTAMP NOT NULL, date DATE NOT NULL,
+    sku VARCHAR NOT NULL, qty INTEGER NOT NULL, unit_price DOUBLE NOT NULL, line_subtotal_ex_tax DOUBLE NOT NULL,
+    currency VARCHAR NOT NULL, {META_COLS}, PRIMARY KEY (order_id, line_item_id)
+);
+CREATE TABLE IF NOT EXISTS stg.amazon_returns (
+    order_id BIGINT NOT NULL, line_item_id BIGINT NOT NULL, created_at TIMESTAMP NOT NULL, date DATE NOT NULL,
+    amount DOUBLE NOT NULL, {META_COLS}, PRIMARY KEY (order_id, line_item_id)
+);
+
 CREATE TABLE IF NOT EXISTS ops.connector_status (
     connector VARCHAR PRIMARY KEY, status VARCHAR NOT NULL, last_success_ts TIMESTAMP, last_failure_ts TIMESTAMP,
     last_error_code VARCHAR, last_synced_date DATE, last_run_id VARCHAR

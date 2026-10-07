@@ -1,6 +1,17 @@
-# Objective modes (spec §8.2). Stage 1 builds PROFIT only. Versioned with the policy.
+# Objective modes (spec §8.2). Stage 1 builds PROFIT; Stage 2 adds GROWTH and INVENTORY_CLEARANCE + the sensitivity
+# scenarios. Versioned with the policy; the selected mode (an admin setting, ops.objective_setting) is EXACT staleness.
+selected: PROFIT
 PROFIT:
   lambda: 0.5                     # max E[dCAA] - lambda x (E - P10)
+GROWTH:                           # max E[net revenue] s.t. E[abs CAA] >= CAA0 - max(5% |CAA0|, 2,000)
+  caa_floor_pct: 0.05
+  min_tolerance_inr: 2000
+INVENTORY_CLEARANCE:              # max E[CAA] + h x E[units sold on EXCESS-band SKUs]
+  holding_cost_inr_per_unit: 25   # h: a holding cost per unit of excess stock moved (business parameter)
+  excess_cover_days: 45           # EXCESS band: days of cover > 45 (spec §5)
+sensitivity:                      # spec §8.3: risk-preference scenarios, NOT competing utilities; executable within policy
+  conservative: {lambda: 1.0, max_daily_change_pct: 0.10}
+  aggressive: {lambda: 0.2, max_daily_change_pct: 0.20}
 economics:
   horizon_days: 7                 # H
   search_draws: 50                # fixed subset of the 200 joint draws used by the search (reported values use all)
