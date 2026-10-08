@@ -137,7 +137,9 @@ export function Workspaces() {
               className="button primary"
               disabled={activate.isPending || gate.isPending || gate.isError || !gate.data}
               onClick={() =>
-                activate.mutate(target, { onSuccess: () => window.location.assign('/') })
+                activate.mutate(target, {
+                  onSuccess: () => window.location.assign(import.meta.env.BASE_URL),
+                })
               }
             >
               {activate.isPending ? 'Switching…' : 'Confirm workspace switch'}

@@ -11,7 +11,7 @@ export function ChannelMark({ platform }: { platform: string }) {
       aria-hidden="true"
     >
       <img
-        src={platform === 'Meta' ? '/providers/meta.svg' : '/providers/google.png'}
+        src={`${import.meta.env.BASE_URL}providers/${platform === 'Meta' ? 'meta.svg' : 'google.png'}`}
         alt=""
         width="28"
         height="28"
