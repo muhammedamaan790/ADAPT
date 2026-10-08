@@ -18,7 +18,9 @@
     "types:generate": "openapi-typescript http://127.0.0.1:8000/openapi.json -o src/api/generated.ts"
   },
   "dependencies": {
-    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/instrument-sans": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@tanstack/react-query": "^5.90.0",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",

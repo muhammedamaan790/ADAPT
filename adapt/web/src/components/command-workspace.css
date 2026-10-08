@@ -1,133 +1,5 @@
 /* The reference-led command workspace: strong navigation, real proposal, readable evidence. */
-.app {
-  --canvas: #f3f6fa;
-  --ink: #152238;
-  --muted: #586a83;
-  --rule: #dce4ee;
-  --accent: #135cec;
-  --accent-soft: #edf3ff;
-  --focus: #135cec;
-  --radius: 8px;
-  --nav-width: 238px;
-  --page-pad: 24px;
-}
-.app.dark {
-  --canvas: #151d28;
-  --surface: #1d2837;
-  --soft: #263347;
-  --ink: #edf3ff;
-  --muted: #adbed6;
-  --rule: #35465b;
-  --accent: #8ab4ff;
-  --accent-soft: #273c60;
-  --focus: #a9c8ff;
-}
-.sidebar {
-  background: #202833;
-  padding: 24px 12px 16px;
-}
-.brand {
-  font-size: 28px;
-  font-weight: 600;
-  padding: 0 8px 25px;
-  gap: 12px;
-}
-.brand-mark,
-.brand-mark svg {
-  width: 34px;
-  height: 34px;
-}
-.brand-sub {
-  font-size: 12px;
-  margin-top: 4px;
-}
-.workspace {
-  padding: 12px 10px;
-  border: 1px solid #3e4856;
-  border-radius: 8px;
-  margin-bottom: 26px;
-  background: #252f3b;
-}
-.workspace-avatar {
-  border-radius: 6px;
-  background: #414e60;
-  font-size: 10px;
-  min-width: 32px;
-  width: 32px;
-  height: 32px;
-}
-.workspace strong {
-  font-size: 13px;
-  color: #f3f6fc;
-}
-.sidebar .navigation-label {
-  text-transform: uppercase;
-  letter-spacing: 0.065em;
-  font-size: 10px;
-  color: #b7c4d6;
-  padding-bottom: 8px;
-}
-.sidebar nav.navigation-groups {
-  gap: 24px;
-}
-.sidebar nav a {
-  min-height: 44px;
-  padding: 11px 12px;
-  font-size: 13px;
-  font-weight: 400;
-  gap: 12px;
-  color: #e0e7f1;
-}
-.sidebar nav a.active {
-  background: #135cec;
-  color: #fff;
-  font-weight: 500;
-}
-.sidebar nav a.active svg {
-  color: #fff;
-}
-.sidebar nav a:hover:not(.active) {
-  background: #303c4c;
-}
-.compact-nav {
-  --nav-width: 76px;
-}
-.topbar {
-  height: 56px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--rule);
-}
-.breadcrumb {
-  font-size: 13px;
-}
-.topbar-actions {
-  gap: 12px;
-}
-.topbar-actions > button:first-child {
-  border: 1px solid var(--rule);
-  padding: 6px 10px;
-  color: var(--accent);
-}
-.topbar-actions > .badge {
-  background: var(--accent-soft);
-  color: var(--accent);
-  border: 1px solid var(--rule);
-  font-size: 11px;
-  padding: 6px 9px;
-}
-.fixture-banner {
-  min-height: 30px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-  font-size: 11px;
-  background: transparent;
-  color: var(--muted);
-  border-bottom: 1px solid var(--rule);
-}
-.app main {
-  max-width: 1640px;
-  padding: 22px var(--page-pad) 28px;
-}
+
 .page-heading h1 {
   font-size: 32px;
   font-weight: 600;
@@ -147,19 +19,6 @@
   font-size: 18px;
   letter-spacing: -0.02em;
   font-weight: 600;
-}
-.button.primary {
-  background: #135cec;
-  border-color: #135cec;
-  color: #fff;
-}
-.button.primary:hover:not(:disabled) {
-  background: #0c48c7;
-  border-color: #0c48c7;
-}
-.app.dark .button.primary {
-  background: #2669ee;
-  border-color: #2669ee;
 }
 .command-workspace {
   display: block;
@@ -377,7 +236,7 @@
   border-radius: 2px;
 }
 .budget-current {
-  background: #879bbd;
+  background: var(--track-current);
 }
 .budget-proposed {
   background: var(--accent);
@@ -650,10 +509,10 @@
   color: var(--accent);
 }
 .source-store .source-symbol {
-  color: #487d29;
+  color: var(--success);
 }
 .source-ga4 .source-symbol {
-  color: #a8660c;
+  color: var(--warning);
 }
 .command-loop {
   display: flex;
@@ -708,9 +567,9 @@
   color: var(--accent);
 }
 .step-current .command-step-number {
-  background: #135cec;
-  color: #fff;
-  border-color: #135cec;
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
 }
 .step-complete .command-step-number {
   background: var(--success-soft);
@@ -736,29 +595,12 @@
     padding-left: 0;
   }
 }
-@media (max-width: 1100px) and (min-width: 901px) {
-  .app {
-    --nav-width: 216px;
-    --page-pad: 20px;
-  }
-  .compact-nav {
-    --nav-width: 76px;
-  }
-}
+
 @media (max-width: 900px) {
-  .app {
-    --nav-width: 0px;
-    --page-pad: 20px;
-  }
-  .topbar {
-    height: 60px;
-  }
   .page-heading h1 {
     font-size: 28px;
   }
-  .topbar-actions {
-    gap: 6px;
-  }
+
   .register-columns,
   .register-row {
     grid-template-columns: minmax(0, 1fr) 125px 64px;
@@ -800,24 +642,12 @@
     max-width: none;
     height: 36px;
   }
-  .app {
-    --page-pad: 16px;
-  }
-  .app main {
-    padding-top: 18px;
-  }
+
   .panel,
   .decision-main .panel {
     padding: 18px;
   }
-  .fixture-banner {
-    font-size: 10px;
-    line-height: 1.5;
-  }
-  .topbar-actions > button:first-child {
-    border: 0;
-    padding: 6px;
-  }
+
   .command-heading {
     display: flex;
     gap: 12px;
