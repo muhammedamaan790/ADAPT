@@ -2646,6 +2646,15 @@ table caption {
   max-width: 300px;
   margin-bottom: 24px;
 }
+.creative-attributes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
 .evidence-graph {
   display: grid;
   grid-template-columns: 1fr auto 1fr auto 1fr;

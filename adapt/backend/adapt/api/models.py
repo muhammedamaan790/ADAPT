@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field, model_serializer
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 Provenance = Literal["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED", "LIVE"]
 Objective = Literal["PROFIT", "GROWTH", "ACQUISITION", "INVENTORY_CLEARANCE", "MARGIN_PROTECTION", "BALANCED"]
@@ -859,4 +859,41 @@ class MappingSuggestBody(BaseModel):
 
 
 class CreativeScoreBody(BaseModel):
-    text: str = Field(min_length=1, max_length=2000)
+    """Either a free-text brief (attributes read from its words) or explicit trained attribute levels."""
+    text: str | None = Field(default=None, min_length=1, max_length=2000)
+    attributes: dict[str, str] | None = Field(default=None, max_length=5)
+
+    @model_validator(mode="after")
+    def _one_input(self):
+        if (self.text is None) == (self.attributes is None):
+            raise ValueError("send exactly one of text or attributes")
+        return self
+
+
+class CreativeAttributes(BaseModel):
+    status: Literal["AVAILABLE", "NOT_ESTIMABLE"]
+    domains: dict[str, list[str]]
+    note: str
+
+
+class UploadImport(BaseModel):
+    import_id: str
+    type: Literal["ads", "inventory", "margins"]
+    status: Literal["STAGED", "IMPORTED"]
+    row_count: int = Field(ge=0)
+    staged_at: str
+    workspace_id: str | None
+
+
+class UploadDetail(BaseModel):
+    import_id: str
+    type: Literal["ads", "inventory", "margins"]
+    workspace_id: str
+    table: str
+    columns: list[str] = Field(max_length=40)
+    records: list[dict[str, str | float | int | bool | None]] = Field(max_length=100)
+    truncated: bool
+    row_count: int = Field(ge=0)
+    engine_eligible: Literal[False]
+    missing_sources: list[str]
+    note: str

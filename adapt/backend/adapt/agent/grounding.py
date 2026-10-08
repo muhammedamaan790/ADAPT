@@ -8,6 +8,7 @@ tolerance. Bare integers up to a small allowance are counts or list numbering an
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -29,7 +30,8 @@ def values_in(obj, out: list[float] | None = None) -> list[float]:
     if isinstance(obj, bool) or obj is None:
         return out
     if isinstance(obj, (int, float)):
-        out.append(float(obj))
+        if math.isfinite(obj):
+            out.append(float(obj))
     elif isinstance(obj, str):
         out.extend(q.value for q in N.parse(obj))
         for stamp in STAMP_RE.findall(obj):  # dates and times may be restated as "7 Oct 2026, 09:30"

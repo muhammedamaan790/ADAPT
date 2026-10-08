@@ -66,3 +66,24 @@ def test_creative_prior_beats_a_flat_category_mean_when_attributes_matter():
 def test_creative_prior_is_not_accepted_without_signal():
     out = cm.evaluate(creative_rows(signal=False, seed=4))
     assert out["status"] == "OK" and out["spearman_model"] < 0.5                # no structure to learn
+
+
+def test_attribute_scoring_needs_an_accepted_prior_and_trained_levels(monkeypatch):
+    from adapt.core.db import Database
+
+    db = Database(":memory:")
+    assert cm.attribute_domains(db)["status"] == "NOT_ESTIMABLE"
+    assert cm.score_attributes(db, {"hook": "discount"})["score"] is None
+    rows = creative_rows()
+    monkeypatch.setattr(cm, "_champion", lambda _db: cm.fit(rows))
+    monkeypatch.setattr(cm, "creatives", lambda _db: rows)
+    domains = cm.attribute_domains(db)
+    assert domains["status"] == "AVAILABLE" and domains["domains"]["hook"] == sorted(
+        {"discount", "urgency", "benefit", "new arrival"})
+    good = cm.score_attributes(db, {"hook": "discount", "format": "video"})
+    bad = cm.score_attributes(db, {"hook": "new arrival", "format": "image"})
+    assert good["status"] == "AVAILABLE" and good["score"] > bad["score"]
+    for attrs in ({"hook": "free shipping"}, {"price_band": "low"}, {}):
+        with pytest.raises(ValueError):
+            cm.score_attributes(db, attrs)
+    db.close()

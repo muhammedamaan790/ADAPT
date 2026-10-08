@@ -107,6 +107,12 @@ def test_screen_endpoints(api):
         assert api.post(f"/api/v1{path}", json={}, headers=hdr(path)).status_code == 422, path
     score = api.post("/api/v1/creatives/score", json={"text": "bold hook"}, headers=hdr(6)).json()
     assert score["status"] == "NOT_ESTIMABLE" and score["score"] is None
+    both = api.post("/api/v1/creatives/score", json={"text": "video", "attributes": {"format": "video"}},
+                    headers=hdr(61))
+    assert both.status_code == 422
+    assert get(api, "/creatives/attributes")["status"] in ("AVAILABLE", "NOT_ESTIMABLE")
+    assert isinstance(get(api, "/ingest/imports"), list)
+    assert api.get("/api/v1/ingest/imports/imp-missing").status_code == 404
 
     chat = api.post("/api/v1/copilot/chat", json={"message": "Why should I approve this?"}, headers=hdr(7))
     assert chat.status_code == 200 and chat.headers["content-type"].startswith("text/event-stream")

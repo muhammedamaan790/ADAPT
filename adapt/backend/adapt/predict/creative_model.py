@@ -126,25 +126,71 @@ KEYWORDS = {
 }
 
 
-def score_text(db, text: str) -> dict:
-    """POST /creatives/score: attributes read from the brief's words (no content model), scored by the CHAMPION
-    prior as a percentile among existing creatives. NOT_ESTIMABLE without an accepted prior."""
+def _champion(db) -> dict | None:
+    """The accepted prior's model ({levels, model}), or None when no prior beat the baseline."""
     from adapt.learn import governance
 
     champ = governance.champion(db, "creative_prior") if db.query(
         "SELECT 1 FROM information_schema.tables WHERE table_schema = 'learn' AND table_name = 'model_registry'") \
         else None
     if champ is None or not champ.get("artifact_sha256"):
-        return {"status": "NOT_ESTIMABLE", "score": None,
-                "explanation": "No accepted structured creative prior: on the latest holdout it did not beat the "
-                               "category-mean baseline (or has not been fitted), so no score is shown."}
-    model = governance.load_artifact(db, champ["artifact_sha256"])
+        return None
+    return governance.load_artifact(db, champ["artifact_sha256"])
+
+
+NO_PRIOR = ("No accepted structured creative prior: on the latest holdout it did not beat the category-mean baseline "
+            "(or has not been fitted), so no score is shown.")
+
+
+def _score(model: dict, rows: list[dict], known: dict) -> dict:
+    """Predicted early CTR of `known` (other attributes at their most common value), as a percentile of the pool."""
+    mode = {f: max({r[f] for r in rows}, key=lambda v: sum(r[f] == v for r in rows)) for f in FEATURES}
+    p = float(predict(model, [{**mode, **known}])[0])
+    pct = float((predict(model, rows) < p).mean())
+    used = ", ".join(f"{k}={v}" for k, v in known.items())
+    return {"status": "AVAILABLE", "score": round(pct, 4),
+            "explanation": f"Predicted early CTR {p:.2%} from {used} (other attributes at their most common value); "
+                           f"higher than {pct:.0%} of existing creatives. A structured prior from attributes only: it "
+                           "reads no image or text content."}
+
+
+def attribute_domains(db) -> dict:
+    """GET /creatives/attributes: the levels the champion prior was trained on, one list per feature."""
+    model = _champion(db)
+    if model is None:
+        return {"status": "NOT_ESTIMABLE", "domains": {}, "note": NO_PRIOR}
+    return {"status": "AVAILABLE", "domains": {f: list(model["levels"].get(f, [])) for f in FEATURES},
+            "note": "Levels observed in the training creatives; a value outside them cannot be scored."}
+
+
+def score_attributes(db, attributes: dict) -> dict:
+    """POST /creatives/score with explicit attributes: every value must be a trained level of its feature."""
+    model = _champion(db)
+    if model is None:
+        return {"status": "NOT_ESTIMABLE", "score": None, "explanation": NO_PRIOR}
+    unknown = sorted(set(attributes) - set(FEATURES))
+    if unknown:
+        raise ValueError(f"unknown attribute(s): {', '.join(unknown)}; attributes: {', '.join(FEATURES)}")
+    bad = [f"{k}={v}" for k, v in attributes.items() if v not in model["levels"].get(k, [])]
+    if bad:
+        raise ValueError(f"not a trained level: {', '.join(bad)}")
+    if not attributes:
+        raise ValueError("choose at least one attribute")
+    return _score(model, creatives(db), dict(attributes))
+
+
+def score_text(db, text: str) -> dict:
+    """POST /creatives/score: attributes read from the brief's words (no content model), scored by the CHAMPION
+    prior as a percentile among existing creatives. NOT_ESTIMABLE without an accepted prior."""
+    model = _champion(db)
+    if model is None:
+        return {"status": "NOT_ESTIMABLE", "score": None, "explanation": NO_PRIOR}
     rows = creatives(db)
     t = text.lower()
     attrs = {f: next((v for k, v in KEYWORDS.get(f, {}).items() if k in t), None) for f in ("format", "hook", "cta")}
     cats = sorted({r["category"] for r in rows}, key=len, reverse=True)  # "Men·Jeans": match the full name or the tail
     attrs["category"] = next((c for c in cats if c.lower() in t), None) or next(
-        (c for c in cats if re.search(r"" + re.escape(c.split("·")[-1].strip().lower()) + r"", t)), None)
+        (c for c in cats if re.search(r"\b" + re.escape(c.split("·")[-1].strip().lower()) + r"\b", t)), None)
     attrs["channel"] = next((c for c in sorted({r["channel"] for r in rows}) if c.replace("_", " ") in t
                              or c.split("_")[0] in t), None)
     known = {k: v for k, v in attrs.items() if v is not None}
@@ -153,13 +199,4 @@ def score_text(db, text: str) -> dict:
                 "explanation": "Name a format (video, carousel, image, text), a hook (discount, new arrival, social "
                                "proof, benefit, urgency), a CTA, a category or a channel: the prior scores structured "
                                "attributes only, never the image or the wording."}
-    mode = {f: max({r[f] for r in rows}, key=lambda v: sum(r[f] == v for r in rows)) for f in FEATURES}
-    row = {**mode, **known}
-    p = float(predict(model, [row])[0])
-    pool = predict(model, rows)
-    pct = float((pool < p).mean())
-    used = ", ".join(f"{k}={v}" for k, v in known.items())
-    return {"status": "AVAILABLE", "score": round(pct, 4),
-            "explanation": f"Predicted early CTR {p:.2%} from {used} (other attributes at their most common value); "
-                           f"higher than {pct:.0%} of existing creatives. A structured prior from attributes only: it "
-                           "reads no image or text content."}
+    return _score(model, rows, known)

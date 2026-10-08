@@ -81,9 +81,22 @@ def creative_fatigue(request: Request):
 def creative_score(body: m.CreativeScoreBody, request: Request):
     """The structured creative prior (Stage 3): attributes named in the brief, scored only when the prior beat the
     category-mean baseline on its holdout; otherwise NOT_ESTIMABLE (never an invented score)."""
-    from adapt.predict.creative_model import score_text
+    from adapt.predict.creative_model import score_attributes, score_text
 
-    return score_text(rt(request).db, body.text)
+    if body.attributes is None:
+        return score_text(rt(request).db, body.text)
+    try:
+        return score_attributes(rt(request).db, body.attributes)
+    except ValueError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+
+
+@router.get("/creatives/attributes", response_model=m.CreativeAttributes)
+def creative_attributes(request: Request):
+    """The attribute levels the accepted creative prior was trained on (the choices the score form offers)."""
+    from adapt.predict.creative_model import attribute_domains
+
+    return attribute_domains(rt(request).db)
 
 
 # ---- learning ------------------------------------------------------------------------------------------------------
@@ -458,6 +471,24 @@ def ingest_confirm(body: m.ConfirmBody, request: Request):
         return confirm(_registry(rt(request)), body.import_id, body.mapping, actor(request).user_id)
     except UploadError as exc:
         raise HTTPException(422, detail=str(exc)) from exc
+
+
+@router.get("/ingest/imports", response_model=list[m.UploadImport])
+def ingest_imports(request: Request):
+    from adapt.ingest.csv_upload import imports
+
+    return imports(_registry(rt(request)))
+
+
+@router.get("/ingest/imports/{import_id}", response_model=m.UploadDetail)
+def ingest_import_detail(import_id: str, request: Request):
+    """A read-only preview of one imported upload workspace (first 100 typed records)."""
+    from adapt.ingest.csv_upload import UploadError, detail
+
+    try:
+        return detail(_registry(rt(request)), import_id)
+    except UploadError as exc:
+        raise HTTPException(404, detail=str(exc)) from exc
 
 
 @router.post("/copilot/sql", response_model=m.SqlResult, dependencies=mutating)

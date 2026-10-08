@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { SourceChecks } from '../components/SourceChecks';
+import { SavedImports } from '../components/SavedImports';
 import { insights } from '../api/insights';
 import { useOverview } from '../hooks/workspace';
 import { Badge, Disclosure, ErrorState, Loading, SectionTitle, Status } from '../components/ui';
@@ -154,6 +155,7 @@ export function DataHub() {
           ))
         )}
       </section>
+      <SavedImports />
     </>
   );
 }

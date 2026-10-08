@@ -13,6 +13,8 @@ server-side validation (never trusting the browser's), staging, confirm, and a N
   (stg.upload_<type>, provenance UPLOADED, available_at = confirm time) plus a data-contract report, and registers it.
   Upload workspaces are for review in the Data Hub; the decision engine keeps running on the world-backed demo workspace
   (an engine run needs every source: ads, orders, inventory, pricing), which the import message states.
+- imports() / detail(import_id): the registry's uploads and a read-only preview of one imported workspace's typed
+  records (at most PREVIEW_ROWS), with the sources still missing before the engine could use it.
 """
 
 from __future__ import annotations
@@ -49,6 +51,8 @@ SYNONYMS = {
 }
 MIN_SCORE = 80.0
 MAX_ROWS = 5000
+PREVIEW_ROWS = 100
+ENGINE_SOURCES = ("ads", "orders", "inventory", "pricing")
 
 
 class UploadError(ValueError):
@@ -229,3 +233,43 @@ def upload_workspaces(registry: Registry) -> list[dict]:
     return [{"id": u["workspace_id"], "name": f"Upload {iid[4:12]} ({u['type']})"[:60], "currency": "INR",
              "timezone": "Asia/Kolkata"}
             for iid, u in sorted(registry.load()["uploads"].items()) if u.get("status") == "IMPORTED"]
+
+
+def imports(registry: Registry) -> list[dict]:
+    """Every staged or imported upload, newest first (rows stay in the registry, never in the listing)."""
+    out = [{"import_id": iid, "type": u["type"], "status": u["status"], "row_count": len(u["rows"]),
+            "staged_at": u["staged_at"], "workspace_id": u.get("workspace_id")}
+           for iid, u in registry.load()["uploads"].items()]
+    return sorted(out, key=lambda u: (str(u["staged_at"]), u["import_id"]), reverse=True)
+
+
+def detail(registry: Registry, import_id: str, limit: int = PREVIEW_ROWS) -> dict:
+    """A read-only preview of one imported workspace's typed records."""
+    import duckdb
+
+    up = registry.load()["uploads"].get(import_id)
+    if up is None:
+        raise UploadError(f"no upload {import_id}")
+    if up["status"] != "IMPORTED":
+        raise UploadError(f"upload {import_id} is staged, not imported: confirm its mapping first")
+    path = registry.dir / f"{up['workspace_id']}.duckdb"
+    con = duckdb.connect(str(path), read_only=True, config={"enable_external_access": False})
+    try:
+        cur = con.execute(f"SELECT * EXCLUDE (_import_id, source_currency, source_timezone) "
+                          f"FROM stg.upload_{up['type']} LIMIT {int(limit) + 1}")
+        columns = [d[0] for d in cur.description]
+        rows = cur.fetchall()
+    finally:
+        con.close()
+    covered = {"ads": "ads", "inventory": "inventory", "margins": "pricing"}[up["type"]]
+
+    def cell(v):
+        return v if v is None or isinstance(v, (bool, int, float, str)) else str(v)
+
+    return {"import_id": import_id, "type": up["type"], "workspace_id": up["workspace_id"],
+            "table": f"stg.upload_{up['type']}", "columns": columns,
+            "records": [dict(zip(columns, map(cell, r), strict=True)) for r in rows[:limit]],
+            "truncated": len(rows) > limit, "row_count": len(up["rows"]), "engine_eligible": False,
+            "missing_sources": [s for s in ENGINE_SOURCES if s != covered],
+            "note": "Uploaded facts in their own workspace for review. The decision engine needs every source and "
+                    "keeps running on the demo workspace; provenance UPLOADED is a source label, not a verification."}
