@@ -3,6 +3,7 @@ import {
   checkSchema,
   decisionSchema,
   legSchema,
+  platformSchema,
   sourceSchema,
   provenanceSchema,
 } from './contracts';
@@ -12,7 +13,7 @@ export const appHref = z
   .string()
   .refine(
     (s) =>
-      /^\/(decisions(?:\/[^/?#]+)?|anomalies|optimizer|executions|outcomes|learning|data|opportunities|scenarios|connection)(?:\?[^#]*)?$/.test(
+      /^\/((decisions(?:\/[^/?#]+)?|anomalies|executions|outcomes|learning|data|scenarios)(?:\?[^#]*)?)?$/.test(
         s,
       ),
     'Evidence links must point to a known app route.',
@@ -22,7 +23,7 @@ export const opportunitySchema = z.object({
   id: z.string(),
   budget_id: z.string(),
   entity: z.string(),
-  platform: z.enum(['Meta', 'Google']),
+  platform: platformSchema,
   score: finite.nullable(),
   status: z.enum(['FEASIBLE', 'BLOCKED', 'NOT_ESTIMABLE']),
   reason: z.string(),
@@ -184,7 +185,17 @@ export const copilotReplySchema = z.object({
   text: z.string().min(1),
   evidence: z.array(citationSchema),
   mode: z.enum(['TEMPLATE', 'LLM']),
+  model: z.string().optional(),
+  verified: z.boolean().optional(),
+  unverified: z.array(z.string()).optional(),
+  tools: z.array(z.string()).optional(),
+  note: z.string().optional(),
+});
+export const copilotTurnSchema = z.object({
+  role: z.enum(['user', 'assistant']),
+  content: z.string(),
 });
 export type Opportunity = z.infer<typeof opportunitySchema>;
 export type Comparison = z.infer<typeof comparisonSchema>;
 export type CopilotReply = z.infer<typeof copilotReplySchema>;
+export type CopilotTurn = z.infer<typeof copilotTurnSchema>;

@@ -251,7 +251,8 @@ class Adapt(Strategy):
         from adapt.pipeline.cycle import run_cycle
 
         db = self.fork.db
-        summary = run_cycle(db, self.fork.http, as_of, self.fork.adapters, sleep=lambda s: None)
+        summary = run_cycle(db, self.fork.http, as_of, self.fork.adapters, sleep=lambda s: None,
+                            narrate=False)
         executed = {}
         pending = [d for (d,) in db.query("SELECT decision_id FROM intel.decisions WHERE created_at = ? "
                                           "ORDER BY class DESC, decision_id", [as_of])]

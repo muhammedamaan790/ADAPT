@@ -31,6 +31,7 @@ import numpy as np
 import yaml
 
 from adapt.core import parallel
+from adapt.diagnose.causal.did import did
 from adapt.diagnose.causal.synthetic_control import synthetic_control
 
 CONFIG = Path(__file__).resolve().parents[2] / "config" / "causal.yaml"
@@ -134,13 +135,25 @@ def build_panel(db, inc) -> dict:
             "X": np.column_stack(cols) if cols else np.zeros((0, 0)), "excluded": excluded}
 
 
-def estimate(db, inc, materiality_m: float | None = None) -> dict:
-    """Gated synthetic control for one incident (reads only). inc: diagnose.evidence.Incident."""
+DID_DRIVERS = ("inventory", "price")  # spec §7.1: DiD for inventory / price incidents (Stage 3)
+
+
+def method_for(top_driver: str | None) -> str:
+    return "did" if top_driver in DID_DRIVERS else "synthetic_control"
+
+
+def estimate(db, inc, materiality_m: float | None = None, method: str = "synthetic_control") -> dict:
+    """Gated synthetic control (default) or DiD (inventory / price incidents) for one incident (reads only)."""
     cfg = causal_config()
     f, h, off = int(cfg["fit_days"]), int(cfg["holdout_days"]), int(cfg["placebo_offset_days"])
-    out = {"method": "synthetic_control", "metric": inc.metric, "claim_level": "QUASI_EXPERIMENTAL",
-           "estimand": "% effect on the treated units' reconciled ROAS (window totals, original scale)",
-           "assumptions": ASSUMPTIONS, "gates": {}, "status": NOT_ESTIMABLE, "reason": None}
+    estimator = did if method == "did" else synthetic_control
+    estimand = ("% effect on the treated units' reconciled ROAS: e^delta - 1, delta the difference of pre/post log "
+                "means against equal-weight controls" if method == "did" else
+                "% effect on the treated units' reconciled ROAS (window totals, original scale)")
+    out = {"method": method, "metric": inc.metric, "claim_level": "QUASI_EXPERIMENTAL", "estimand": estimand,
+           "assumptions": ASSUMPTIONS + (["no evidence of a material pre-trend violation (not proof of parallel "
+                                          "trends)"] if method == "did" else []),
+           "gates": {}, "status": NOT_ESTIMABLE, "reason": None}
     if inc.metric not in ROAS_FAMILY:
         out["reason"] = f"no causal estimator for the {inc.metric} family (Stage 2: ROAS/revenue family only)"
         return out
@@ -173,13 +186,13 @@ def estimate(db, inc, materiality_m: float | None = None) -> dict:
     placebo_start = s_real - off
     placebo_args = (y, X, ids, placebo_start, n_post, treated["spend"][placebo_start:placebo_start + n_post], cfg,
                     seed + 1)
-    placebo = parallel.submit(synthetic_control, *placebo_args)  # independent of the main fit: runs alongside it
-    sc = synthetic_control(y, X, ids, s_real, n_post, agg, cfg, seed)
+    placebo = parallel.submit(estimator, *placebo_args)  # independent of the main fit: runs alongside it
+    sc = estimator(y, X, ids, s_real, n_post, agg, cfg, seed)
     pre = slice(s_real - 28, s_real)
     cm = float(treated["cba"][pre].sum() / treated["revenue"][pre].sum()) if treated["revenue"][pre].sum() else 0.0
     gates["pre_fit"] = _gate(sc.holdout_smape <= cfg["smape_max"], holdout_smape=round(sc.holdout_smape, 4),
                              max=cfg["smape_max"])
-    pl = parallel.result(placebo, synthetic_control, *placebo_args)
+    pl = parallel.result(placebo, estimator, *placebo_args)
     pl_inr = pl.effect_pct * pl.counterfactual_level_sum * cm
     m = float(materiality_m) if materiality_m is not None else max(2000.0, 0.05 * float(treated["cba"][pre].mean()))
     pl_ok = pl.ci_lo <= 0 <= pl.ci_hi and abs(pl_inr) < m
@@ -192,11 +205,16 @@ def estimate(db, inc, materiality_m: float | None = None) -> dict:
                                                                                    strict=True)],
                details={"lambda": sc.lam, "cm_before_ads": cm, "level": cfg.get("level", "demeaned"),
                         "windows": {"fit_days": f, "holdout_days": h, "post_days": n_post}})
-    failed = [k for k in ("pre_fit", "placebo", "post_conversions") if not gates[k]["passed"]]
+    if method == "did":
+        gates["pre_trend"] = _gate(sc.pre_trend["passed"], **{k: v for k, v in sc.pre_trend.items() if k != "passed"})
+    failed = [k for k in ("pre_fit", "placebo", "post_conversions", "pre_trend") if k in gates
+              and not gates[k]["passed"]]
     if failed:
         reasons = {"pre_fit": f"pre-fit sMAPE {sc.holdout_smape:.1%} > {cfg['smape_max']:.0%} on the 7-day holdout",
                    "placebo": "in-time placebo found an effect (its CI excludes 0 or its rupee translation >= m)",
-                   "post_conversions": f"{conv:.0f} post-period conversions < {cfg['min_post_conversions']}"}
+                   "post_conversions": f"{conv:.0f} post-period conversions < {cfg['min_post_conversions']}",
+                   "pre_trend": "evidence of a material pre-trend difference (DiD): slope CI excludes 0 or "
+                                "|slope| >= 2% per week"}
         out["reason"] = reasons[failed[0]]
         return out  # no effect number is shown when a gate fails ("No causal estimate: <reason>")
     out.update(status=ESTIMATED, effect_pct=sc.effect_pct, ci=[sc.ci_lo, sc.ci_hi],

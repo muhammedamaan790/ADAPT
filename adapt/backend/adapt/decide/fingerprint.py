@@ -4,7 +4,7 @@ Three staleness classes over the dependency manifest (every unit, SKU and policy
 the optimizer and policy READ, not just the legs' entities):
 - EXACT (any change expires): budgets, curve statuses, SKU unit economics (nrpu, contribution, safety stock),
   campaign_sku weights incl. __unmapped__ and the unmapped contribution rate, objective + lambda, guardrails,
-  policy version, autonomy mode and kill switch -> hashed into economics_hash.
+  policy version, per-channel autonomy modes and kill switch -> hashed into economics_hash.
 - TOLERANCE: available units per SKU (expire if they move > 10%) and each unit's inventory gate (expire if the
   label changes); without this class every sale would expire every approval.
 - STATUS (expire on downgrade): open incidents on manifest campaigns; data health of the required sources.
@@ -19,6 +19,7 @@ from adapt.decide.hashing import content_hash
 from adapt.decide.optimizer import FastEval, gate_label, search_draws
 from adapt.economics.portfolio import Portfolio, PortfolioState
 from adapt.economics.state import guardrails_config, inputs_manifest, objectives_config
+from adapt.policy.modes import channel_modes
 
 AVAILABLE_TOLERANCE = 0.10
 HEALTH_RANK = {"GREEN": 0, "YELLOW": 1, "RED": 2}
@@ -50,7 +51,7 @@ def fingerprint(db, state: PortfolioState, policy_version: str, kill_switch: boo
     oc = objectives_config()
     exact = {"inputs": inputs_manifest(state), "objective": objective, "objective_config": oc.get(objective, {}),
              "lambda": oc.get(objective, {}).get("lambda", oc["PROFIT"]["lambda"]),
-             "guardrails": g, "policy_version": policy_version, "autonomy_mode": "APPROVE",
+             "guardrails": g, "policy_version": policy_version, "autonomy_mode": channel_modes(db),
              "kill_switch": kill_switch}
     fe = FastEval(Portfolio(state, search_draws(state)), g["inventory_gate"])
     x = fe.exposure(fe.state_of(fe.pf.s0))

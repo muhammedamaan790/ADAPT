@@ -19,6 +19,7 @@ import { useOverview, useDecisions } from '../hooks/workspace';
 import { Badge, Empty, ErrorState, Loading, MetricTile } from '../components/ui';
 import { TrendChart } from '../components/charts';
 import { HomeProposal, ChannelMark } from '../components/HomeProposal';
+import { AskAdapt } from '../components/AskAdapt';
 import { dateTime, money } from '../lib/format';
 
 export function CommandCenter() {
@@ -58,6 +59,7 @@ export function CommandCenter() {
         <strong>Morning brief</strong>
         <p>{data.brief}</p>
       </section>
+      <AskAdapt />
       <section className="metrics" aria-label="Business metrics">
         {data.metrics.map((metric) => (
           <MetricTile key={metric.key} metric={metric} />

@@ -22,6 +22,7 @@ import {
   copilotReplySchema,
   type Comparison,
   type CopilotReply,
+  type CopilotTurn,
 } from './insight-contracts';
 
 const fixture = dataMode === 'fixture';
@@ -51,7 +52,7 @@ export const insights = {
             l.inventory_gate === 'BLOCK' ? 0 : Math.min(1000, Math.max(0, l.max_budget - l.before)),
           decision_id: c.decision_id,
           evidence: [
-            { label: 'Allocation & policy', href: '/optimizer' },
+            { label: 'Allocation & policy', href: '/decisions' },
             { label: 'Inventory evidence', href: `/decisions/${c.decision_id}` },
           ],
           provenance: ['SIMULATED'],
@@ -449,9 +450,18 @@ export const insights = {
   },
 };
 
-export async function askCopilot(message: string, signal: AbortSignal): Promise<CopilotReply> {
-  if (message.trim().length < 3 || message.length > 2000)
-    throw new Error('Ask a question between 3 and 2,000 characters.');
+/**
+ * Ask ADAPT: one question to the workspace agent (POST /copilot/chat, server-sent events). `status` events report
+ * the agent's tool steps while it works; the answer arrives whole once its figures have been checked.
+ */
+export async function askAdapt(
+  message: string,
+  history: CopilotTurn[],
+  signal: AbortSignal,
+  onStatus: (text: string) => void = () => undefined,
+): Promise<CopilotReply> {
+  if (!message.trim() || message.length > 2000)
+    throw new Error('Ask a question of up to 2,000 characters.');
   if (fixture) {
     const [overview, decisions, outcomes] = await Promise.all([
       api.overview(),
@@ -461,7 +471,7 @@ export async function askCopilot(message: string, signal: AbortSignal): Promise<
     const d = decisions[0];
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
     let text =
-      'This template assistant supports questions about budgets, inventory, risks and feedback. The backend LLM is not connected.';
+      'In fixture mode I can answer simple questions about budgets, inventory, risks and feedback from the illustrative workspace.';
     let evidence = [{ label: 'Workspace sources', href: '/data' }];
     if (/feedback|outcome|learn|accuracy/i.test(message)) {
       text = outcomes.length
@@ -481,25 +491,33 @@ export async function askCopilot(message: string, signal: AbortSignal): Promise<
         { label: 'Source health', href: '/data' },
       ];
     }
-    return copilotReplySchema.parse({ text, evidence, mode: 'TEMPLATE' });
+    if (/^\s*(hi|hey|hello|good (morning|afternoon|evening)|namaste|thanks)\b/i.test(message))
+      text =
+        "Hi! I'm ADAPT's assistant. In fixture mode I answer from the illustrative workspace; connect the backend for full AI answers.";
+    return copilotReplySchema.parse({
+      text,
+      evidence,
+      mode: 'TEMPLATE',
+      note: 'Fixture mode: the AI agent needs the backend with GROQ_API_KEY.',
+    });
   }
   const timeout = new AbortController();
-  const timer = setTimeout(() => timeout.abort(), 30000);
+  const timer = setTimeout(() => timeout.abort(), 90000);
   try {
     const response = await fetch(`${apiBase}/copilot/chat`, {
       method: 'POST',
       credentials: 'include',
       signal: AbortSignal.any([signal, timeout.signal]),
       headers: { Accept: 'text/event-stream', ...writeHeaders() },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, history: history.slice(-16) }),
     });
     if (!response.ok)
       throw new ApiError(
         response.status,
-        `Copilot returned ${response.status}. Check backend availability and permissions.`,
+        `The assistant returned ${response.status}. Check that the backend is running and you are signed in.`,
       );
     if (!response.headers.get('content-type')?.includes('text/event-stream') || !response.body)
-      throw new ApiError(502, 'Copilot must return the agreed event stream contract.');
+      throw new ApiError(502, 'The assistant must return the agreed event stream contract.');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -511,7 +529,7 @@ export async function askCopilot(message: string, signal: AbortSignal): Promise<
         const { value, done } = await reader.read();
         if (done) break;
         bytes += value.byteLength;
-        if (bytes > 128000) throw new ApiError(502, 'Copilot response exceeded the display limit.');
+        if (bytes > 256000) throw new ApiError(502, 'The answer exceeded the display limit.');
         buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, '\n');
         let split;
         while ((split = buffer.indexOf('\n\n')) >= 0) {
@@ -527,11 +545,12 @@ export async function askCopilot(message: string, signal: AbortSignal): Promise<
           try {
             parsed = JSON.parse(raw);
           } catch {
-            throw new ApiError(502, 'Malformed Copilot event.');
+            throw new ApiError(502, 'Malformed assistant event.');
           }
           const result = z
             .object({
-              type: z.enum(['answer', 'error', 'done']),
+              type: z.enum(['status', 'answer', 'error', 'done']),
+              text: z.string().optional(),
               reply: copilotReplySchema.optional(),
               message: z.string().optional(),
             })
@@ -539,17 +558,14 @@ export async function askCopilot(message: string, signal: AbortSignal): Promise<
           if (!result.success)
             throw new ApiError(
               502,
-              'Copilot response contract mismatch: answer or evidence links are invalid. Ask again after the backend contract is corrected.',
+              'Assistant response contract mismatch: the answer or its evidence links are invalid.',
             );
           const envelope = result.data;
+          if (envelope.type === 'status' && envelope.text) onStatus(envelope.text);
           if (envelope.type === 'error')
-            throw new ApiError(
-              502,
-              envelope.message || 'Copilot failed to generate a grounded answer.',
-            );
+            throw new ApiError(502, envelope.message || 'The assistant failed to answer.');
           if (envelope.type === 'answer') {
-            if (!envelope.reply)
-              throw new ApiError(502, 'Copilot answer has no validated payload.');
+            if (!envelope.reply) throw new ApiError(502, 'The answer has no validated payload.');
             reply = envelope.reply;
           }
           if (envelope.type === 'done') {
@@ -563,7 +579,7 @@ export async function askCopilot(message: string, signal: AbortSignal): Promise<
       await reader.cancel().catch(() => undefined);
     }
     if (!reply || !doneEvent)
-      throw new ApiError(502, 'Copilot stream ended before a complete answer was confirmed.');
+      throw new ApiError(502, 'The answer stream ended before it was complete.');
     return reply;
   } finally {
     clearTimeout(timer);

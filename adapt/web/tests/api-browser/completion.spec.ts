@@ -103,32 +103,3 @@ test('confidence evidence shows held-out scope, counts and missing intervals', a
   await expect(page.getByText('69.9%–97.2%', { exact: true })).toBeVisible();
   await expect(page.getByText('Not estimable', { exact: true })).toHaveCount(2);
 });
-test('SQL inspection binds submitted query and renders untrusted cells as text', async ({
-  page,
-}) => {
-  await routes(page);
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Open Copilot' }).click();
-  await page.getByRole('button', { name: 'SQL inspection' }).click();
-  await page.getByRole('button', { name: 'Run read-only query' }).click();
-  await expect(
-    page.getByRole('cell', { name: '<script>alert(1)</script>', exact: true }),
-  ).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'NULL', exact: true })).toBeVisible();
-  const results = page.getByRole('region', {
-    name: 'SQL results; scroll to inspect all rows and columns',
-  });
-  await results.focus();
-  await expect(results).toBeFocused();
-  await page.getByLabel('Read-only SQL').fill('SELECT other');
-  await expect(page.getByRole('table')).toHaveCount(0);
-});
-test('SQL refusal displays backend reason without fabricated results', async ({ page }) => {
-  await routes(page, 'sql');
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Open Copilot' }).click();
-  await page.getByRole('button', { name: 'SQL inspection' }).click();
-  await page.getByRole('button', { name: 'Run read-only query' }).click();
-  await expect(page.getByText('Only allowlisted SELECT statements are permitted.')).toBeVisible();
-  await expect(page.getByRole('table')).toHaveCount(0);
-});

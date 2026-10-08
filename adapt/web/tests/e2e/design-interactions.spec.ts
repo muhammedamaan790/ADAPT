@@ -36,7 +36,7 @@ test('mobile navigation exposes every workflow and restores focus after closing'
   const menu = page.getByRole('button', { name: 'Open navigation' });
   await menu.click();
   const dialog = page.getByRole('dialog', { name: 'Navigation' });
-  await expect(dialog.getByRole('link')).toHaveCount(11);
+  await expect(dialog.getByRole('link')).toHaveCount(8);
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await expect(menu).toBeFocused();

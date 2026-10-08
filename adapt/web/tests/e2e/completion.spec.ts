@@ -1,16 +1,23 @@
 import { test, expect } from '@playwright/test';
-test('failed Copilot module retains workspace navigation and a closeable recovery dialog', async ({
+test('the Ask ADAPT agent greets, answers with evidence links and survives navigation', async ({
   page,
 }) => {
-  await page.route('**/src/components/Copilot.tsx*', (r) => r.abort());
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open Copilot' }).click();
-  await expect(page.getByRole('dialog', { name: 'Copilot unavailable' })).toBeVisible();
-  await page.getByRole('button', { name: 'Close assistant' }).click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('link', { name: 'Decision Center', exact: true }).click();
-  await expect(page).toHaveURL(/\/decisions$/);
-  await expect(page.getByRole('button', { name: 'Approve & execute', exact: true })).toBeVisible();
+  const agent = page.locator('.ask-panel');
+  await expect(agent.getByRole('heading', { name: /What would you like to know\?/ })).toBeVisible();
+  await agent.getByLabel('Ask ADAPT').fill('hello');
+  await page.keyboard.press('Enter');
+  await expect(agent.getByText(/^Hi! I'm ADAPT's assistant/)).toBeVisible();
+  await agent.getByLabel('Ask ADAPT').fill('Why this allocation?');
+  await agent.getByRole('button', { name: 'Send question' }).click();
+  const link = agent.getByRole('link', { name: /^Decision / }).last();
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page).toHaveURL(/\/decisions\//);
+  await page.getByRole('link', { name: 'Command Center', exact: true }).click();
+  await expect(page.locator('.ask-user').first()).toHaveText('hello');
+  await page.locator('.ask-panel').getByRole('button', { name: 'New conversation' }).click();
+  await expect(page.locator('.ask-msg')).toHaveCount(0);
 });
 test('fixture settings and confidence disclose unavailable backend evidence', async ({ page }) => {
   await page.goto('/executions?section=settings');
@@ -22,16 +29,11 @@ test('fixture settings and confidence disclose unavailable backend evidence', as
     page.getByRole('heading', { name: 'No qualification evidence supplied' }),
   ).toBeVisible();
 });
-test('fixture SQL tool is disabled and unknown routes recover through navigation', async ({
-  page,
-}) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Open Copilot' }).click();
-  await page.getByRole('button', { name: 'SQL inspection' }).click();
-  await expect(page.getByRole('button', { name: 'Run read-only query' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Close dialog' }).click();
-  await page.goto('/does-not-exist');
-  await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+test('unknown routes and removed pages recover through navigation', async ({ page }) => {
+  for (const path of ['/does-not-exist', '/optimizer', '/opportunities', '/connection']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
+  }
   await page.getByRole('link', { name: 'Return to Command Center' }).click();
   await expect(page.getByRole('heading', { name: 'Command Center', exact: true })).toBeVisible();
 });

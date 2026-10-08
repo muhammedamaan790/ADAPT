@@ -349,38 +349,48 @@ class Optimizer:
         return True
 
     # ---- 1. greedy marginal allocation ---------------------------------------------------------------------------
+    def step_schedule(self) -> list[float]:
+        """Coarse-to-fine greedy: the configured coarse steps (largest first, each > the fine step), then the fine
+        step (spec: Rs 500). Each phase continues from where the previous one stopped."""
+        coarse = sorted({float(x) for x in self.ec.get("greedy_coarse_steps_inr", []) if float(x) > self.step},
+                        reverse=True)
+        return [*coarse, self.step]
+
     def greedy(self, max_iter: int = 5000) -> tuple[np.ndarray, list[dict]]:
         st = self.fe.state_of(self.s0)
         cur = self.value(st)
         ladder = []
-        for _ in range(max_iter):
-            moves = []  # (value, loop order, unit, new budget, sign, state) of every improving linear-feasible move
-            for i in range(len(self.s0)):
-                for sign in (1, -1):
-                    nb = float(np.clip(st["s"][i] + sign * self.step, self.c.lo[i], self.c.hi[i]))
-                    if abs(nb - st["s"][i]) < 1e-9:
-                        continue
-                    cand_s = st["s"].copy()
-                    cand_s[i] = nb
-                    if not self.linear_ok(cand_s):
-                        continue
-                    cand = self.fe.with_move(st, i, nb)
-                    v = self.value(cand)
-                    if v > cur + 1e-6:
-                        moves.append((v, len(moves), i, nb, sign, cand))
-            # the costlier gate / objective checks run from the best value down; the first move passing them is
-            # exactly the one a check-everything loop picks (largest value; ties to the earliest in loop order)
-            best = None
-            for v, _order, i, nb, sign, cand in sorted(moves, key=lambda m: (-m[0], m[1])):
-                if (sign < 0 or self.fe.gate_ok(cand)) and self.objective_ok(cand):
-                    best = (v, i, nb, cand)
+        lo, hi = [float(x) for x in self.c.lo], [float(x) for x in self.c.hi]
+        for step in self.step_schedule():
+            for _ in range(max_iter):
+                moves = []  # (value, loop order, unit, new budget, sign, state) of every improving feasible move
+                for i in range(len(self.s0)):
+                    for sign in (1, -1):
+                        # min/max on Python floats: np.clip's value without its per-call overhead
+                        nb = min(max(float(st["s"][i]) + sign * step, lo[i]), hi[i])
+                        if abs(nb - st["s"][i]) < 1e-9:
+                            continue
+                        cand_s = st["s"].copy()
+                        cand_s[i] = nb
+                        if not self.linear_ok(cand_s):
+                            continue
+                        cand = self.fe.with_move(st, i, nb)
+                        v = self.value(cand)
+                        if v > cur + 1e-6:
+                            moves.append((v, len(moves), i, nb, sign, cand))
+                # the costlier gate / objective checks run from the best value down; the first move passing them is
+                # exactly the one a check-everything loop picks (largest value; ties to the earliest in loop order)
+                best = None
+                for v, _order, i, nb, sign, cand in sorted(moves, key=lambda m: (-m[0], m[1])):
+                    if (sign < 0 or self.fe.gate_ok(cand)) and self.objective_ok(cand):
+                        best = (v, i, nb, cand)
+                        break
+                if best is None:
                     break
-            if best is None:
-                break
-            v, i, nb, cand = best
-            ladder.append({"unit_id": self.state.units[i].unit_id, "from": float(st["s"][i]), "to": nb,
-                           "objective_gain": v - cur})
-            st, cur = cand, v
+                v, i, nb, cand = best
+                ladder.append({"unit_id": self.state.units[i].unit_id, "from": float(st["s"][i]), "to": nb,
+                               "objective_gain": v - cur, "step": step})
+                st, cur = cand, v
         return st["s"], ladder
 
     # ---- 2. SLSQP polish -------------------------------------------------------------------------------------------

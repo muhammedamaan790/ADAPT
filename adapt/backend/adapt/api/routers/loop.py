@@ -2,8 +2,9 @@
 the frontend probes (anomalies, optimizer context, executions, ledger). Paths and payloads follow the frontend's zod
 contracts; FastAPI validates every response against api/models.py before it is sent.
 
-Errors: 404 unknown id; 409 stale hash / expired / conflict / busy pipeline / unresolved execution; 403 role;
-422 NOT_BUILT for Stage 2 features (other objectives, injected UNKNOWN faults, retry); 503 world unreachable.
+Errors: 404 unknown id; 409 stale hash / expired / conflict / busy pipeline / unresolved execution / simulation out
+of sync with a verified live change; 403 role; 422 NOT_BUILT for features not built (injected UNKNOWN faults,
+retry, objectives other than PROFIT / GROWTH / INVENTORY_CLEARANCE); 503 world unreachable.
 Stage 1 actor: one demo manager (session auth with roles is the follow-up agreed with the frontend).
 """
 
@@ -13,6 +14,7 @@ import hashlib
 import json
 import math
 
+import numpy as np
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 from adapt.api import models as m
@@ -20,11 +22,13 @@ from adapt.api import views as v
 from adapt.api.auth import DEMO_USER, User
 from adapt.api.runtime import Busy, Runtime
 from adapt.decide import decisions as dec
-from adapt.decide.optimizer import build_constraints, search_draws
+from adapt.decide.alternatives import MODES, objectives_for, selected_objective
+from adapt.decide.optimizer import Optimizer, build_constraints, search_draws
 from adapt.decide.run import persist_basis, policy_flags, run_optimizer
 from adapt.economics.portfolio import Portfolio
 from adapt.economics.state import guardrails_config, load_state, objectives_config
-from adapt.execute import saga
+from adapt.execute import mirror, saga
+from adapt.execute.adapters import platform_health
 from adapt.ingest.http import ConnectorError
 from adapt.policy.engine import current_policy, policy_result, validate
 
@@ -43,8 +47,9 @@ def actor(request: Request) -> User:
     """The signed-in user, recorded on every approval, rejection and execution (the demo manager when auth is off)."""
     return getattr(request.state, "user", DEMO_USER)
 
-STAGE1_SCENARIOS = {"DEMO_01", "S1", "S2", "S3", "S4", "S5", "S7"}
-# spec §14; Stage 1 supports S1-S5, S7, DEMO_01 (the world implements them and every module they need exists)
+BUILT_SCENARIOS = {"DEMO_01", "S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S10", "S11", "S12"}
+# spec §14: the world implements these and every module they need exists (Stage 2 adds S6, S8, S10-S12). S9, the
+# ROAS trap, is a decision-quality property of opportunity ranking, not an injected world scenario.
 SCENARIO_CATALOG = [
     ("DEMO_01", "Golden demo", "Creative fatigue on a Meta category with low hero-SKU cover, while a Google category "
      "has rising demand and deep stock.", "Demo", []),
@@ -54,19 +59,15 @@ SCENARIO_CATALOG = [
      "Detect + diagnose", []),
     ("S4", "Price change", "+18% price on a category.", "Detect + diagnose", []),
     ("S5", "Tracking break", "Sessions −60% while clicks stay flat.", "Detect + diagnose", []),
-    ("S6", "Demand surge", "Category demand surge (positive anomaly).", "Detect + diagnose",
-     ["demand evidence module", "world scenario S6"]),
+    ("S6", "Demand surge", "Category demand surge (positive anomaly).", "Detect + diagnose", []),
     ("S7", "Human budget cut", "A manager cuts a budget; must not open an efficiency incident.", "Classification", []),
-    ("S8", "Audience saturation", "Retargeting frequency 2→5 with flat reach.", "Detect + diagnose",
-     ["saturation evidence module", "world scenario S8"]),
+    ("S8", "Audience saturation", "Retargeting frequency 2→5 with flat reach.", "Detect + diagnose", []),
     ("S9", "ROAS trap", "A high-ROAS, low-margin, low-stock SKU against a high-margin, deep-stock SKU.",
-     "Decision quality", ["world scenario S9", "opportunity ranking"]),
+     "Decision quality", ["an injected ROAS-trap world scenario (checked by the opportunity ranking test)"]),
     ("S10", "Seasonal pattern", "Weekly or holiday pattern; must be labelled seasonal_expected.", "Classification",
-     ["seasonal classifier", "world scenario S10"]),
-    ("S11", "Excess inventory", "Clearance objective shifts spend toward EXCESS SKUs.", "Decision quality",
-     ["INVENTORY_CLEARANCE objective", "world scenario S11"]),
-    ("S12", "Fatigue + demand", "Two drivers on one campaign, ranked by simulated effect.", "Detect + diagnose",
-     ["demand evidence module", "world scenario S12"]),
+     []),
+    ("S11", "Excess inventory", "Clearance objective shifts spend toward EXCESS SKUs.", "Decision quality", []),
+    ("S12", "Fatigue + demand", "Two drivers on one campaign, ranked by simulated effect.", "Detect + diagnose", []),
 ]
 ERR = {"NOT_FOUND": 404, "FORBIDDEN": 403, "HASH_MISMATCH": 409, "EXPIRED": 409, "CONFLICT": 409,
        "ROLLBACK_CONFLICT": 409, "INVALID": 422}
@@ -77,6 +78,8 @@ def rt(request: Request) -> Runtime:
 
 
 def _fail(exc: Exception):
+    if isinstance(exc, mirror.SimOutOfSync):
+        raise HTTPException(409, detail=f"SIM OUT OF SYNC: {exc}") from exc
     if isinstance(exc, dec.DecisionError):
         detail = str(exc)
         if exc.details.get("diff"):
@@ -120,6 +123,16 @@ def _allocation(state, body: m.AllocationInput) -> dict[str, float]:
         if leg.budget_id in current and abs(float(leg.after) - current[leg.budget_id]) >= 1.0:
             out[leg.budget_id] = float(leg.after)
     return out
+
+
+def _objective(r: Runtime, requested: str) -> str:
+    """The workspace objective (an admin setting); a request for another one is refused, never silently swapped."""
+    if requested not in MODES:
+        raise HTTPException(422, detail=f"NOT_BUILT: the {requested} objective; built: {', '.join(MODES)}")
+    mode = selected_objective(r.db)
+    if requested != mode:
+        raise HTTPException(409, detail=f"the workspace objective is {mode}; change it on the objective page first")
+    return mode
 
 
 def _state_cache(r: Runtime) -> tuple:
@@ -219,8 +232,7 @@ def modify(decision_id: str, body: m.AllocationInput, request: Request):
     """A user edit becomes a NEW decision (follows the original, separately valued, policy-checked, hash-bound);
     the original is superseded if still pending. Never an in-place mutation."""
     r = rt(request)
-    if body.objective != "PROFIT":
-        raise HTTPException(422, detail="NOT_BUILT: Stage 1 supports the PROFIT objective only")
+    mode = _objective(r, body.objective)
     try:
         with r.mutation():
             d = dec.get_decision(r.db, decision_id)
@@ -230,6 +242,7 @@ def modify(decision_id: str, body: m.AllocationInput, request: Request):
             alloc = _allocation(state, body)
             policy = current_policy(r.db, as_of)
             prop = dec.manual_proposal(state, alloc, policy["config"])
+            prop["objective"] = mode
             h = hashlib.sha256(json.dumps(alloc, sort_keys=True).encode()).hexdigest()[:10]
             run_id = f"{opt_id}-mod-{h}"
             new_id = f"{run_id}-M"
@@ -265,6 +278,7 @@ def optimizer_context(request: Request):
     pend = [d for d in v.decision_list(r.db) if d["status"] == "PENDING_APPROVAL" and d["class"] == "OPTIMIZATION"]
     why = {w["unit_id"]: w for w in res.get("why_not", [])}
     pf = Portfolio(state, search_draws(state))
+    selected = selected_objective(r.db)  # the workbench runs the workspace objective (changed on its own page)
     camps = []
     for i, u in enumerate(state.units):
         spend = u.pacing * u.budget
@@ -284,9 +298,9 @@ def optimizer_context(request: Request):
                       "inventory_gate": (res.get("inventory_gate", {}).get(u.unit_id) or {}).get("gate", "ALLOW"),
                       "min_budget": float(lo_i), "max_budget": float(hi_i), "note": note})
     return {"decision_id": pend[0]["decision_id"] if pend else None,
-            "decision_hash": pend[0]["decision_hash"] if pend else None, "supported_objectives": ["PROFIT"],
+            "decision_hash": pend[0]["decision_hash"] if pend else None, "supported_objectives": [selected],
             # whole rupees: the sum of rounded budgets may exceed a fractional ceiling by a few rupees
-            "objective": "PROFIT", "budget_ceiling": float(math.ceil(c.B)), "reserve_floor": float(c.R),
+            "objective": selected, "budget_ceiling": float(math.ceil(c.B)), "reserve_floor": float(c.R),
             "max_daily_change": float(g["change"]["max_daily_change_pct"]),
             "policy_version": current_policy(r.db, as_of)["policy_version"],
             "horizon_days": int(objectives_config()["economics"]["horizon_days"]), "campaigns": camps}
@@ -295,8 +309,7 @@ def optimizer_context(request: Request):
 @router.post("/optimizer/run", response_model=m.Decision, dependencies=mutating)
 def optimizer_run(body: m.OptimizerRunBody, request: Request):
     r = rt(request)
-    if body.objective != "PROFIT":
-        raise HTTPException(422, detail="NOT_BUILT: Stage 1 supports the PROFIT objective only")
+    _objective(r, body.objective)
     try:
         with r.mutation():
             run = v.latest_run(r.db)
@@ -318,24 +331,35 @@ def optimizer_run(body: m.OptimizerRunBody, request: Request):
 def whatif(body: m.AllocationInput, request: Request):
     """Value an edited allocation with the same portfolio_economics + policy validation (not executable)."""
     r = rt(request)
-    if body.objective != "PROFIT":
+    mode = selected_objective(r.db)
+    if body.objective != mode:
+        why = (f"the workspace objective is {mode}" if body.objective in MODES else
+               f"the {body.objective} objective is not built")
         return {"decision_id": body.decision_id, "decision_hash": body.decision_hash, "objective": body.objective,
                 "objective_value": None, "allocated": 0.0, "unallocated": 0.0,
-                "checks": [{"id": "OBJECTIVE", "label": "Objective supported", "passed": False,
-                            "detail": "Stage 1 values PROFIT only"}],
+                "checks": [{"id": "OBJECTIVE", "label": "Objective supported", "passed": False, "detail": why}],
                 "estimate_status": "NOT_ESTIMABLE", "estimate": None,
-                "explanation": "This objective is a Stage 2 feature; no estimate is fabricated."}
+                "explanation": f"Not valued: {why}; no estimate is fabricated."}
     state, flags, _opt_id, _as_of = _state_cache(r)
     alloc = _allocation(state, body)
     econ = Portfolio(state).evaluate(alloc)
     s = econ.summary()
-    lam = objectives_config()["PROFIT"]["lambda"]
+    if mode == "PROFIT":
+        lam = objectives_config()["PROFIT"]["lambda"]
+        value = {"value": s["E"] - lam * (s["E"] - s["P10"]), "label": "Risk-adjusted contribution change (7 days)",
+                 "unit": "INR"}
+    elif mode == "GROWTH":
+        value = {"value": s["delta_net_revenue"], "label": "Expected net revenue change (7 days)", "unit": "INR"}
+    else:  # INVENTORY_CLEARANCE: the optimizer's own objective, E[dCAA] + h x excess-band units sold
+        opt = Optimizer(state, flags, objectives=objectives_for(mode))
+        st = opt.fe.state_of(np.array([alloc[u.unit_id] for u in state.units], dtype=float))
+        value = {"value": opt.value(st), "label": "Contribution change + holding value of excess units sold (7 days)",
+                 "unit": "INR"}
     checks = validate(state, alloc, flags, "OPTIMIZATION")
     c = build_constraints(state, flags, guardrails_config())
     total = sum(alloc.values())
-    return {"decision_id": body.decision_id, "decision_hash": body.decision_hash, "objective": "PROFIT",
-            "objective_value": {"value": s["E"] - lam * (s["E"] - s["P10"]),
-                                "label": "Risk-adjusted contribution change (7 days)", "unit": "INR"},
+    return {"decision_id": body.decision_id, "decision_hash": body.decision_hash, "objective": mode,
+            "objective_value": value,
             "allocated": total, "unallocated": max(c.B - total, 0.0),
             "checks": [{"id": x["rule"], "label": v.nar.CHECK_LABEL.get(x["rule"], x["rule"]), "passed": x["passed"],
                         "detail": x["detail"]} for x in checks],
@@ -446,8 +470,13 @@ def rollback(execution_id: str, body: m.RecoveryBody, request: Request):
 
 
 @router.post("/executions/{execution_id}/reconcile", response_model=m.Execution, dependencies=mutating)
-def reconcile(execution_id: str, body: m.RecoveryBody, request: Request):
+def reconcile(execution_id: str, body: m.RecoveryBody, request: Request,
+              target: str = Query("platform", pattern="^(platform|sim)$")):
+    """target=platform: resolve CONFLICT legs or a saga awaiting human resolution. target=sim: apply a failed
+    simulation mirror after a FRESH live read-back confirms the verified amount (the live change is never touched)."""
     r = rt(request)
+    if target == "sim":
+        return _reconcile_sim(r, execution_id, body, request)
     try:
         with r.mutation():
             _execution(r, execution_id, body)
@@ -467,6 +496,41 @@ def reconcile(execution_id: str, body: m.RecoveryBody, request: Request):
     return _exec_out(r, execution_id)
 
 
+def _reconcile_sim(r: Runtime, execution_id: str, body: m.RecoveryBody, request: Request) -> dict:
+    live = r.adapters.get("google")
+    if getattr(live, "mode", None) != "LIVE":
+        raise HTTPException(409, detail="no live platform: simulation mirrors exist only in hybrid (live) mode")
+    try:
+        with r.mutation():
+            _execution(r, execution_id, body)
+            failed = [lid for (lid,) in r.db.query("SELECT leg_id FROM exec.saga_legs WHERE saga_id = ? "
+                                                   "AND sim_sync_state = 'MIRROR_FAILED'", [execution_id])]
+            if not failed:
+                raise HTTPException(409, detail="no MIRROR_FAILED leg on this execution")
+            u = actor(request)
+            for lid in failed:
+                mirror.resolve_manually(r.db, lid, live, live.mirror, u.user_id, u.role, r.now())
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        _fail(exc)
+    return _exec_out(r, execution_id)
+
+
+@router.get("/platforms/health", response_model=m.PlatformsOut)
+def platforms_health(request: Request):
+    """Per platform: the execution mode fixed at startup and whether it can execute (a failing live check disables
+    Approve for that platform's legs; spec §9.4), plus legs whose verified live change is not yet mirrored."""
+    r = rt(request)
+    out = []
+    for platform, h in platform_health(r.adapters).items():
+        out.append({"platform": platform, "mode": h.get("mode", "MOCK"), "ok": bool(h.get("ok")),
+                    "label": h.get("label") or f"{h.get('mode', 'MOCK')} · {platform}", "reason": h.get("reason"),
+                    "checks": {k: bool(x) for k, x in (h.get("checks") or {}).items()}})
+    sync = mirror.divergent(r.db) if v.has(r.db, "exec", "leg_mirror") else []
+    return {"platforms": out, "sim_out_of_sync": sync}
+
+
 @router.post("/executions/{execution_id}/retry", response_model=m.Execution, dependencies=mutating)
 def retry(execution_id: str, body: m.RecoveryBody, request: Request):
     raise HTTPException(422, detail="NOT_BUILT: Stage 1 does not retry legs; generate a fresh decision instead")
@@ -481,18 +545,18 @@ def _world_post(r: Runtime, path: str, body: dict, rid: str, actor_id: str) -> N
 
 @router.get("/sim/scenarios", response_model=m.ScenarioCatalog)
 def sim_scenarios():
-    return {"stage": "Stage 1", "note": "Stage 1 runs S1–S5, S7 and DEMO_01 against the world service. The others "
-            "need modules or world scenarios that are not built yet and cannot be loaded.",
+    return {"stage": "Stage 2", "note": "Every scenario the world injects can be loaded (S1–S8, S10–S12, DEMO_01). "
+            "S9 is checked by the opportunity-ranking test rather than injected into the world.",
             "items": [{"key": k, "title": t, "description": d, "category": c,
-                       "status": "AVAILABLE" if k in STAGE1_SCENARIOS else "NOT_BUILT", "missing_modules": miss}
+                       "status": "AVAILABLE" if k in BUILT_SCENARIOS else "NOT_BUILT", "missing_modules": miss}
                       for k, t, d, c, miss in SCENARIO_CATALOG]}
 
 
 @router.post("/sim/scenario/{key}", response_model=m.Ack, dependencies=mutating)
 def sim_scenario(key: str, request: Request):
     r = rt(request)
-    if key not in STAGE1_SCENARIOS:
-        raise HTTPException(422, detail=f"NOT_BUILT: {key} is not a Stage 1 scenario")
+    if key not in BUILT_SCENARIOS:
+        raise HTTPException(422, detail=f"NOT_BUILT: {key} is not an injectable world scenario")
     try:
         with r.mutation():
             if r.unresolved_executions():
@@ -517,8 +581,16 @@ def sim_advance(request: Request, days: int = Query(1, ge=1, le=14)):
             if r.unresolved_executions():
                 raise HTTPException(409, detail="an execution is unresolved; world advance is blocked")
             now = r.now()
-            _world_post(r, "/control/advance", {"days": days}, f"api-advance-{now.isoformat()}-{days}",
-                        actor(request).user_id)
+            live = r.adapters.get("google")
+            if getattr(live, "mode", None) == "LIVE":  # one more mirror attempt before the divergence check
+                mirror.retry_pending(r.db, live.mirror, now)
+            try:  # the only advance path: refused while a verified live change is not mirrored (spec §9.4, T41)
+                mirror.advance_world(r.db, r.client, days, f"api-advance-{now.isoformat()}-{days}",
+                                     actor_id=actor(request).user_id)
+            except RuntimeError as exc:
+                if isinstance(exc, mirror.SimOutOfSync):
+                    raise
+                raise HTTPException(409 if "HTTP 409" in str(exc) else 502, detail=f"world: {exc}") from exc
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001

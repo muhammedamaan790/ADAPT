@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     meta_execution_mode: Literal["mock"] = "mock"
 
     groq_api_key: str | None = Field(default=None, validation_alias="GROQ_API_KEY")
+    # the precomputed evaluation report (scripts/run_eval.py), served read-only by /eval/report and /learning/uplift
+    eval_report_path: Path = REPO_ROOT / "evidence" / "eval.json"
+    # the warm-up track record (scripts/run_warmup.py), imported at bootstrap only when its contract passed
+    warmup_track_record_path: Path = REPO_ROOT / "evidence" / "warmup_track_record.json"
 
     # session login, roles and CSRF (spec §9.5; adapt/api/auth.py). Off only for in-process tests and fixture work.
     auth_enabled: bool = True

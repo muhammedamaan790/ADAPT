@@ -26,10 +26,8 @@ import {
   SectionTitle,
 } from '../components/ui';
 import { dateTime, money } from '../lib/format';
-import { Evaluation } from '../components/Evaluation';
 
 export function ScenarioLab() {
-  const [section, setSection] = useState<'scenarios' | 'evaluation'>('scenarios');
   const overview = useOverview();
   const catalog = useQuery({ queryKey: ['scenario-catalog'], queryFn: policy.scenarios });
   const events = useEvents();
@@ -48,44 +46,12 @@ export function ScenarioLab() {
   const reset = useAction(async (n: number) => {
     await api.reset(n);
   });
-  const navigation = (
-    <div className="report-tabs" role="group" aria-label="Scenario Lab views">
-      <button
-        className="button secondary"
-        aria-pressed={section === 'scenarios'}
-        onClick={() => setSection('scenarios')}
-      >
-        Scenario controls
-      </button>
-      <button
-        className="button secondary"
-        aria-pressed={section === 'evaluation'}
-        onClick={() => setSection('evaluation')}
-      >
-        Head-to-Head
-      </button>
-    </div>
-  );
-  if (section === 'evaluation')
-    return (
-      <>
-        <div className="page-heading">
-          <div>
-            <h1>Scenario Lab</h1>
-            <p>Inspect precomputed results under the same evaluation envelope.</p>
-          </div>
-        </div>
-        {navigation}
-        <Evaluation />
-      </>
-    );
   if (overview.isPending)
     return (
       <>
         <div className="page-heading">
           <h1>Scenario Lab</h1>
         </div>
-        {navigation}
         <Loading label="Loading Scenario Lab" />
       </>
     );
@@ -95,7 +61,6 @@ export function ScenarioLab() {
         <div className="page-heading">
           <h1>Scenario Lab</h1>
         </div>
-        {navigation}
         <ErrorState
           error={overview.error || new Error('World state unavailable')}
           retry={() => void overview.refetch()}
@@ -143,7 +108,6 @@ export function ScenarioLab() {
         </div>
         <Badge tone="accent">{catalog.data?.stage || 'Scenario catalog unavailable'}</Badge>
       </div>
-      {navigation}
       <div className="lab-intro">
         <FlaskConical size={23} />
         <div>

@@ -12,13 +12,13 @@ Last updated: 2026-10-08
 | Page background | `body` on `--c-paper`; dark theme adds the 6% lime top wash |
 | Header | `.site-header`: sticky, `paper/0.75` with a 12px backdrop blur, `line/0.5` bottom hairline, 64px row |
 | Identity | `.wordmark`: Forward Shift symbol (`.wordmark-mark`, ink) plus Fraunces `.wordmark-text` |
-| Routes | `.route-strip`: 48px row with all 11 routes in three `.route-group`s split by a hairline |
+| Routes | `.route-strip`: 48px row with all 8 routes in three `.route-group`s split by a hairline |
 | Route states | muted → ink on hover (0.3s); active is ink/500 with a 2px sage underline that scales in |
 | Header controls | `.nav-pill` (Copilot), `.mode-pill` (data mode), `.nav-round` (theme toggle, menu), `.avatar` |
 | Content | `main.shell-wide`: 76rem max, 2rem / 1.5rem / 1rem gutters |
 | Footer | `.site-footer`: surface/0.4 band, brand blurb plus three link columns, data-mode base line |
 
-**Pattern notes:** The theme class lives on `<html>` (set before paint by the inline script in `index.html`) and is mirrored on `.app` for legacy selectors. At 900px and below, the route strip is replaced by the labelled menu trigger and the native `Modal` navigation dialog (all 11 routes as bordered rows; the active route is a lime tile). Footer link names must not repeat route labels, because tests locate routes by exact name.
+**Pattern notes:** The theme class lives on `<html>` (set before paint by the inline script in `index.html`) and is mirrored on `.app` for legacy selectors. At 900px and below, the route strip is replaced by the labelled menu trigger and the native `Modal` navigation dialog (all 8 routes as bordered rows; the active route is a lime tile). Footer link names must not repeat route labels, because tests locate routes by exact name.
 
 ### Page Heading
 
@@ -92,3 +92,21 @@ Last updated: 2026-10-08
 | Reduced motion | reveal skipped; all transitions 0.001ms |
 
 **Pattern notes:** To make a new block reveal, add its selector to `BLOCKS` in `reveal.ts`. Nested matches inherit their ancestor's motion and are not observed separately.
+
+### Ask ADAPT Agent Panel
+
+File: `src/components/AskAdapt.tsx`, `src/design.css`
+Last updated: 2026-10-08
+
+| Property | Class / token |
+| --- | --- |
+| Container | `.ask-panel`: 2rem radius, `line` border, surface → `lime/0.1` vertical wash (0.05 in dark) |
+| Header | `.ask-eyebrow` pill with `.ask-dot`; `.ask-greeting` Fraunces 1.875rem (1.5rem on phones) |
+| Suggestions | `.ask-chip`: popular-search pills (`sage/0.35` on `sage-soft/0.3`), lift and arrow nudge on hover |
+| Messages | `.ask-user`: ink bubble, right; `.ask-bot`: raised bubble with hairline, left; both rise in over 0.5s |
+| Evidence | `.ask-source` pills to app routes; `.ask-checked` success line; `badge-warning` for unmatched figures |
+| Progress | `.ask-step` list; the live step has a pulsing lime dot and ellipsis |
+| Composer | `.ask-form` pill with sage focus ring; `.ask-send` round sage button (Stop while answering) |
+
+**Pattern notes:** Model output is rendered as text: only `**bold**`, `- ` and `1. ` lists are interpreted, so no markup can be injected. The thread is kept in `sessionStorage` (`adapt.ask.thread`, last 40 messages) so it survives navigation, and the last 16 turns are sent as history. Enter sends; Shift+Enter starts a new line.
+
