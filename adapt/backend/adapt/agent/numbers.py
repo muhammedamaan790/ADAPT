@@ -5,6 +5,7 @@ ISO dates are extracted separately (they are entity references, not quantities).
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -12,6 +13,7 @@ SCALE = {"k": 1e3, "thousand": 1e3, "l": 1e5, "lac": 1e5, "lacs": 1e5, "lakh": 1
          "cr": 1e7, "crore": 1e7, "crores": 1e7, "mn": 1e6, "million": 1e6}
 DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 NUM_RE = re.compile(
+    r"(?<!\w)"  # never inside a token: hashes and ids ('…75542e4250923…') are not quantities
     r"(?P<cur>₹|rs\.?\s?|inr\s?)?"
     r"(?P<sign>[-+−])?"
     r"(?P<num>\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:\.\d+)?(?:e[-+]?\d+)?|\.\d+)"
@@ -48,6 +50,8 @@ def parse(text: str) -> list[Quantity]:
             v = float(digits)
         except ValueError:
             continue
+        if not math.isfinite(v):
+            continue  # 1e999 overflows to inf, which would match every value within a relative tolerance
         mant = digits.lower().split("e")[0]
         decimals = len(mant.split(".")[1]) if "." in mant else 0
         suffix = (m.group("suffix") or "").lower().strip()
