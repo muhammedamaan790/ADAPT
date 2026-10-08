@@ -29,14 +29,13 @@ values).
 - world `--channels tiktok,amazon_sp` at seeding (opt-in; base worlds and their truth fingerprints are unchanged)
 - `GROQ_API_KEY` (unset → deterministic templates)
 
-## Service functions for the C6 API (none are routed yet)
-narratives `agent.narrator.narrate_incident / narrate_decision`, `agent.brief.daily_brief` · causal
-`intel.causal_estimates` · `execute.adapters.platform_health` (GET /platforms/health) ·
-`execute.mirror.advance_world` (the only allowed advance path; 409 on SimOutOfSync), `mirror.resolve_manually`
-(/reconcile?target=sim) · `decide.alternatives.set_objective / selected_objective` (GET/PUT /objective),
-`choose_alternative` · `learn.governance.rollback` (POST /models/{model}/rollback), `governance.history` ·
-`policy.safety_monitor` (`ops.safety_checks`, `ops.events type = safety_alert`, `ops.autonomy_pins`) ·
-`decide.archived_replay.replay_archived` · evaluation report `evidence/eval.json`.
+## API and UI wiring
+Every Stage 2 function is reachable through the API (`docs/contracts/api_stage1.md`, "Stage 2 endpoints") and shown
+in the web app: the guarded narrative on the Decision Center and Anomalies pages, the pipeline's daily brief on the
+Command Center, the gated causal estimate on anomalies, stage-aware inventory risk (units short or model
+P(stockout)), choosing a sensitivity scenario, objective switching (admin), demand-model rollback, the evaluation
+report's headline results, and a LIVE / SIM OUT OF SYNC banner on every page. The pipeline gained a `narrate` step
+(display only; the evaluation harness skips it).
 
 ## Measured / open (honest list)
 - Not run on the real seed-42 / held-out data (no Kaggle data on the build machine): the eval, the live Google smoke

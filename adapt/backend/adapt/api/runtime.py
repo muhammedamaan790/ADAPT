@@ -22,9 +22,11 @@ from datetime import datetime
 
 import httpx
 
-from adapt.config.settings import Settings, get_settings
+from adapt.agent import groq_client
+from adapt.config.settings import REPO_ROOT, Settings, get_settings
 from adapt.core.db import Database
 from adapt.execute.adapters import build_adapters
+from adapt.execute.google_ads_live import load_env
 from adapt.ingest.http import SourceHttp
 from adapt.ingest.sync import run_sync, world_today
 from adapt.pipeline.scheduler import catch_up
@@ -45,8 +47,13 @@ class Runtime:
         self.client = world_client or httpx.Client(base_url=settings.world_url, timeout=httpx.Timeout(60.0))
         base = str(self.client.base_url).rstrip("/") or settings.world_url
         self.http = SourceHttp(base, client=self.client)
-        self.adapters = build_adapters(self.client, modes={"google": settings.google_execution_mode,
-                                                           "meta": settings.meta_execution_mode})
+        # live Google needs the workspace (sim -> live budget map) and the .env credentials; every mode is fixed
+        # here, once, with no fallback (principle 11)
+        self.adapters = build_adapters(self.client, settings=settings, db=db,
+                                       env=load_env(REPO_ROOT / ".env"),
+                                       modes={"google": settings.google_execution_mode,
+                                              "meta": settings.meta_execution_mode})
+        self.llm = groq_client.from_settings(settings, db)
         self._lock = threading.Lock()
         self.job: dict = {"name": None, "state": "idle", "started_at": None, "finished_at": None, "error": None}
         self._thread: threading.Thread | None = None
@@ -112,7 +119,7 @@ class Runtime:
                                  list(UNRESOLVED_SAGA_STATES))[0][0])
 
     def catch_up(self) -> list[dict]:
-        return catch_up(self.db, self.http, self.adapters)
+        return catch_up(self.db, self.http, self.adapters, llm=self.llm)
 
     # ---- workspace baseline -----------------------------------------------------------------------------------------
     @property
@@ -149,11 +156,28 @@ def bootstrap(settings: Settings | None = None, world_client: httpx.Client | Non
     try:
         run_sync(rt.db, rt.http)
         runs = rt.catch_up()
+        imported = import_warmup(rt.db, settings.warmup_track_record_path)
         rt.snapshot_baseline()
     finally:
         rt.db.close()
     return {"seconds": round(time.time() - t, 1), "runs": [r["run_id"] for r in runs],
-            "baseline": str(rt.baseline_path)}
+            "baseline": str(rt.baseline_path), "warmup_track_record": imported}
+
+
+def import_warmup(db, path) -> dict | None:
+    """The warm-up worlds' track record (Stage 3), when present and its calibration contract passed; the label says
+    where readiness was earned. A failed or missing artifact imports nothing (autonomy stays disabled)."""
+    import json
+
+    from adapt.learn.qualification import import_track_record
+
+    try:
+        art = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not (art.get("contract") or {}).get("passed"):
+        return {"imported": False, "reason": "warm-up contract did not pass"}
+    return {"imported": True, **import_track_record(db, art, datetime.now())}
 
 
 def main() -> None:

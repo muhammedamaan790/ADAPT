@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,17 +23,12 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from adapt.config.settings import get_settings  # noqa: E402
 from adapt.core.db import Database  # noqa: E402
-from adapt.execute.google_ads_live import MAP_DDL, GoogleAdsCredentials, GoogleAdsLiveAdapter  # noqa: E402
-
-
-def load_env(path: Path) -> dict:
-    env = dict(os.environ)
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            if "=" in line and not line.lstrip().startswith("#"):
-                k, v = line.split("=", 1)
-                env.setdefault(k.strip(), v.strip())
-    return env
+from adapt.execute.google_ads_live import (  # noqa: E402
+    MAP_DDL,
+    GoogleAdsCredentials,
+    GoogleAdsLiveAdapter,
+    load_env,
+)
 
 
 def operations(budgets: list[tuple], cid: str) -> list[tuple[dict, dict]]:

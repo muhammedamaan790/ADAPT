@@ -2,8 +2,11 @@
 
 ingest -> DQ gate -> reconcile (canonical + marts + health) -> detect -> diagnose -> predict (refit when due, else
 inference with the champion) -> store tomorrow's forecasts -> optimize -> decide (snapshot, hash, fingerprint) ->
-policy -> auto-execute [NOT_BUILT: Stage 1 is Approve mode only] -> verify (re-verify UNKNOWN legs) ->
-safety monitor (Stage 2) -> measure matured outcomes of executed decisions -> learn (calibration).
+policy -> auto-execute (Stage 3: qualified decisions on AUTONOMOUS channels; Observe -> shadow) ->
+verify (re-verify UNKNOWN legs) ->
+safety monitor (Stage 2) -> measure matured outcomes of executed decisions -> learn (calibration) -> narrate
+(Stage 2: daily brief + this run's incidents and pending decisions, guarded LLM or offline templates; display only,
+never an input to a decision, so the evaluation harness skips it).
 
 Idempotency: a COMPLETED run_id returns its stored summary without recomputing. A failed or interrupted run_id
 re-runs from the start; every step is itself idempotent (CREATE OR REPLACE builds, run-keyed detection, decisions
@@ -80,6 +83,23 @@ def _needs_demand_refit(db, as_of: datetime) -> bool:
     return last is None or as_of - last >= timedelta(days=demand_config()["refit_days"])
 
 
+def _needs_weekly(db, schema: str, table: str, as_of: datetime) -> bool:
+    if not db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
+                    [schema, table]):
+        return True
+    last = db.query(f"SELECT max(fit_ts) FROM {schema}.{table}")[0][0]
+    return last is None or as_of - last >= timedelta(days=REFIT_DAYS)
+
+
+def _model_due(db, model: str, as_of: datetime) -> bool:
+    """No registry entry of `model` within the weekly refresh window."""
+    if not db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'learn' "
+                    "AND table_name = 'model_registry'"):
+        return True
+    last = db.query("SELECT max(fit_ts) FROM learn.model_registry WHERE model = ?", [model])[0][0]
+    return last is None or as_of - last >= timedelta(days=REFIT_DAYS)
+
+
 def _brief(x) -> dict:
     """Scalars of a step's result (lists become their length) for the run log."""
     if not isinstance(x, dict):
@@ -87,8 +107,30 @@ def _brief(x) -> dict:
     return {k: (len(v) if isinstance(v, (list, tuple)) else v) for k, v in x.items() if not isinstance(v, dict)}
 
 
+def narrate_run(db, as_of: datetime, llm=None) -> dict:
+    """The narrator step: the daily brief, every open incident detected in this run and every decision awaiting
+    approval, each persisted to intel.narratives (one row per package hash, so an unchanged package is not redone)."""
+    from adapt.agent.brief import daily_brief
+    from adapt.agent.narrator import narrate_decision, narrate_incident
+
+    out = {"brief": daily_brief(db, as_of, llm)["source"], "incidents": 0, "decisions": 0}
+    if db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'intel' AND table_name = 'anomalies'"):
+        for (aid,) in db.query("SELECT anomaly_id FROM intel.anomalies WHERE is_incident AND status <> 'resolved' "
+                               "AND last_detected_at = ? ORDER BY anomaly_id", [as_of]):
+            narrate_incident(db, aid, llm, as_of)
+            out["incidents"] += 1
+    if db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'ops' "
+                "AND table_name = 'decision_events'"):
+        for (did,) in db.query("""SELECT decision_id FROM ops.decision_events
+                                  QUALIFY row_number() OVER (PARTITION BY decision_id ORDER BY seq DESC) = 1
+                                  AND event = 'submitted' ORDER BY decision_id"""):
+            narrate_decision(db, did, llm, as_of)
+            out["decisions"] += 1
+    return out
+
+
 def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: str | None = None,
-              sleep=time.sleep) -> dict:
+              sleep=time.sleep, llm=None, narrate: bool = True) -> dict:
     run_id = run_id or run_id_for(as_of)
     db.write(lambda cur: cur.execute(DDL))
     done = db.query("SELECT summary FROM ops.pipeline_runs WHERE run_id = ? AND status = 'COMPLETED'", [run_id])
@@ -140,6 +182,14 @@ def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: s
         ctx["curves"] = load_curves(db)
         if _needs_demand_refit(db, as_of):  # Stage 2: weekly LightGBM candidate vs the champion (spec §2, §10.2)
             out["demand"] = fit_demand(db, as_of)
+        if _needs_weekly(db, "models", "cvr_prior", as_of):  # Stage 3: the CVR prior, weekly, acceptance-gated
+            from adapt.predict.cvr_bayes import fit_cvr
+
+            out["cvr_prior"] = _brief(fit_cvr(db, as_of))
+        if _model_due(db, "creative_prior", as_of):  # Stage 3: the structured creative prior, weekly
+            from adapt.predict.creative_model import fit_creative_prior
+
+            out["creative_prior"] = _brief(fit_creative_prior(db, as_of))
         return out
 
     step("predict", predict)
@@ -163,7 +213,12 @@ def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: s
     step("decide", lambda: {"created": create_decisions(db, ctx["run"], ctx["run"]["state"], ctx["run"]["flags"],
                                                         as_of)})
     step("policy", lambda: {"evaluated_in": "decide (validate + Approve-mode result per decision)"})
-    step("auto_execute", lambda: {"status": "NOT_BUILT", "reason": "Stage 1 is Approve mode only"})
+    def autonomous():  # Stage 3 autonomy ladder: qualified decisions on AUTONOMOUS channels only (spec §9.1)
+        from adapt.policy.autonomy import auto_execute, world_id
+
+        return _brief(auto_execute(db, adapters or {}, as_of, ctx["run"]["state"], world_id(http)))
+
+    step("auto_execute", autonomous)
     def verify():
         out = {"resolved": len(reverify(db, adapters, as_of, sleep)) if adapters else 0}
         live = (adapters or {}).get("google")
@@ -194,6 +249,15 @@ def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: s
     step("measure", measure)
     step("learn", lambda: {"calibration": "applied inside measure (idempotent per outcome)",
                            "dirty_cleared": db.write(lambda cur: events.clear(cur, run_id))})
+    if narrate:  # display-side steps (the evaluation harness skips them)
+        step("narrate", lambda: narrate_run(db, as_of, llm))
+
+        def copilot_marts():  # Stage 3: the read-only marts copy the Copilot's SQL runs on (spec §9.5)
+            from adapt.agent.sql import refresh_copy
+
+            return refresh_copy(db)
+
+        step("copilot_marts", copilot_marts)
 
     def finish(cur):
         cur.execute("UPDATE ops.pipeline_runs SET status = 'COMPLETED', finished_at = ?, summary = ? WHERE run_id = ?",

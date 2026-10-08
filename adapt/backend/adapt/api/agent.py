@@ -94,7 +94,12 @@ def _data_health(req, _a):
 
 def _policy(req, _a):
     r = rt(req)
-    return {"policy": iv.policy(r.db, current_policy(r.db)), "objective": iv.objective(r.settings.workspace)}
+    try:
+        world = int(r.world().get("seed"))
+    except Exception:  # noqa: BLE001 - the readiness view works without the world's id
+        world = -1
+    return {"policy": iv.policy(r.db, current_policy(r.db), r.adapters, world),
+            "objective": iv.objective(r.db, r.settings.workspace)}
 
 
 def _opportunities(req, _a):

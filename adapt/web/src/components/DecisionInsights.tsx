@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { insights } from '../api/insights';
 import { api, dataMode } from '../api/client';
+import { stage2 } from '../api/stage2';
 import type { Decision } from '../api/contracts';
 import { useAction } from '../hooks/workspace';
 import { Badge, Disclosure, ErrorState, InlineError, Loading, Modal, SectionTitle } from './ui';
@@ -34,6 +35,8 @@ export function DecisionInsights({ decision: d }: { decision: Decision }) {
   const revision = useAction(async (id: string) => {
     const a = comparison.data?.alternatives.find((a) => a.id === id);
     if (!a) throw new Error('Alternative no longer available.');
+    // the backend re-solves under that risk preference: a new decision with its own snapshot and hash
+    if (dataMode === 'api') return stage2.chooseAlternative(d, a.id);
     return api.modify({
       decision_id: d.decision_id,
       decision_hash: d.decision_hash,
@@ -213,7 +216,7 @@ export function DecisionInsights({ decision: d }: { decision: Decision }) {
             This creates a separate proposal and supersedes the pending decision.{' '}
             {dataMode === 'fixture'
               ? 'The fixture revision becomes a non-executable draft awaiting backend revaluation.'
-              : 'The backend must revalue this allocation and validate the current hash.'}{' '}
+              : 'The backend creates a new decision under this risk preference (its own snapshot and hash); it needs its own approval.'}{' '}
             No budget execution starts here.
           </p>
           <InlineError error={revision.error} />

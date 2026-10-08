@@ -3,6 +3,7 @@ import {
   checkSchema,
   decisionSchema,
   legSchema,
+  platformSchema,
   sourceSchema,
   provenanceSchema,
 } from './contracts';
@@ -22,7 +23,7 @@ export const opportunitySchema = z.object({
   id: z.string(),
   budget_id: z.string(),
   entity: z.string(),
-  platform: z.enum(['Meta', 'Google']),
+  platform: platformSchema,
   score: finite.nullable(),
   status: z.enum(['FEASIBLE', 'BLOCKED', 'NOT_ESTIMABLE']),
   reason: z.string(),

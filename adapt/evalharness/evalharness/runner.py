@@ -22,7 +22,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from adapt.core.db import Database
-from adapt.execute.adapters import MockGoogleAdapter, MockMetaAdapter
+from adapt.execute.adapters import build_adapters
 from adapt.ingest.http import SourceHttp
 from adapt.reconcile.build import logical_now
 from evalharness.strategies import REGISTRY, Envelope
@@ -30,16 +30,18 @@ from world.main import create_app
 
 
 class Fork:
-    def __init__(self, seeded_dir: Path, work_dir: Path, name: str):
+    def __init__(self, seeded_dir: Path, work_dir: Path, name: str, workspace: Path | None = None):
         self.dir = Path(work_dir) / name
         if self.dir.exists():
             shutil.rmtree(self.dir)
         shutil.copytree(seeded_dir, self.dir / "world")
+        if workspace is not None:  # a synced day-0 workspace of the same seeded world (synced_template)
+            shutil.copyfile(workspace, self.dir / "workspace.duckdb")
         self._stack = ExitStack()
         self.client = self._stack.enter_context(TestClient(create_app(world_dir=self.dir / "world")))
         self.db = Database(self.dir / "workspace.duckdb")
         self.http = SourceHttp("http://testserver", client=self.client, sleep=lambda s: None)
-        self.adapters = {"google": MockGoogleAdapter(self.client), "meta": MockMetaAdapter(self.client)}
+        self.adapters = build_adapters(self.client)  # every platform as its mock (TikTok / Amazon when seeded)
         self.store = self.client.app.state.store
         truth = self.store.ctx.truth
         self.platform_of = {c.budget_id: c.platform for c in truth.catalog.campaigns}
@@ -47,6 +49,13 @@ class Fork:
 
     def day(self) -> int:
         return self.store.clock()[1]
+
+    def sync_baseline(self) -> None:
+        from adapt.ingest.sync import run_sync
+        from adapt.reconcile.build import build_canonical
+
+        run_sync(self.db, self.http)
+        build_canonical(self.db, self.as_of())
 
     def as_of(self):
         return logical_now(self.truth.config.world_date(self.day()))
@@ -160,12 +169,28 @@ def perturbation_check(f: Fork, env: Envelope, work_dir: Path, n: int = 10, days
             "suboptimality_rate": beats / n}
 
 
+def synced_template(seeded_dir: Path, work_dir: Path) -> Path:
+    """ONE synced day-0 workspace per seed (the 365-day backfill + canonical state), copied into every fork: all
+    forks start from the identical seeded world, so each strategy's first day is an incremental sync instead of six
+    identical backfills. Results are unchanged (the same data, the same logical times)."""
+    path = Path(work_dir) / "_template" / "workspace.duckdb"
+    if path.exists():
+        return path
+    f = Fork(seeded_dir, work_dir, "_template")
+    try:
+        f.sync_baseline()
+    finally:
+        f.close()
+    return path
+
+
 def run_decision_eval(seeded_dir: Path, work_dir: Path, days: int, strategies=None, progress=None,
                       perturb_every: int | None = None) -> dict:
     """All strategies on forks of one seeded world for `days` days. Returns realized metrics and logs per strategy.
     perturb_every = 7 runs the oracle's weekly perturbation check (off in CI smoke runs)."""
     names = list(strategies or REGISTRY)
-    forks = {n: Fork(seeded_dir, work_dir, n) for n in names}
+    template = synced_template(seeded_dir, work_dir)
+    forks = {n: Fork(seeded_dir, work_dir, n, workspace=template) for n in names}
     try:
         B = next(iter(forks.values())).day0_total()
         start = next(iter(forks.values())).day()
@@ -190,6 +215,9 @@ def run_decision_eval(seeded_dir: Path, work_dir: Path, days: int, strategies=No
             f = forks[n]
             out["strategies"][n] = {**realized(f.store, lo, hi),
                                     "violations": violations(f.store, lo, hi, strat[n].env.box),
+                                    # spec §22.7: every forced safety intervention is listed per strategy
+                                    "forced_interventions": sum(1 for e in strat[n].log
+                                                                if e.get("forced_intervention")),
                                     "seconds_per_day": timing[n] / max(days, 1), "log": strat[n].log}
             sigs[n] = exogenous_signature(f.store, lo, hi)
         ref = sigs[names[0]]
@@ -234,7 +262,7 @@ def run_detection_eval(seeded_dir: Path, work_dir: Path, days: int, schedule=Non
     from adapt.ingest.sync import run_sync
     from adapt.reconcile.build import build_canonical
 
-    f = Fork(seeded_dir, work_dir, "detection")
+    f = Fork(seeded_dir, work_dir, "detection", workspace=synced_template(seeded_dir, work_dir))
     try:
         start = f.day()
         for key, offset in schedule or DEFAULT_SCHEDULE:

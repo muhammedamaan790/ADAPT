@@ -17,6 +17,7 @@ import {
   Disclosure,
 } from '../components/ui';
 import { TrendChart } from '../components/charts';
+import { Narrative } from '../components/Narrative';
 import { dateTime, money, percent, humanStatus } from '../lib/format';
 
 export function Anomalies() {
@@ -224,6 +225,7 @@ function Investigation({ anomaly: a }: { anomaly: Anomaly }) {
           </p>
         </Disclosure>
       </section>
+      <Narrative kind="incident" id={a.anomaly_id} />
       <section className="panel">
         <SectionTitle title="Root-cause assessment">
           <Activity size={17} />

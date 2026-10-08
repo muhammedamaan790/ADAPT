@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect, useRef, type CSSProperties } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
+import { PlatformBanner } from './components/PlatformBanner';
 import {
   FlaskConical,
   LayoutDashboard,
@@ -244,6 +245,7 @@ export function App() {
         className="shell-wide"
         style={{ '--eyebrow': `"${group?.label || 'Workspace'}"` } as CSSProperties}
       >
+        <PlatformBanner />
         <ViewBoundary key={route}>
           <Suspense fallback={<Loading label="Loading workspace" />}>
             <Routes>

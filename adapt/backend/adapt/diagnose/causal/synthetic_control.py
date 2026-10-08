@@ -41,11 +41,50 @@ def select_controls(y_fit: np.ndarray, X_fit: np.ndarray, ids: list[str], k: int
     return [j for _, _, j in sorted(scores)[:k]]
 
 
-def fit_weights(y_c: np.ndarray, X_c: np.ndarray, ridge: float) -> tuple[np.ndarray, float]:
-    """Simplex-constrained ridge weights (convex). Returns (w, lambda)."""
+def _simplex_qp(G: np.ndarray, b: np.ndarray) -> np.ndarray | None:
+    """Exact minimiser of w'Gw - 2b'w s.t. w >= 0, sum w = 1 for positive definite G (an active-set method: solve the
+    equality-constrained KKT system on the free set, release the most negative weight, re-admit a variable whose
+    multiplier says it should be free). Strictly convex, so the answer is THE optimum; None if it does not settle."""
+    J = len(b)
+    free = np.ones(J, dtype=bool)
+    for _ in range(4 * J + 8):
+        idx = np.flatnonzero(free)
+        k = len(idx)
+        A = np.zeros((k + 1, k + 1))
+        A[:k, :k] = G[np.ix_(idx, idx)]
+        A[:k, k] = A[k, :k] = 1.0
+        rhs = np.concatenate([b[idx], [1.0]])
+        try:
+            sol = np.linalg.solve(A, rhs)
+        except np.linalg.LinAlgError:
+            return None
+        w = np.zeros(J)
+        w[idx] = sol[:k]
+        mu = sol[k]
+        if (w[idx] < -1e-12).any():
+            free[idx[int(np.argmin(w[idx]))]] = False
+            continue
+        grad = G @ w - b + mu                       # KKT multiplier of each bound (>= 0 at the optimum when bound)
+        bound = np.flatnonzero(~free)
+        viol = bound[grad[bound] < -1e-10]
+        if viol.size:
+            free[viol[int(np.argmin(grad[viol]))]] = True
+            continue
+        return np.clip(w, 0.0, None) / max(np.clip(w, 0.0, None).sum(), 1e-300)
+    return None
+
+
+def fit_weights(y_c: np.ndarray, X_c: np.ndarray, ridge: float,
+                x0: np.ndarray | None = None) -> tuple[np.ndarray, float]:
+    """Simplex-constrained ridge weights: min ||y_c - X_c w||^2 + lambda ||w||^2 s.t. w >= 0, sum w = 1. Strictly
+    convex (lambda > 0), so the exact active-set solution is the optimum; SLSQP (warm-started at x0 when given)
+    remains the fallback. Returns (w, lambda)."""
     J = X_c.shape[1]
     lam = ridge * float(np.trace(X_c.T @ X_c)) / J
     G, b = X_c.T @ X_c + lam * np.eye(J), X_c.T @ y_c
+    w = _simplex_qp(G, b)
+    if w is not None:
+        return w, lam
 
     def f(w):
         r = y_c - X_c @ w
@@ -54,7 +93,8 @@ def fit_weights(y_c: np.ndarray, X_c: np.ndarray, ridge: float) -> tuple[np.ndar
     def grad(w):
         return 2 * (G @ w - b)
 
-    res = minimize(f, np.full(J, 1.0 / J), jac=grad, method="SLSQP", bounds=[(0.0, 1.0)] * J,
+    start = np.full(J, 1.0 / J) if x0 is None else np.asarray(x0, dtype=float)
+    res = minimize(f, start, jac=grad, method="SLSQP", bounds=[(0.0, 1.0)] * J,
                    constraints=[{"type": "eq", "fun": lambda w: float(w.sum() - 1.0), "jac": lambda w: np.ones(J)}],
                    options={"maxiter": 500, "ftol": 1e-12})
     w = np.clip(res.x, 0.0, None)
@@ -130,7 +170,7 @@ def synthetic_control(y: np.ndarray, X: np.ndarray, ids: list[str], start: int, 
     for k in range(draws):
         y_star = yhat[fit] + e_fit[k]
         mu_k = float(y_star.mean()) if level else 0.0
-        w_k, _ = fit_weights(y_star - mu_k, Xs[fit] - x_mu, float(cfg["ridge"]))
+        w_k, _ = fit_weights(y_star - mu_k, Xs[fit] - x_mu, float(cfg["ridge"]), x0=w)
         cf_k[k] = np.sum(agg * np.exp(mu_k + (Xs[post] - x_mu) @ w_k + e_post[k]))
     eff_k = obs / cf_k - 1
     a = (1 - float(cfg["ci"])) / 2

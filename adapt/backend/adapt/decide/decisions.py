@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 
+from adapt.decide.alternatives import selected_objective
 from adapt.decide.fingerprint import fingerprint, staleness_diff
 from adapt.decide.hashing import canonical_bytes, content_hash, normalize, sha256_hex
 from adapt.decide.optimizer import Optimizer
@@ -23,8 +24,10 @@ from adapt.decide.safety import safety_candidates
 from adapt.decide.snapshot import get_artifact, put_artifact, replay_environment, state_from_dict, state_to_dict
 from adapt.economics.portfolio import PortfolioState
 from adapt.learn.calibration import calibrate
+from adapt.learn.confidence import confidence
 from adapt.policy.engine import ROLES_THAT_APPROVE, cooldown_units, current_policy, policy_result, validate
 from adapt.policy.locks import kill_switch_active
+from adapt.policy.modes import channel_modes
 
 OPTIMIZER_VERSION = "b7-greedy-slsqp-1"
 TTL_HOURS = 6
@@ -199,6 +202,8 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
         proposals.append(("OPTIMIZATION", r["decision_id"], r))
     for cand in run["safety"]:
         proposals.append(("SAFETY", cand["decision_id"], cand))
+    for cand in run.get("exploration", []):
+        proposals.append(("EXPLORATION", cand["decision_id"], cand))
     if not proposals:
         return []
     objective = (r.get("objective") if r.get("status") == "OK" else None) or "PROFIT"
@@ -220,6 +225,10 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
                    "replay_environment_fingerprint": env["replay_environment_fingerprint"], "seed": 0,
                    "tz": "Asia/Kolkata"}
     created = []
+    # the confidence index reads health, model diagnostics and outcomes, so it is computed before the write
+    # transaction; it is stored with the content but is not part of the §22.4 hash payload
+    conf = {did: confidence(db, state, _content(cls, prop, state, [], factor, objective), at)
+            for cls, did, prop in proposals}
 
     def work(cur):
         cur.execute(DDL)
@@ -233,6 +242,8 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
             checks = validate(state, alloc, flags, cls, g_cfg, cool, ks)
             content = _content(cls, prop, state, checks, factor, objective)
             payload = hash_payload(content, snap_common)
+            content["confidence"] = {**conf[did], "constraint_coverage": bool(checks) and all(
+                c.get("passed") is not None for c in checks)}
             h = sha256_hex(canonical_bytes(payload))       # raises on NaN / Inf: no decision is created (T20)
             snap_id = f"SNAP-{sha256_hex(f'{did}|{h}')[:16]}"  # same content in two runs: same hash, two snapshots
             cur.execute("INSERT INTO intel.decisions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)",
@@ -297,7 +308,9 @@ def check_fresh(db, decision_id: str, now: datetime, state_now: PortfolioState) 
     pol = current_policy(db, now)
     snap_pv = db.query("SELECT policy_version FROM ops.decision_snapshots WHERE decision_id = ?", [decision_id])[0][0]
     ks = kill_switch_active(db)
-    diff = staleness_diff(before, fingerprint(db, state_now, pol["policy_version"], ks, now))
+    # the objective selected NOW: an admin switch after creation is an EXACT change (the decision expires); the
+    # same objective keeps a GROWTH / CLEARANCE decision fresh (a PROFIT default here expired every one of them)
+    diff = staleness_diff(before, fingerprint(db, state_now, pol["policy_version"], ks, now, selected_objective(db)))
     if pol["policy_version"] != snap_pv:
         diff.append({"class": "POLICY", "field": "policy_version", "before": snap_pv, "after": pol["policy_version"]})
     if ks:
@@ -321,6 +334,10 @@ def approve(db, decision_id: str, decision_hash: str, actor: str, role: str, now
         raise DecisionError("CONFLICT", f"decision is {d['status']}, not PENDING_APPROVAL")
     if decision_hash != d["decision_hash"]:
         raise DecisionError("HASH_MISMATCH", "approval must name the exact decision_hash shown to the approver")
+    observe = sorted({leg["platform"] for leg in d["legs"]} & {c for c, m in channel_modes(db).items()
+                                                              if m == "OBSERVE"})
+    if observe:  # Observe mode recommends only (spec §9.2); the decision is kept as a shadow record
+        raise DecisionError("CONFLICT", f"{', '.join(observe)} in Observe mode: recommendations only, no execution")
     diff = check_fresh(db, decision_id, now, state_now)
     if diff:
         expire(db, decision_id, now, diff)

@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,18 @@ from evalharness import report, seeds  # noqa: E402
 from evalharness.runner import run_decision_eval, run_detection_eval  # noqa: E402
 
 DATA = ROOT / "data"
+
+
+def code_sha() -> str:
+    """The commit the report was produced from (+dirty when the tree had uncommitted changes)."""
+    try:
+        sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True,
+                             check=True).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT,
+                               capture_output=True, text=True, check=True).stdout.strip()
+        return sha + ("+dirty" if dirty else "")
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
 
 
 def seeded(seed: int, args) -> Path:
@@ -97,6 +110,8 @@ def main() -> int:
     rep = report.build(results, detections or None)
     rep["contract"] = {"class": "PRIMARY_EVAL" if args.seeds in ("eval", "reduced") else "OTHER",
                        "days": args.days, "seeds_requested": list(chosen)}
+    rep["generated_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    rep["code_sha"] = code_sha()
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(rep, indent=2, default=str))

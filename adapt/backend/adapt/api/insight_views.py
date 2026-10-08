@@ -192,12 +192,75 @@ def models(db) -> list[dict]:
                     "trained_at": fit_ts.isoformat(),
                     "note": f"Hill + adstock per budget unit; {m.get('ok', 0)} of {m.get('units', 0)} units with "
                             "their own stable curve" + ("" if role == "champion" else f" (role {role})")})
-    out.append({"name": "demand", "version": "seasonal-naive-v1", "status": "CHAMPION", "trained_at": None,
-                "note": "Stage 1 demand model: seasonal-naive (last 7 days repeated); LightGBM is Stage 2"})
+    demand = _demand_registry(db)
+    for r in demand:
+        status = {"champion": "CHAMPION", "candidate": "CHALLENGER"}.get(r["role"], "NOT_AVAILABLE")
+        out.append({"name": "demand", "version": r["version"], "status": status,
+                    "trained_at": r["fit_ts"].isoformat() if r["fit_ts"] else None,
+                    "note": f"{r['kind']} ({r['role']}): {r['promotion_reason'] or ''}".strip()})
+    if not demand:
+        out.append({"name": "demand", "version": "seasonal-naive-v1", "status": "CHAMPION", "trained_at": None,
+                    "note": "seasonal-naive (last 7 days repeated); the LightGBM challenger is fitted weekly once "
+                            "the STOCKOUT_PROBABILITY predicate is on"})
+    from adapt.learn import governance
+
+    for fam, what in (("cvr_prior", "Beta-Binomial CVR prior (80% predictive coverage in 70-90%)"),
+                      ("creative_prior", "structured creative prior (must beat the category-mean Spearman)")):
+        for r in (governance.history(db, fam) if v.has(db, "learn", "model_registry") else [])[-3:]:
+            out.append({"name": fam, "version": r["version"],
+                        "status": {"champion": "CHAMPION", "candidate": "CHALLENGER"}.get(r["role"], "NOT_AVAILABLE"),
+                        "trained_at": r["fit_ts"].isoformat() if r["fit_ts"] else None,
+                        "note": f"{what}: {r['promotion_reason'] or ''} {json.dumps(r['validation_metrics'])}"[:400]})
     return out
 
 
+def _demand_registry(db) -> list[dict]:
+    from adapt.learn import governance
+
+    return governance.history(db, "demand") if v.has(db, "learn", "model_registry") else []
+
+
+def registry_revision(r: dict) -> str:
+    """Changes whenever the model's role changes (promotion, retirement, rollback): the optimistic-concurrency token
+    a model action must quote."""
+    return f"{r['version']}:{r['role']}:{r['promoted_at'].isoformat() if r.get('promoted_at') else '-'}"
+
+
+def _demand_detail(db, version: str) -> dict | None:
+    r = next((x for x in _demand_registry(db) if x["version"] == version), None)
+    if r is None:
+        return None
+    val, base, crit = r["validation_metrics"] or {}, r["baseline_metrics"] or {}, r["criteria"] or {}
+    labels = {"a_beats_baseline": "(a) beats seasonal-naive WAPE by >= 5%",
+              "b_noninferiority": "(b) non-inferior to the champion (paired block bootstrap, +2%)",
+              "c_coverage": "(c) P10-P90 holdout coverage in [70%, 90%]"}
+    checks = [{"id": k, "label": labels.get(k, k), "passed": bool(ok), "detail": "passed" if ok else "failed"}
+              for k, ok in crit.items() if isinstance(ok, bool)]
+    champ = r["role"] == "champion"
+    metrics = []
+    if "wape_p50" in val:
+        metrics.append({"label": "Holdout WAPE (P50)", "candidate": None if champ else float(val["wape_p50"]),
+                        "champion": float(val["wape_p50"]) if champ else None,
+                        "baseline": float(base.get("wape", val.get("wape_seasonal_naive"))), "unit": "fraction"})
+    if "coverage_p10_p90" in val:
+        metrics.append({"label": "P10-P90 holdout coverage", "candidate": None if champ else
+                        float(val["coverage_p10_p90"]), "champion": float(val["coverage_p10_p90"]) if champ else None,
+                        "baseline": 0.8, "unit": "fraction"})
+    role = {"champion": "CHAMPION", "candidate": "CANDIDATE"}.get(r["role"], "RETIRED")
+    sha = r["artifact_sha256"]
+    can_roll = role == "CHAMPION" and bool(r["rollback_version"])
+    return {"name": "demand", "version": r["version"], "registry_revision": registry_revision(r), "role": role,
+            "artifact_hash": sha if sha and len(sha) == 64 else None,
+            "training_snapshot_hash": r["training_snapshot_hash"], "trained_at": iso_z(r["fit_ts"]),
+            "rollback_version": r["rollback_version"], "promotion_reason": r["promotion_reason"],
+            "checks": checks, "metrics": metrics, "allowed_actions": ["ROLLBACK"] if can_roll else [],
+            "note": "Promotion is automatic under the layered rule (spec §10.2), never manual; rollback restores "
+                    "the previous champion, whose artifact the next forecast loads."}
+
+
 def model_detail(db, name: str, version: str) -> dict | None:
+    if name == "demand" and version != "seasonal-naive-v1":
+        return _demand_detail(db, version)
     if name == "demand" and version == "seasonal-naive-v1":
         return {"name": name, "version": version, "registry_revision": version, "role": "CHAMPION",
                 "artifact_hash": None, "training_snapshot_hash": None, "trained_at": None, "rollback_version": None,
@@ -235,52 +298,140 @@ def model_detail(db, name: str, version: str) -> dict | None:
                              "champion": float(fam) if fam is not None else None, "baseline": 0.8,
                              "unit": "fraction"}],
                 "allowed_actions": [],
-                "note": f"First champion of each fit (Stage 1 governance: criteria a + c). Champion/challenger "
-                        f"promotion and rollback are Stage 2. Units: {m}."}
+                "note": f"Every fit becomes the champion once criteria (a) + (c) pass; curves are refitted weekly or "
+                        f"when an outcome matures, so the curve family has no rollback. Units: {m}."}
     return None
 
 
 # ---- policy and objective -------------------------------------------------------------------------------------------
-def _readiness(executed: int, measured: int, checks: list[dict], kind: str) -> dict:
-    return {"eligible": False, "executed_decisions": executed, "measured_outcomes": measured,
-            "independent_worlds": 1, "wilson_lower": None, "reliability": "UNAVAILABLE", "guardrail_violations": 0,
-            "checks": checks,
-            "note": f"{kind} autonomy qualification (Wilson bound over ≥3 warm-up worlds + held-out reliability) is "
-                    "a later-stage feature; Stage 1 runs in Approve mode only."}
+LABEL = {"meta": "Meta", "google": "Google", "tiktok": "TikTok", "amazon": "Amazon"}
+REGION_NAME = {"R1": "LOW", "R2": "MID", "R3": "HIGH"}
 
 
-def policy(db, pol: dict) -> dict:
+def workspace_channels(db) -> list[str]:
+    """The ad channels this workspace actually has campaigns on (Stage 2 adds TikTok / Amazon when seeded)."""
+    if v.has(db, "core", "campaigns"):
+        found = {p for (p,) in db.query("SELECT DISTINCT platform FROM core.campaigns") if p}
+        chans = [c for c in LABEL if c in found]
+        if chans:
+            return chans
+    return ["meta", "google"]
+
+
+def _readiness_view(sim: dict, recs: list[dict], ch: str) -> dict:
+    regions = sim["regions"]
+    best = next((x for x in regions.values() if x["status"] == "QUALIFIED"), None) or max(
+        regions.values(), key=lambda x: -1 if x["wilson_lower"] is None else x["wilson_lower"])
+    measured = sum(1 for r in recs if r["channel"] == ch and r["world"] == "SIMULATED"
+                   and r["verdict"] in ("SUCCESS", "NEUTRAL", "FAILED"))
+    rel = best["reliability"]["status"] if best["n"] or best["reliability"]["n"] else "UNAVAILABLE"
+    return {"eligible": sim["eligible"], "executed_decisions": sim["executed"], "measured_outcomes": measured,
+            "independent_worlds": best["worlds"], "wilson_lower": best["wilson_lower"], "reliability": rel,
+            "guardrail_violations": int(sim["violations"]),
+            "checks": sim["checks"],
+            "note": "Simulation autonomy: earned on warm-up worlds 901-903 (Wilson 95% lower bound ≥ 0.60) with a "
+                    "held-out reliability PASS on world 904; simulated outcomes never count toward production."}
+
+
+def policy(db, pol: dict, adapters: dict | None = None, local_world: int = -1) -> dict:
+    from adapt.learn import qualification as q
+    from adapt.policy.autonomy import readiness
+    from adapt.policy.modes import channel_modes
+
+    ready = readiness(db, adapters or {}, local_world)
+    recs = q.all_records(db, local_world)
+    modes = channel_modes(db)
     channels = []
-    tracking = set()
-    if v.has(db, "intel", "anomalies"):
-        tracking = {p for (p,) in db.query("SELECT DISTINCT platform FROM intel.anomalies WHERE classification = "
-                                           "'tracking_issue' AND is_incident AND status <> 'resolved'") if p}
-    unresolved = 0
-    executed = {"meta": 0, "google": 0}
-    if v.has(db, "exec", "saga_legs"):
-        for p, n in db.query("SELECT platform, count(DISTINCT saga_id) FROM exec.saga_legs WHERE state = 'VERIFIED' "
-                             "GROUP BY 1"):
-            executed[p] = int(n)
-        unresolved = int(db.query("SELECT count(*) FROM exec.saga_legs WHERE state IN ('UNKNOWN', 'CONFLICT')")[0][0])
-    measured = len(v.outcome_list(db))
-    for platform, label in (("meta", "Meta"), ("google", "Google")):
-        checks = [{"id": "TRACKING_HEALTH", "label": "No open tracking incident", "passed": platform not in tracking,
-                   "detail": "open tracking incident" if platform in tracking else "healthy"},
-                  {"id": "EXECUTION_HEALTH", "label": "No unresolved execution leg", "passed": unresolved == 0,
-                   "detail": f"{unresolved} UNKNOWN/CONFLICT legs" if unresolved else "healthy"}]
-        prod = checks + [{"id": "CHAMPION_MODELS", "label": "Champion models pass their contracts", "passed": None,
-                          "detail": "evaluated with production readiness (later stage)"},
-                         {"id": "ADMIN_POLICY_REVIEW", "label": "Policy version reviewed by an admin", "passed": None,
-                          "detail": "no admin review workflow in Stage 1"}]
-        channels.append({"channel": label, "mode": "APPROVE", "execution_mode": "MOCK", "test_account": False,
-                         "serves_ads": False, "allowed_modes": [],
-                         "simulation": _readiness(executed[platform], measured, checks, "Simulation"),
-                         "production": _readiness(0, 0, prod, "Production"),
-                         "note": "Approve mode: every decision needs a manager's hash-bound approval; execution "
-                                 "goes to the mock platform API (no automatic fallback)."})
-    return {"policy_version": pol["policy_version"], "revision": pol["policy_version"], "channels": channels,
-            "note": "Policy bundle = guardrails + objectives + data-health weights (config files, versioned by "
-                    "content hash). Changing channel modes is a later-stage feature."}
+    for ch in workspace_channels(db):
+        r = ready[ch]
+        live = r["execution_mode"] == "LIVE"
+        sim = _readiness_view(r["simulation"], recs, ch)
+        prod_checks = [c for c in r["simulation"]["checks"] if c["id"] in ("TRACKING_HEALTH", "EXECUTION_HEALTH")] \
+            + r["production"]["checks"] + [
+                {"id": "CHAMPION_MODELS", "label": "Champion models pass their contracts", "passed": None,
+                 "detail": "only evaluated once real outcomes exist"},
+                {"id": "ADMIN_POLICY_REVIEW", "label": "Policy version reviewed by an admin", "passed": None,
+                 "detail": "only evaluated once real outcomes exist"}]
+        mode = {"AUTONOMOUS": "SIMULATION_AUTONOMOUS"}.get(modes[ch], modes[ch])
+        allowed = ["OBSERVE", "APPROVE"] + (["SIMULATION_AUTONOMOUS"] if sim["eligible"] and not live else [])
+        channels.append({
+            "channel": LABEL[ch], "mode": mode, "execution_mode": "LIVE" if live else "MOCK",
+            "test_account": live, "serves_ads": False, "allowed_modes": allowed, "simulation": sim,
+            "production": {"eligible": False, "executed_decisions": 0, "measured_outcomes": 0,
+                           "independent_worlds": 0, "wilson_lower": None, "reliability": "UNAVAILABLE",
+                           "guardrail_violations": 0, "checks": prod_checks,
+                           "note": "Production autonomy requires measured REAL outcomes; a Google test account "
+                                   "executes for real but serves no ads, so none exist."},
+            "note": {"OBSERVE": "Observe: recommendations are recorded as shadow decisions; nothing executes.",
+                     "APPROVE": "Approve: every decision needs a manager's hash-bound approval.",
+                     "SIMULATION_AUTONOMOUS": "Simulation autonomous: ADAPT executes only decisions that pass every "
+                                              "autonomy gate; the rest wait for review."}[mode]})
+    return {"policy_version": pol["policy_version"], "revision": policy_revision(pol, modes), "channels": channels,
+            "note": "Policy bundle = guardrails + objectives + data-health weights (content-hashed) plus the channel "
+                    "modes; any change expires pending decisions."}
+
+
+def policy_revision(pol: dict, modes: dict) -> str:
+    import hashlib
+
+    return pol["policy_version"] + ":" + hashlib.sha256(json.dumps(modes, sort_keys=True).encode()).hexdigest()[:10]
+
+
+def qualification(db, local_world: int) -> dict:
+    from adapt.learn import qualification as q
+
+    recs = q.all_records(db, local_world)
+    imp = q.imports(db)
+    if not [r for r in recs if r["world_id"] in (*q.WARMUP_WORLDS, q.RELIABILITY_WORLD)]:
+        return {"status": "NOT_AVAILABLE", "pools": [],
+                "note": "No warm-up track record imported yet (worlds 901-903 + held-out 904: "
+                        "scripts/run_warmup.py). No region is qualified, so no channel can run autonomously."}
+    version = imp[-1]["artifact_sha256"][:16] if imp else "local"
+    now = iso_z(datetime.now())
+    pools = []
+    for ch in sorted({r["channel"] for r in recs}):
+        for scope, worlds in (("WARMUP", q.WARMUP_WORLDS), ("HELD_OUT", (q.RELIABILITY_WORLD,))):
+            regions = []
+            for reg in q.REGIONS:
+                rs = [r for r in recs if r["channel"] == ch and r["region"] == reg and r["world_id"] in worlds
+                      and r["verdict"] in q.DECISIVE]
+                k = sum(r["verdict"] == "SUCCESS" for r in rs)
+                lo, hi = q.wilson(k, len(rs))
+                regions.append({"name": REGION_NAME[reg], "total": len(rs), "successes": k, "wilson_lower": lo,
+                                "wilson_upper": hi})
+            pools.append({"world": "SIMULATED", "model_version": version, "evaluated_at": now,
+                          "outcome_definition": f"{LABEL.get(ch, ch)}: SUCCESS among SUCCESS / NEUTRAL / FAILED "
+                                                "OPTIMIZATION outcomes (INCONCLUSIVE excluded)",
+                          "scope": scope, "world_ids": [str(w) for w in worlds], "regions": regions})
+    return {"status": "AVAILABLE", "pools": pools[:20],
+            "note": "Regions are the decision-time raw confidence index: LOW [0, 0.6), MID [0.6, 0.8), HIGH [0.8, 1]. "
+                    "A region qualifies with a warm-up Wilson lower bound ≥ 0.60 over 3 worlds and a held-out PASS."}
+
+
+def shadow(db) -> dict:
+    from adapt.decide.decisions import get_decision
+
+    if not v.has(db, "learn", "shadow_decisions"):
+        return {"status": "NOT_AVAILABLE", "records": [],
+                "note": "No channel is in Observe mode, so no shadow decision has been recorded."}
+    recs = []
+    for did, at, chans, e, p10, p90, pl, ok in db.query(
+            "SELECT decision_id, recorded_at, channels, expected_e, p10, p90, prob_loss, would_pass_policy "
+            "FROM learn.shadow_decisions ORDER BY recorded_at DESC LIMIT 1000"):
+        d = get_decision(db, did)
+        x = d["expected"]
+        for ch in json.loads(chans):
+            recs.append({"id": f"{did}:{ch}", "decision_id": did, "decision_hash": d["decision_hash"],
+                         "channel": LABEL.get(ch, ch), "world": "SIMULATED", "at": iso_z(at),
+                         "method": "FORECAST_ONLY",
+                         "expected": {"p10": p10, "p50": e, "p90": p90, "prob_loss": pl,
+                                      "delta_net_revenue": x["delta_net_revenue"], "raw_pred": x["raw_pred"],
+                                      "calibrated_pred": x["calibrated_pred"]},
+                         "guardrail_breaches": [] if ok else [c["rule"] for c in d["checks"] if not c["passed"]],
+                         "note": "forecast-implied would-have outcome of an unexecuted decision; never counts "
+                                 "toward readiness"})
+    return {"status": "AVAILABLE" if recs else "NOT_AVAILABLE", "records": recs[:1000],
+            "note": "Observe-mode decisions: recorded, never executed."}
 
 
 def _flatten(d, prefix=""):
@@ -313,11 +464,22 @@ def policy_history(db) -> dict:
             "versions": list(reversed(versions))}
 
 
-def objective(workspace: str) -> dict:
-    return {"workspace_id": workspace, "objective": "PROFIT", "revision": "objective-PROFIT-stage1",
-            "supported_objectives": ["PROFIT"], "can_change": False,
-            "note": "Stage 1 optimizes PROFIT only (max E[ΔCAA] − 0.5 × downside). GROWTH, ACQUISITION, "
-                    "INVENTORY_CLEARANCE, MARGIN_PROTECTION and BALANCED are later-stage features."}
+OBJECTIVE_TEXT = {"PROFIT": "max E[ΔCAA] − 0.5 × downside",
+                  "GROWTH": "max E[net revenue] with a CAA floor of max(5% |CAA₀|, ₹2,000)",
+                  "INVENTORY_CLEARANCE": "max E[ΔCAA] + ₹25 × excess-band units sold"}
+
+
+def objective(db, workspace: str) -> dict:
+    from adapt.decide.alternatives import MODES, selected_objective
+
+    mode = selected_objective(db)
+    row = db.query("SELECT set_at FROM ops.objective_setting WHERE id = 1")
+    stamp = row[0][0].isoformat() if row and row[0][0] else "config"
+    return {"workspace_id": workspace, "objective": mode, "revision": f"objective-{mode}-{stamp}",
+            "supported_objectives": list(MODES), "can_change": True,
+            "note": f"{mode}: {OBJECTIVE_TEXT[mode]}. Changing it is an admin action and an EXACT staleness input: "
+                    "pending decisions expire at approval and the next run decides under the new objective. "
+                    "ACQUISITION, MARGIN_PROTECTION and BALANCED are not built."}
 
 
 # ---- decision replay, timeline, snapshot, archive -------------------------------------------------------------------
@@ -414,14 +576,112 @@ def comparison(db, decision_id: str, state) -> dict:
                             "reason": "the do-nothing reference: zero change by definition"},
                            {"name": "ADAPT recommendation", "allocated": float(sum(alloc.values())), "estimate": est,
                             "reason": "the same portfolio_economics over all 200 joint bootstrap draws"}],
-            "alternatives": [],
+            "alternatives": sensitivity_alternatives(d, v.unit_names(db)),
             "confidence": [{"label": "Data quality", "value": float(min(health) / 100) if health else 0.0,
                             "meaning": "lowest data-health score among the sources (0–1)"},
                            {"label": "Treated units with a usable curve", "value": float(usable),
                             "meaning": "share of this decision's budgets valued by an own or pooled curve"}],
-            "note": "Model estimates on the current state, not realized results. ROAS-rank / contribution-rank "
-                    "baselines, sensitivity alternatives and the calibrated confidence index are later-stage "
-                    "features; held-out comparisons come from the evaluation report."}
+            "note": "Model estimates on the current state, not realized results. Alternatives are sensitivity "
+                    "scenarios (a different risk preference), not competing recommendations; choosing one creates "
+                    "a new decision. Held-out strategy comparisons come from the evaluation report."}
+
+
+def sensitivity_alternatives(d: dict, names: dict) -> list[dict]:
+    """Conservative / Aggressive (PROFIT only), in the comparison contract's shape, with their policy result."""
+    titles = {"conservative": "Conservative (λ = 1.0, ±10%/day)", "aggressive": "Aggressive (λ = 0.2, ±20%/day)"}
+    out = []
+    for a in d.get("alternatives") or []:
+        if a.get("status") != "OK":
+            continue
+        e = a["expected"]
+        pol = a.get("policy") or {}
+        risk = a.get("max_inventory_risk") or {}
+        unit = "units short" if risk.get("kind") == "PROJECTED_SHORTFALL" else "P(stockout)"
+        out.append({"id": a["name"], "name": titles.get(a["name"], a["name"]),
+                    "reason": f"{a.get('label', '')}; max inventory risk {risk.get('value', 0):.2f} {unit}; "
+                              f"₹{a.get('unallocated', 0):,.0f} unallocated",
+                    "legs": [{"platform": v.PLATFORM[leg["platform"]], "entity": names.get(leg["unit_id"],
+                                                                                           leg["unit_id"]),
+                              "budget_id": leg["budget_id"], "before": leg["before"], "after": leg["after"]}
+                             for leg in a["legs"]],
+                    "estimate": {"p10": e["P10"], "p50": e["E"], "p90": e["P90"], "prob_loss": e["prob_loss"],
+                                 "delta_net_revenue": e["delta_net_revenue"], "raw_pred": e["E"],
+                                 "calibrated_pred": e["E"]},
+                    "checks": [{"id": "POLICY", "label": "Policy validation",
+                                "passed": pol.get("status") != "BLOCKED",
+                                "detail": ", ".join(pol.get("failed_rules") or []) or "passes policy"}]})
+    return out
+
+
+# ---- evaluation report (precomputed overnight by scripts/run_eval.py) ----------------------------------------------
+HEAD_TO_HEAD = ("safe-static", "safe-contribution", "adapt", "oracle")
+
+
+def load_eval(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def eval_report(path: Path) -> dict:
+    """The Head-to-Head contract from evidence/eval.json: per seed, safe-static / safe-contribution / adapt / oracle
+    on common random numbers under the same ceiling, plus the headline summary (primary paired CI, oracle capture,
+    detection, diagnosis, safety, replay), shown even when a target is missed."""
+    rep = load_eval(path)
+    if rep is None:
+        return {"status": "NOT_AVAILABLE", "report": None,
+                "note": f"No evaluation report ({path.name}) yet: scripts/run_eval.py --seeds eval runs overnight."}
+    seeds = [int(x) for x in rep["seeds"] if all(s in rep["per_seed"][str(x)] for s in HEAD_TO_HEAD)]
+    meta = rep.get("per_seed_meta") or {}
+    days = int(rep.get("contract", {}).get("days") or 60)
+    rows = []
+    for seed in seeds:
+        for s in HEAD_TO_HEAD:
+            r = rep["per_seed"][str(seed)][s]
+            rows.append({"seed": seed, "strategy": s, "realized_caa": float(r["caa"]), "spend": float(r["spend"]),
+                         "stock_risk_days": min(int(r.get("stock_risk_days", 0)), days),
+                         "constraint_breaches": len(r.get("violations") or []),
+                         "forced_interventions": int(r.get("forced_interventions", 0))})
+    ceilings = [float(m["budget_ceiling"]) for m in meta.values() if m.get("budget_ceiling")]
+    summary = {k: rep.get(k) for k in ("N", "primary", "comparisons", "oracle_capture", "oracle_suboptimality_rate",
+                                       "safety_violations", "replay", "verdicts", "detection", "diagnosis",
+                                       "negative_set", "targets", "contract")}
+    generated = rep.get("generated_at") or iso_z(datetime.fromtimestamp(path.stat().st_mtime))
+    return {"status": "AVAILABLE",
+            "note": f"{rep.get('contract', {}).get('class', 'EVAL')}: {len(seeds)} held-out seeds, {days} simulated "
+                    "days each, precomputed (never run live).",
+            "report": {"report_id": f"eval-{generated}", "generated_at": generated,
+                       "code_sha": rep.get("code_sha") or "unknown", "seeds": seeds, "horizon_days": days,
+                       "budget_ceiling": max(ceilings) if ceilings else 1.0, "reserve_floor": 0.0, "currency": "INR",
+                       "common_random_numbers": bool(rep.get("common_random_numbers")),
+                       "feasibility_envelope": "identical guardrails for every strategy: ±20%/day, 3-day cooldown, "
+                                               "channel caps, inventory gate, budget ceiling B and reserve R per seed",
+                       "fairness_statement": "All strategies receive the same maximum available budget B and reserve "
+                                             "floor R on each seed. safe-static intentionally preserves its initial "
+                                             "allocation; in these worlds that allocation equals B − R.",
+                       "rows": rows, "summary": summary}}
+
+
+def uplift(path: Path) -> dict:
+    rep = load_eval(path)
+    if rep is None:
+        return {"status": "NOT_AVAILABLE", "rows": [],
+                "note": "No evaluation report yet (held-out seeds 101–120, paired strategies)."}
+    seeds = [str(x) for x in rep["seeds"]]
+    names = sorted({s for k in seeds for s in rep["per_seed"][k]})
+    rows = []
+    for s in names:
+        got = [rep["per_seed"][k][s] for k in seeds if s in rep["per_seed"][k]]
+        rows.append({"strategy": s, "realized_caa": float(np.mean([g["caa"] for g in got])),
+                     "spend": float(np.mean([g["spend"] for g in got])),
+                     "constraint_breaches": int(sum(len(g.get("violations") or []) for g in got))})
+    p = rep.get("primary") or {}
+    ci = p.get("ci95")
+    band = f" (95% paired CI ₹{ci[0]:,.0f} to ₹{ci[1]:,.0f})" if ci else ""
+    return {"status": "AVAILABLE", "rows": rows,
+            "note": f"Mean realized CAA and spend per seed over {len(seeds)} held-out seeds. Primary U(adapt vs "
+                    f"safe-static) = ₹{(p.get('mean') or 0):,.0f}{band}."}
 
 
 def copilot_answer(db, message: str) -> dict:
