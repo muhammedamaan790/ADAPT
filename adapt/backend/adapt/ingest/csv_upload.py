@@ -1,8 +1,9 @@
 """CSV upload (Stage 3; spec §1 "Ingestion modes" 2, §12 /ingest/*): templates, a rapidfuzz + synonym field mapper,
 server-side validation (never trusting the browser's), staging, confirm, and a NEW workspace file per upload.
 
-- Types: ads (date, budget_id, platform, spend, impressions, clicks), inventory (sku, on_hand, reserved, safety_stock),
-  margins (sku, price, unit_cost); amounts in INR, dates Asia/Kolkata (the only accepted source currency / timezone).
+- Types: ads (date, budget_id, platform, spend, impressions, clicks), orders (date, order_id, sku, quantity,
+  net_revenue), inventory (sku, on_hand, reserved, safety_stock), margins (sku, price, unit_cost); amounts in INR,
+  dates Asia/Kolkata (the only accepted source currency / timezone).
 - suggest_mapping(): for each required field, the best header by exact synonym, then rapidfuzz token-set similarity
   (score >= 80), each header used once; the score is returned so the UI shows how sure it is.
 - stage(): validates every record against the data contract (types, ranges, whole numbers, clicks <= impressions,
@@ -13,6 +14,7 @@ server-side validation (never trusting the browser's), staging, confirm, and a N
   (stg.upload_<type>, provenance UPLOADED, available_at = confirm time) plus a data-contract report, and registers it.
   Upload workspaces are for review in the Data Hub; the decision engine keeps running on the world-backed demo workspace
   (an engine run needs every source: ads, orders, inventory, pricing), which the import message states.
+- A file staged for a brand workspace (`target`) is confirmed into that workspace by the caller's `sink` instead.
 """
 
 from __future__ import annotations
@@ -27,11 +29,12 @@ from rapidfuzz import fuzz
 
 FIELDS = {
     "ads": ["date", "budget_id", "platform", "spend", "impressions", "clicks"],
+    "orders": ["date", "order_id", "sku", "quantity", "net_revenue"],
     "inventory": ["sku", "on_hand", "reserved", "safety_stock"],
     "margins": ["sku", "price", "unit_cost"],
 }
-TEXT = {"date", "sku", "budget_id", "platform"}
-WHOLE = {"impressions", "clicks", "on_hand", "reserved", "safety_stock"}
+TEXT = {"date", "sku", "budget_id", "platform", "order_id"}
+WHOLE = {"impressions", "clicks", "on_hand", "reserved", "safety_stock", "quantity"}
 PLATFORMS = {"Meta", "Google"}
 SYNONYMS = {
     "date": ["day", "report date", "date start", "stat time day", "segments date"],
@@ -40,6 +43,9 @@ SYNONYMS = {
     "spend": ["cost", "amount spent", "spend inr", "cost inr", "cost micros"],
     "impressions": ["impr", "impr.", "views served"],
     "clicks": ["link clicks", "clicks all"],
+    "order_id": ["order", "order id", "order number", "order no", "name"],
+    "quantity": ["qty ordered", "units", "units sold", "lineitem quantity", "quantity ordered"],
+    "net_revenue": ["revenue", "net sales", "sales", "total", "line total", "net revenue inr"],
     "sku": ["product id", "item id", "variant sku", "asin", "product code"],
     "on_hand": ["stock", "on hand", "quantity on hand", "qty", "inventory", "units in stock"],
     "reserved": ["allocated", "committed", "reserved qty"],
@@ -125,8 +131,8 @@ def validate(kind: str, records: list[dict]) -> list[dict]:
             if f in WHOLE and x != int(x):
                 errors.append(f"row {i}: {f} must be a whole number")
             row[f] = int(x) if f in WHOLE and x == int(x) else x
-        if kind == "ads" and len(row) == len(fields):
-            if row["platform"] not in PLATFORMS:
+        if kind in ("ads", "orders") and len(row) == len(fields):
+            if kind == "ads" and row["platform"] not in PLATFORMS:
                 errors.append(f"row {i}: platform must be Meta or Google")
             try:
                 if date.fromisoformat(row["date"]).isoformat() != row["date"]:
@@ -138,7 +144,8 @@ def validate(kind: str, records: list[dict]) -> list[dict]:
                 errors.append(f"row {i}: clicks exceed impressions")
         if kind == "inventory" and len(row) == len(fields) and row["reserved"] > row["on_hand"]:
             errors.append(f"row {i}: reserved units exceed on-hand stock")
-        key = (row.get("date"), row.get("platform"), row.get("budget_id")) if kind == "ads" else row.get("sku")
+        key = ((row.get("date"), row.get("platform"), row.get("budget_id")) if kind == "ads" else
+               (row.get("order_id"), row.get("sku")) if kind == "orders" else row.get("sku"))
         if key in seen:
             errors.append(f"row {i}: duplicate business key {key}")
         seen.add(key)
@@ -166,11 +173,14 @@ class Registry:
         self.path.write_text(json.dumps(reg, indent=2, default=str), encoding="utf-8")
 
 
-def stage(registry: Registry, kind: str, records: list[dict], currency: str, timezone: str) -> dict:
+def stage(registry: Registry, kind: str, records: list[dict], currency: str, timezone: str,
+          target: str | None = None) -> dict:
+    """`target`: the brand workspace the file is for; part of the import id, so one file can go into several."""
     if currency != "INR" or timezone != "Asia/Kolkata":
         raise UploadError("uploads must be in INR and Asia/Kolkata (the brand currency and timezone)")
     rows = validate(kind, records)
-    digest = hashlib.sha256(json.dumps({"type": kind, "rows": rows}, sort_keys=True).encode()).hexdigest()
+    payload = {"type": kind, "rows": rows, **({"target": target} if target else {})}
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     import_id = f"imp-{digest[:16]}"
     reg = registry.load()
     existing = reg["uploads"].get(import_id)
@@ -178,14 +188,16 @@ def stage(registry: Registry, kind: str, records: list[dict], currency: str, tim
         return {"import_id": import_id, "status": existing["status"], "row_count": len(rows),
                 "message": "this exact file was already " + existing["status"].lower()}
     reg["uploads"][import_id] = {"type": kind, "rows": rows, "status": "STAGED", "staged_at": datetime.now(),
-                                 "sha256": digest}
+                                 "sha256": digest, **({"target": target} if target else {})}
     registry.save(reg)
     return {"import_id": import_id, "status": "STAGED", "row_count": len(rows),
             "message": f"{len(rows)} {kind} rows passed the data contract and are staged; confirm the mapping to "
-                       "import them into a new workspace"}
+                       + ("import them into this workspace" if target else "import them into a new workspace")}
 
 
-def confirm(registry: Registry, import_id: str, mapping: dict, actor: str) -> dict:
+def confirm(registry: Registry, import_id: str, mapping: dict, actor: str, sink=None) -> dict:
+    """`sink(kind, rows, import_id, actor) -> message` writes a brand-workspace upload; without a target the rows go
+    into a new review workspace file."""
     import duckdb
 
     reg = registry.load()
@@ -198,6 +210,15 @@ def confirm(registry: Registry, import_id: str, mapping: dict, actor: str) -> di
     if up["status"] == "IMPORTED":
         return {"import_id": import_id, "status": "IMPORTED", "row_count": len(up["rows"]),
                 "message": f"already imported into workspace {up['workspace_id']}"}
+    if up.get("target"):
+        if sink is None:
+            raise UploadError(f"this file was staged for workspace {up['target']}; switch to it to confirm")
+        message = sink(up["type"], up["rows"], import_id, actor)
+        up.update(status="IMPORTED", workspace_id=up["target"], imported_at=datetime.now(), mapping=mapping,
+                  actor=actor)
+        reg["uploads"][import_id] = up
+        registry.save(reg)
+        return {"import_id": import_id, "status": "IMPORTED", "row_count": len(up["rows"]), "message": message}
     ws_id = f"upload-{import_id[4:]}"
     path = registry.dir / f"{ws_id}.duckdb"
     now = datetime.now()
@@ -228,4 +249,5 @@ def confirm(registry: Registry, import_id: str, mapping: dict, actor: str) -> di
 def upload_workspaces(registry: Registry) -> list[dict]:
     return [{"id": u["workspace_id"], "name": f"Upload {iid[4:12]} ({u['type']})"[:60], "currency": "INR",
              "timezone": "Asia/Kolkata"}
-            for iid, u in sorted(registry.load()["uploads"].items()) if u.get("status") == "IMPORTED"]
+            for iid, u in sorted(registry.load()["uploads"].items())
+            if u.get("status") == "IMPORTED" and not u.get("target")]

@@ -1,6 +1,7 @@
-export type ImportType = 'ads' | 'inventory' | 'margins';
+export type ImportType = 'ads' | 'orders' | 'inventory' | 'margins';
 export const importFields: Record<ImportType, string[]> = {
   ads: ['date', 'budget_id', 'platform', 'spend', 'impressions', 'clicks'],
+  orders: ['date', 'order_id', 'sku', 'quantity', 'net_revenue'],
   inventory: ['sku', 'on_hand', 'reserved', 'safety_stock'],
   margins: ['sku', 'price', 'unit_cost'],
 };
@@ -73,7 +74,7 @@ export function validateImport(csv: Csv, type: ImportType, mapping: Record<strin
     const record: Record<string, string | number> = {};
     columns.forEach((k) => {
       const raw = r[csv.headers.indexOf(mapping[k])].trim();
-      if (['date', 'sku', 'budget_id', 'platform'].includes(k)) {
+      if (['date', 'sku', 'budget_id', 'platform', 'order_id'].includes(k)) {
         record[k] = raw;
         if (!raw) errors.push(`Row ${i + 2}: ${k} is required.`);
       } else {
@@ -82,14 +83,16 @@ export function validateImport(csv: Csv, type: ImportType, mapping: Record<strin
         if (!Number.isFinite(n) || n < 0)
           errors.push(`Row ${i + 2}: ${k} must be a finite nonnegative number.`);
         if (
-          ['impressions', 'clicks', 'on_hand', 'reserved', 'safety_stock'].includes(k) &&
+          ['impressions', 'clicks', 'on_hand', 'reserved', 'safety_stock', 'quantity'].includes(
+            k,
+          ) &&
           !Number.isSafeInteger(n)
         )
           errors.push(`Row ${i + 2}: ${k} must be a whole number.`);
       }
     });
-    if (type === 'ads') {
-      if (!['Meta', 'Google'].includes(String(record.platform)))
+    if (type === 'ads' || type === 'orders') {
+      if (type === 'ads' && !['Meta', 'Google'].includes(String(record.platform)))
         errors.push(`Row ${i + 2}: platform must be Meta or Google.`);
       const date = String(record.date);
       if (
@@ -104,7 +107,11 @@ export function validateImport(csv: Csv, type: ImportType, mapping: Record<strin
     if (type === 'inventory' && Number(record.reserved) > Number(record.on_hand))
       errors.push(`Row ${i + 2}: reserved units exceed on-hand stock.`);
     const key =
-      type === 'ads' ? `${record.date}|${record.platform}|${record.budget_id}` : String(record.sku);
+      type === 'ads'
+        ? `${record.date}|${record.platform}|${record.budget_id}`
+        : type === 'orders'
+          ? `${record.order_id}|${record.sku}`
+          : String(record.sku);
     if (seen.has(key)) errors.push(`Row ${i + 2}: duplicate business key ${key}.`);
     seen.add(key);
     return record;

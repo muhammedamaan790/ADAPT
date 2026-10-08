@@ -152,6 +152,11 @@ def _state_cache(r: Runtime) -> tuple:
 @router.get("/overview", response_model=m.Overview)
 def overview(request: Request):
     r = rt(request)
+    brand = r.brands.active()
+    if brand:  # uploaded data only: no world service needed
+        from adapt.api.brands import brand_overview
+
+        return brand_overview(r.db, brand)
     try:
         world = r.world()
     except ConnectorError as exc:
@@ -537,6 +542,15 @@ def retry(execution_id: str, body: m.RecoveryBody, request: Request):
 
 
 # ---- Scenario Lab ---------------------------------------------------------------------------------------------------
+def _require_world(r: Runtime) -> None:
+    """The simulator drives the engine workspace only; a brand workspace changes through its uploads."""
+    brand = r.brands.active()
+    if brand:
+        raise HTTPException(409, detail=f"{brand['name']} holds your uploaded data, which the simulator does not "
+                                        "drive; switch to the simulated world workspace to inject scenarios or "
+                                        "advance days")
+
+
 def _world_post(r: Runtime, path: str, body: dict, rid: str, actor_id: str) -> None:
     resp = r.client.post(path, json=body, headers={"X-Request-ID": rid, "X-Actor-ID": actor_id})
     if resp.status_code >= 400:
@@ -555,6 +569,7 @@ def sim_scenarios():
 @router.post("/sim/scenario/{key}", response_model=m.Ack, dependencies=mutating)
 def sim_scenario(key: str, request: Request):
     r = rt(request)
+    _require_world(r)
     if key not in BUILT_SCENARIOS:
         raise HTTPException(422, detail=f"NOT_BUILT: {key} is not an injectable world scenario")
     try:
@@ -576,6 +591,7 @@ def sim_scenario(key: str, request: Request):
 def sim_advance(request: Request, days: int = Query(1, ge=1, le=14)):
     """Advance the world `days` days, then (background job) run the pipeline for every new day."""
     r = rt(request)
+    _require_world(r)
     try:
         with r.mutation():
             if r.unresolved_executions():
@@ -603,6 +619,7 @@ def sim_advance(request: Request, days: int = Query(1, ge=1, le=14)):
 def sim_reset(request: Request, seed: int = Query(42)):
     """Restore the world to its seeded baseline AND the workspace to its baseline copy (no stale app data)."""
     r = rt(request)
+    _require_world(r)
     try:
         world = r.world()
         if world.get("seed") != seed:
@@ -625,6 +642,7 @@ def sim_reset(request: Request, seed: int = Query(42)):
 @router.post("/sim/fault/{kind}", response_model=m.Ack, dependencies=mutating)
 def sim_fault(kind: str, request: Request):
     r = rt(request)
+    _require_world(r)
     if kind == "FAILED":
         try:
             with r.mutation():

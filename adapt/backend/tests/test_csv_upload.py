@@ -16,7 +16,7 @@ def test_mapper_uses_exact_synonym_and_fuzzy_matches_once_each():
     none = cu.suggest_mapping("margins", ["foo", "bar"])
     assert all(v["header"] is None for v in none.values())
     with pytest.raises(cu.UploadError):
-        cu.suggest_mapping("orders", ["a"])
+        cu.suggest_mapping("refunds", ["a"])
 
 
 ADS = [{"date": "2026-10-01", "budget_id": "b1", "platform": "Meta", "spend": 1200.5, "impressions": 1000,

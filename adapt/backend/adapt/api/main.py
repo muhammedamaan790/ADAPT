@@ -37,7 +37,8 @@ def create_app(settings: Settings | None = None, db: Database | None = None, wor
             yield
         finally:
             app.state.runtime.wait(5)
-            app.state.runtime.db.close()
+            app.state.runtime.engine_db.close()
+            app.state.runtime.brands.close()
 
     app = FastAPI(title="ADAPT API", version=__version__, lifespan=lifespan)
 

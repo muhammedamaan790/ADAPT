@@ -12,7 +12,13 @@ export const objectiveSchema = z.enum([
   'BALANCED',
 ]);
 export type Objective = z.infer<typeof objectiveSchema>;
-export const provenanceSchema = z.enum(['PUBLIC-SAMPLE', 'CALIBRATED', 'SIMULATED', 'LIVE']);
+export const provenanceSchema = z.enum([
+  'PUBLIC-SAMPLE',
+  'CALIBRATED',
+  'SIMULATED',
+  'LIVE',
+  'UPLOADED',
+]);
 export const metricSchema = z.object({
   key: z.string(),
   label: z.string(),

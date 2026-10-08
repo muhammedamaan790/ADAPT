@@ -58,23 +58,30 @@ def optimizer_result(db, run_id: str | None) -> dict:
     return json.loads(row[0][0]) if row else {}
 
 
-def _campaign_of_entities(db, ids: list[str]) -> set[str]:
-    out = set(ids)
-    if has(db, "core", "ads") and ids:
-        marks = ", ".join("?" * len(ids))
-        out |= {c for (c,) in db.query(f"SELECT DISTINCT campaign_id FROM core.ads WHERE ad_id IN ({marks})", ids)}
-    return out
+def _ad_campaigns(db, ids: set[str]) -> dict[str, str]:
+    """ad_id -> campaign_id for many entity ids in one query (lists would otherwise query once per row)."""
+    if not ids or not has(db, "core", "ads"):
+        return {}
+    marks = ", ".join("?" * len(ids))
+    return dict(db.query(f"SELECT DISTINCT ad_id, campaign_id FROM core.ads WHERE ad_id IN ({marks})", sorted(ids)))
 
 
-def related_incident(db, campaign_ids: list[str]) -> str | None:
+def open_incidents(db) -> list[tuple[str, set[str], float]]:
+    """(anomaly_id, campaigns it touches, |impact|) for every unresolved incident; computed once per list request."""
     if not has(db, "intel", "anomalies"):
-        return None
+        return []
+    rows = [(aid, json.loads(ids), impact) for aid, ids, impact in db.query(
+        "SELECT anomaly_id, entity_ids, signed_impact FROM intel.anomalies WHERE is_incident AND status <> 'resolved'")]
+    ads = _ad_campaigns(db, {i for _, ids, _ in rows for i in ids})
+    return [(aid, set(ids) | {ads[i] for i in ids if i in ads}, abs(impact or 0)) for aid, ids, impact in rows]
+
+
+def related_incident(db, campaign_ids: list[str], incidents: list | None = None) -> str | None:
     best = None
-    for aid, ids, impact in db.query("SELECT anomaly_id, entity_ids, signed_impact FROM intel.anomalies "
-                                     "WHERE is_incident AND status <> 'resolved'"):
-        if _campaign_of_entities(db, json.loads(ids)) & set(campaign_ids):
-            if best is None or abs(impact or 0) > best[1]:
-                best = (aid, abs(impact or 0))
+    for aid, camps, impact in (open_incidents(db) if incidents is None else incidents):
+        if camps & set(campaign_ids):
+            if best is None or impact > best[1]:
+                best = (aid, impact)
     return best[0] if best else None
 
 
@@ -87,15 +94,22 @@ def evidence_ids(db, anomaly_id: str | None) -> list[str]:
 
 
 # ---- decisions ------------------------------------------------------------------------------------------------------
-def decision_view(db, decision_id: str, names: dict | None = None) -> dict:
+def decision_view(db, decision_id: str, names: dict | None = None, ctx: dict | None = None) -> dict:
+    """`ctx` (decision_list): incidents and optimizer results shared across the list instead of re-read per row."""
     names = names if names is not None else unit_names(db)
     d = get_decision(db, decision_id)
     run_id, follows = db.query("SELECT run_id, supersedes FROM intel.decisions WHERE decision_id = ?",
                                [decision_id])[0]
     pv = db.query("SELECT policy_version FROM ops.decision_snapshots WHERE decision_id = ?", [decision_id])[0][0]
-    res = optimizer_result(db, run_id.split("-mod-")[0] if run_id else None)
+    opt_id = run_id.split("-mod-")[0] if run_id else None
+    if ctx is None:
+        res = optimizer_result(db, opt_id)
+    else:
+        if opt_id not in ctx["opt"]:
+            ctx["opt"][opt_id] = optimizer_result(db, opt_id)
+        res = ctx["opt"][opt_id]
     cids = sorted({c for leg in d["legs"] for c in leg["campaign_ids"]})
-    anomaly = related_incident(db, cids)
+    anomaly = related_incident(db, cids, ctx["incidents"] if ctx else None)
     e = d["expected"]
     why = []
     for w in d.get("why_not", []):
@@ -145,7 +159,8 @@ def decision_list(db) -> list[dict]:
     if not has(db, "intel", "decisions"):
         return []
     names = unit_names(db)
-    return [decision_view(db, did, names) for (did,) in
+    ctx = {"incidents": open_incidents(db), "opt": {}}
+    return [decision_view(db, did, names, ctx) for (did,) in
             db.query("SELECT decision_id FROM intel.decisions ORDER BY created_at DESC, decision_id")]
 
 
@@ -335,7 +350,17 @@ def event_list(db, limit: int = 100) -> list[dict]:
 
 
 # ---- anomalies -------------------------------------------------------------------------------------------------------
-def _anomaly_row_view(db, row, names_by_campaign) -> dict | None:
+def _anomaly_ctx(db, rows) -> dict:
+    """What every anomaly row needs, read once: decisions' campaigns (newest first), ad -> campaign, table presence."""
+    decisions = ([(did, {c for leg in json.loads(payload)["legs"] for c in leg["campaign_ids"]})
+                  for did, payload in db.query("SELECT decision_id, payload FROM intel.decisions "
+                                               "ORDER BY created_at DESC")]
+                 if has(db, "intel", "decisions") else [])
+    return {"decisions": decisions, "ads": _ad_campaigns(db, {i for r in rows for i in json.loads(r[3])}),
+            "diagnoses": has(db, "intel", "diagnoses"), "status_log": has(db, "ops", "anomaly_status_log")}
+
+
+def _anomaly_row_view(db, row, names_by_campaign, ctx: dict) -> dict | None:
     (aid, scope, key, ids, platform, metric, direction, cls, status_, ws, we, actual, expected, rel, impact,
      stat, z, shift, collapse, first_at) = row
     kind = KIND.get(cls)
@@ -344,20 +369,15 @@ def _anomaly_row_view(db, row, names_by_campaign) -> dict | None:
     ids = json.loads(ids)
     entity = names_by_campaign.get(key, key) if scope == "campaign" else f"{scope} {key}"
     diag = db.query("SELECT top_driver, top_level FROM intel.diagnoses WHERE anomaly_id = ? ORDER BY as_of DESC "
-                    "LIMIT 1", [aid]) if has(db, "intel", "diagnoses") else []
+                    "LIMIT 1", [aid]) if ctx["diagnoses"] else []
     driver = (diag[0][0] or "UNKNOWN") if diag else "NOT_DIAGNOSED"
     reason = None
-    if has(db, "ops", "anomaly_status_log"):
+    if ctx["status_log"]:
         r = db.query("SELECT reason FROM ops.anomaly_status_log WHERE anomaly_id = ? "
                      "ORDER BY logged_at DESC LIMIT 1", [aid])
         reason = r[0][0] if r else None
-    camps = _campaign_of_entities(db, ids)
-    decision = None
-    if has(db, "intel", "decisions"):
-        for (did, payload) in db.query("SELECT decision_id, payload FROM intel.decisions ORDER BY created_at DESC"):
-            if camps & {c for leg in json.loads(payload)["legs"] for c in leg["campaign_ids"]}:
-                decision = did
-                break
+    camps = set(ids) | {ctx["ads"][i] for i in ids if i in ctx["ads"]}
+    decision = next((did for did, dc in ctx["decisions"] if camps & dc), None)
     return {
         "anomaly_id": aid,
         "title": f"{metric} {direction.lower()} {abs(rel or 0):.0%} on {entity}" if rel is not None else
@@ -421,13 +441,14 @@ def anomaly_list(db) -> list[dict]:
         return []
     names = dict(db.query("SELECT campaign_id, name FROM core.campaigns")) if has(db, "core", "campaigns") else {}
     rows = db.query(f"SELECT {ANOMALY_COLS} FROM intel.anomalies ORDER BY abs(signed_impact) DESC NULLS LAST")
-    return [v for v in (_anomaly_row_view(db, r, names) for r in rows) if v is not None]
+    ctx = _anomaly_ctx(db, rows)
+    return [v for v in (_anomaly_row_view(db, r, names, ctx) for r in rows) if v is not None]
 
 
 def anomaly_view(db, anomaly_id: str) -> dict | None:
     names = dict(db.query("SELECT campaign_id, name FROM core.campaigns")) if has(db, "core", "campaigns") else {}
     rows = db.query(f"SELECT {ANOMALY_COLS} FROM intel.anomalies WHERE anomaly_id = ?", [anomaly_id])
-    return _anomaly_row_view(db, rows[0], names) if rows else None
+    return _anomaly_row_view(db, rows[0], names, _anomaly_ctx(db, rows)) if rows else None
 
 
 # ---- overview --------------------------------------------------------------------------------------------------------

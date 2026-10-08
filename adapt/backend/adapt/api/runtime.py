@@ -8,6 +8,9 @@
 - Workspace baseline: `python -m adapt.api.runtime --bootstrap` syncs, builds and runs the day-0 cycle, then copies
   the workspace to `<workspace>.baseline.duckdb`. /sim/reset restores the world AND that workspace baseline, so the
   app never keeps data from a world that no longer exists.
+- Brand workspaces (adapt.api.brands): `db` is the active workspace's database, so every view reads the workspace the
+  user switched to; `engine_db` is always the simulated-world workspace, which the pipeline, the world clock, the
+  baseline and execution checks use.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from datetime import datetime
 import httpx
 
 from adapt.agent import groq_client
+from adapt.api.brands import Brands
 from adapt.config.settings import REPO_ROOT, Settings, get_settings
 from adapt.core.db import Database
 from adapt.execute.adapters import build_adapters
@@ -43,7 +47,8 @@ class Busy(RuntimeError):
 class Runtime:
     def __init__(self, settings: Settings, db: Database, world_client: httpx.Client | None = None):
         self.settings = settings
-        self.db = db
+        self.engine_db = db
+        self.brands = Brands(settings.workspace_db_path.parent)
         self.client = world_client or httpx.Client(base_url=settings.world_url, timeout=httpx.Timeout(60.0))
         base = str(self.client.base_url).rstrip("/") or settings.world_url
         self.http = SourceHttp(base, client=self.client)
@@ -57,6 +62,11 @@ class Runtime:
         self._lock = threading.Lock()
         self.job: dict = {"name": None, "state": "idle", "started_at": None, "finished_at": None, "error": None}
         self._thread: threading.Thread | None = None
+
+    @property
+    def db(self) -> Database:
+        """The active workspace: a brand workspace when one is selected, else the engine workspace."""
+        return self.brands.active_db() or self.engine_db
 
     # ---- time -------------------------------------------------------------------------------------------------------
     def world(self) -> dict:
@@ -111,15 +121,15 @@ class Runtime:
 
     # ---- pipeline ---------------------------------------------------------------------------------------------------
     def unresolved_executions(self) -> int:
-        if not self.db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'exec' "
+        if not self.engine_db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'exec' "
                              "AND table_name = 'sagas'"):
             return 0
         marks = ", ".join("?" * len(UNRESOLVED_SAGA_STATES))
-        return int(self.db.query(f"SELECT count(*) FROM exec.sagas WHERE state IN ({marks})",
+        return int(self.engine_db.query(f"SELECT count(*) FROM exec.sagas WHERE state IN ({marks})",
                                  list(UNRESOLVED_SAGA_STATES))[0][0])
 
     def catch_up(self) -> list[dict]:
-        return catch_up(self.db, self.http, self.adapters, llm=self.llm)
+        return catch_up(self.engine_db, self.http, self.adapters, llm=self.llm)
 
     # ---- workspace baseline -----------------------------------------------------------------------------------------
     @property
@@ -129,7 +139,7 @@ class Runtime:
 
     def snapshot_baseline(self) -> None:
         path = self.settings.workspace_db_path
-        self.db.swap_file(lambda: shutil.copyfile(path, self.baseline_path))
+        self.engine_db.swap_file(lambda: shutil.copyfile(path, self.baseline_path))
 
     def restore_baseline(self) -> None:
         """Copy the baseline over the workspace in place: requests arriving meanwhile wait (about a second) instead
@@ -144,7 +154,7 @@ class Runtime:
             if wal.exists():
                 wal.unlink()
 
-        self.db.swap_file(restore)
+        self.engine_db.swap_file(restore)
 
 
 def bootstrap(settings: Settings | None = None, world_client: httpx.Client | None = None) -> dict:
@@ -154,12 +164,13 @@ def bootstrap(settings: Settings | None = None, world_client: httpx.Client | Non
     rt = Runtime(settings, Database(settings.workspace_db_path), world_client)
     t = time.time()
     try:
-        run_sync(rt.db, rt.http)
+        run_sync(rt.engine_db, rt.http)
         runs = rt.catch_up()
-        imported = import_warmup(rt.db, settings.warmup_track_record_path)
+        imported = import_warmup(rt.engine_db, settings.warmup_track_record_path)
         rt.snapshot_baseline()
     finally:
-        rt.db.close()
+        rt.engine_db.close()
+        rt.brands.close()
     return {"seconds": round(time.time() - t, 1), "runs": [r["run_id"] for r in runs],
             "baseline": str(rt.baseline_path), "warmup_track_record": imported}
 

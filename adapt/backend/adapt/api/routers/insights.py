@@ -386,12 +386,18 @@ def _registry(r):
 
 
 def _workspaces(r) -> dict:
-    from adapt.ingest.csv_upload import upload_workspaces
-
+    """The simulated-world engine workspace first, then the brand workspaces (empty until their uploads)."""
     ws = r.settings.workspace
-    return {"active_id": ws, "items": ([{"id": ws, "name": f"{ws} (seed-{r.world().get('seed', '?')} world)",
-                                         "currency": "INR", "timezone": "Asia/Kolkata"}]
-                                       + upload_workspaces(_registry(r)))[:20]}
+    try:
+        seed = r.world().get("seed", "?")
+    except Exception:  # noqa: BLE001 - the list must render while the world service is down
+        seed = "?"
+    brand = r.brands.active()
+    return {"active_id": brand["id"] if brand else ws,
+            "items": ([{"id": ws, "name": f"Simulated world (seed {seed})", "currency": "INR",
+                        "timezone": "Asia/Kolkata"}]
+                      + [{"id": b["id"], "name": b["name"], "currency": "INR", "timezone": "Asia/Kolkata"}
+                         for b in r.brands.items()])[:20]}
 
 
 @router.get("/workspaces", response_model=m.WorkspaceList)
@@ -400,9 +406,15 @@ def workspaces(request: Request):
 
 
 @router.post("/workspaces", response_model=m.Workspace, dependencies=mutating)
-def workspace_create():
-    raise HTTPException(422, detail="workspaces are created by CSV uploads (one new workspace file per confirmed "
-                                    "upload, spec §1); nothing was changed")
+def workspace_create(body: m.WorkspaceCreate, request: Request):
+    """A new, empty brand workspace: every number is 0 until CSVs are uploaded into it."""
+    from adapt.api.brands import BrandError
+
+    try:
+        b = rt(request).brands.create(body.name)
+    except BrandError as exc:
+        raise HTTPException(422, detail=str(exc)) from exc
+    return {"id": b["id"], "name": b["name"], "currency": "INR", "timezone": "Asia/Kolkata"}
 
 
 @router.post("/workspaces/{workspace_id}/activate", response_model=m.WorkspaceList, dependencies=mutating)
@@ -411,10 +423,8 @@ def workspace_activate(workspace_id: str, request: Request):
     ids = {w["id"] for w in _workspaces(r)["items"]}
     if workspace_id not in ids:
         raise HTTPException(404, detail=f"workspace {workspace_id} does not exist")
-    if workspace_id != r.settings.workspace:
-        raise HTTPException(409, detail=f"{workspace_id} holds an uploaded file for review in the Data Hub; the "
-                                        "decision engine needs every source (ads, orders, inventory, pricing) and "
-                                        "keeps running on the world-backed demo workspace")
+    r.brands.activate(None if workspace_id == r.settings.workspace else workspace_id)
+    r._state_cache = None
     return _workspaces(r)
 
 
@@ -444,18 +454,34 @@ def ingest_upload(body: m.UploadBody, request: Request):
     """Server-side data contract, then stage (idempotent per file content)."""
     from adapt.ingest.csv_upload import UploadError, stage
 
+    r = rt(request)
+    brand = r.brands.active()
     try:
-        return stage(_registry(rt(request)), body.type, body.records, body.source_currency, body.source_timezone)
+        return stage(_registry(r), body.type, body.records, body.source_currency, body.source_timezone,
+                     target=brand["id"] if brand else None)
     except UploadError as exc:
         raise HTTPException(422, detail=f"{exc}: " + "; ".join(exc.errors[:10])) from exc
 
 
 @router.post("/ingest/mapping/confirm", response_model=m.ImportAck, dependencies=mutating)
 def ingest_confirm(body: m.ConfirmBody, request: Request):
+    from adapt.api.brands import import_rows
     from adapt.ingest.csv_upload import UploadError, confirm
 
+    r = rt(request)
+    brand = r.brands.active()
+
+    def sink(kind, rows, import_id, who):
+        up = (_registry(r).load()["uploads"].get(import_id) or {})
+        if not brand or up.get("target") != brand["id"]:
+            raise UploadError("this file was staged for another workspace; switch back to it to confirm")
+        res = import_rows(r.brands.db(brand["id"]), kind, rows, import_id, who)
+        return (f"imported {res['rows']} {kind} rows into {brand['name']}"
+                + (f" ({res['replaced']} earlier rows with the same key replaced)" if res["replaced"] else "")
+                + "; the Command Center numbers now include them")
+
     try:
-        return confirm(_registry(rt(request)), body.import_id, body.mapping, actor(request).user_id)
+        return confirm(_registry(r), body.import_id, body.mapping, actor(request).user_id, sink=sink)
     except UploadError as exc:
         raise HTTPException(422, detail=str(exc)) from exc
 

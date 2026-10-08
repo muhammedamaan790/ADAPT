@@ -95,7 +95,8 @@ def _require(db, table: str) -> None:
     found = db.query("SELECT count(*) FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
                      [schema, name])[0][0]
     if not found:
-        raise HTTPException(503, detail="canonical state not built yet: run the connector sync and the A3 build")
+        raise HTTPException(503, detail="canonical state not built yet: run the connector sync and the A3 build "
+                                        "(an uploaded-data workspace fills from its CSV uploads instead)")
 
 
 def _latest_health(db) -> list[tuple]:

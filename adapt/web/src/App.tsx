@@ -16,6 +16,7 @@ import { dataMode } from './api/client';
 import { Loading, Modal } from './components/ui';
 import { useOverview } from './hooks/workspace';
 import { LiveStrip } from './components/LiveStrip';
+import { WorkspaceSwitcher, useWorkspaces } from './components/WorkspaceSwitcher';
 import { ViewBoundary } from './components/ViewBoundary';
 import { SessionChip } from './components/AuthGate';
 import { useReveal } from './hooks/reveal';
@@ -158,6 +159,7 @@ export function App() {
   const [dark, setDark] = useState(readTheme);
   const [mobileNav, setMobileNav] = useState(false);
   const overview = useOverview();
+  const activeWorkspace = useWorkspaces().data?.active_id ?? '';
   const route = useLocation().pathname;
   const section = route.split('/')[1];
   const main = useRef<HTMLElement>(null);
@@ -202,10 +204,7 @@ export function App() {
               <BrandMark />
               <span className="wordmark-text">ADAPT</span>
             </Link>
-            <span className="workspace workspace-pill" title="Active workspace">
-              <strong className="workspace-pill-name">{workspace}</strong>
-              <span className="workspace-pill-meta">INR</span>
-            </span>
+            <WorkspaceSwitcher fallbackName={workspace} />
           </div>
           <div className="site-header-actions">
             <span className={`mode-pill ${dataMode === 'fixture' ? 'mode-fixture' : 'mode-api'}`}>
@@ -225,7 +224,7 @@ export function App() {
           <RouteStrip />
         </div>
       </header>
-      <LiveStrip />
+      <LiveStrip key={activeWorkspace} />
       <main
         id="main"
         tabIndex={-1}
@@ -234,7 +233,7 @@ export function App() {
         style={{ '--eyebrow': `"${group?.label || 'Workspace'}"` } as CSSProperties}
       >
         <PlatformBanner />
-        <ViewBoundary key={route}>
+        <ViewBoundary key={`${activeWorkspace}:${route}`}>
           <Suspense fallback={<Loading label="Loading workspace" />}>
             <Routes>
               <Route path="/" element={<CommandCenter />} />

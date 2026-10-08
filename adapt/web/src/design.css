@@ -2340,3 +2340,129 @@ td code,
     animation: none;
   }
 }
+.live-running,
+.live-failed {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+}
+.live-running {
+  background: rgb(var(--c-warn) / 0.14);
+  color: rgb(var(--c-warn-text));
+}
+.live-failed {
+  background: rgb(var(--c-stop) / 0.12);
+  color: rgb(var(--c-stop-text));
+}
+.live-button-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--canvas);
+}
+.live-button-primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+button.workspace-switch {
+  cursor: pointer;
+  font: inherit;
+}
+.workspace-list {
+  display: grid;
+  gap: 0.375rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+.workspace-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.workspace-option small {
+  color: var(--muted);
+  white-space: nowrap;
+}
+.workspace-option.is-active {
+  border-color: var(--ink);
+  cursor: default;
+}
+.workspace-option:disabled:not(.is-active) {
+  opacity: 0.6;
+}
+.workspace-create {
+  display: grid;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+}
+.workspace-create > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.workspace-create input,
+.upload-form select,
+.upload-form input[type='file'] {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.625rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.upload-form input[type='file'] {
+  padding: 0.375rem 0.5rem;
+  height: auto;
+}
+.upload-form {
+  display: grid;
+  gap: 0.875rem;
+  font-size: 0.8125rem;
+}
+.upload-form > label {
+  display: grid;
+  gap: 0.375rem;
+}
+.upload-hint code {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.upload-mapping {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem;
+}
+.upload-mapping label {
+  display: grid;
+  gap: 0.25rem;
+}
+.upload-mapping label span {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.upload-errors {
+  margin: 0;
+  padding-left: 1.125rem;
+}
+.upload-go {
+  justify-self: start;
+}
+.upload-done {
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.75rem;
+  background: rgb(var(--c-sage-soft));
+  color: rgb(var(--c-go-text));
+}

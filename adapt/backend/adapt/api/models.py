@@ -8,7 +8,7 @@ from typing import ClassVar, Literal
 
 from pydantic import BaseModel, Field, model_serializer
 
-Provenance = Literal["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED", "LIVE"]
+Provenance = Literal["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED", "LIVE", "UPLOADED"]
 Objective = Literal["PROFIT", "GROWTH", "ACQUISITION", "INVENTORY_CLEARANCE", "MARGIN_PROTECTION", "BALANCED"]
 Platform = Literal["Meta", "Google", "TikTok", "Amazon"]  # TikTok + Amazon: Stage 2 simulated channels
 
@@ -702,6 +702,12 @@ class Workspace(BaseModel):
     timezone: Literal["Asia/Kolkata"]
 
 
+class WorkspaceCreate(BaseModel):
+    name: str = Field(min_length=2, max_length=60)
+    currency: Literal["INR"] = "INR"
+    timezone: Literal["Asia/Kolkata"] = "Asia/Kolkata"
+
+
 class WorkspaceList(BaseModel):
     active_id: str
     items: list[Workspace] = Field(min_length=1)
@@ -842,7 +848,7 @@ class ImportAck(BaseModel):
 
 
 class UploadBody(BaseModel):
-    type: Literal["ads", "inventory", "margins"]
+    type: Literal["ads", "orders", "inventory", "margins"]
     records: list[dict] = Field(min_length=1, max_length=5000)
     source_currency: str
     source_timezone: str
@@ -854,7 +860,7 @@ class ConfirmBody(BaseModel):
 
 
 class MappingSuggestBody(BaseModel):
-    type: Literal["ads", "inventory", "margins"]
+    type: Literal["ads", "orders", "inventory", "margins"]
     headers: list[str] = Field(min_length=1, max_length=200)
 
 
