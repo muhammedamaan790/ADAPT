@@ -218,6 +218,26 @@ html[data-surface='landing'] body {
 .lp-btn.ghost-light:hover {
   border-color: rgb(255 255 255 / 0.5);
 }
+.lp-btn.outline {
+  background: transparent;
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  border-radius: 999px;
+}
+.lp-btn.outline:hover {
+  border-color: var(--ink);
+}
+.lp-nav[data-tone='dark'] .lp-btn.outline {
+  border-color: rgb(250 250 248 / 0.32);
+  color: var(--on-deep);
+}
+.lp-nav[data-tone='dark'] .lp-btn.outline:hover {
+  border-color: var(--on-deep);
+}
+.lp-btn.full {
+  width: 100%;
+  justify-content: center;
+}
 .lp-btn.small {
   height: 36px;
   padding: 0 14px;
@@ -245,6 +265,10 @@ html[data-surface='landing'] body {
   background: rgb(11 11 13 / 0.84);
   border-bottom-color: var(--deep-line);
   color: #fff;
+}
+.lp-nav[data-tone='dark']:not([data-scrolled='true']) {
+  background: transparent;
+  border-bottom-color: transparent;
 }
 .lp-nav[data-tone='dark'] .lp-links {
   color: var(--deep-muted);
@@ -292,6 +316,431 @@ html[data-surface='landing'] body {
 }
 .lp-links a:hover {
   color: var(--ink);
+}
+
+/* ── Front hero: a belt of what ADAPT reads, carrying it to the decision ── */
+
+.front {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+  background: var(--deep);
+  color: var(--on-deep);
+}
+.front::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, rgb(11 11 13 / 0.94), rgb(11 11 13 / 0) 48%),
+    linear-gradient(to bottom, rgb(11 11 13 / 0.7), rgb(11 11 13 / 0) 18%);
+  pointer-events: none;
+}
+.belt-scene {
+  position: absolute;
+  inset: 0;
+  perspective: 1500px;
+  perspective-origin: 60% 30%;
+}
+.belt {
+  position: absolute;
+  left: 58%;
+  top: 36%;
+  width: 2600px;
+  height: 300px;
+  transform: translate(-50%, -50%) rotateX(54deg) rotateZ(20deg);
+  background: #111114;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px #1c1d21,
+    0 60px 120px rgb(0 0 0 / 0.6);
+}
+.belt::before,
+.belt::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 16px;
+  z-index: 1;
+  background:
+    repeating-linear-gradient(90deg, rgb(250 250 248 / 0.42) 0 14px, transparent 14px 36px) 0 50% /
+      100% 2px no-repeat,
+    #19191c;
+}
+.belt::before {
+  top: 0;
+  border-bottom: 1px solid #26272c;
+}
+.belt::after {
+  bottom: 0;
+  border-top: 1px solid #26272c;
+}
+.belt-run {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  width: max-content;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 68px,
+    rgb(250 250 248 / 0.045) 68px 70px
+  );
+  animation: belt-run 40s linear infinite;
+  will-change: transform;
+}
+@keyframes belt-run {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.keycap {
+  position: relative;
+  flex: none;
+  width: 170px;
+  height: 170px;
+  margin-right: 110px;
+  display: grid;
+  place-items: center;
+  border-radius: 30px;
+  color: #c9cac6;
+  background: linear-gradient(150deg, #3a3b41, #1e1f23 70%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    0 3px 0 #1a1b1e,
+    0 6px 0 #161619,
+    0 9px 0 #131315,
+    0 12px 0 #101012,
+    0 16px 0 #0d0d0f,
+    0 40px 50px rgb(0 0 0 / 0.7);
+}
+.keycap-well {
+  width: 104px;
+  height: 104px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: linear-gradient(330deg, #2c2d32, #18191c);
+  box-shadow:
+    inset 0 2px 6px rgb(0 0 0 / 0.6),
+    inset 0 -1px 0 rgb(255 255 255 / 0.06);
+}
+.keycap > span {
+  position: absolute;
+  bottom: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8f9198;
+}
+.keycap.decision {
+  color: var(--ink);
+  background: linear-gradient(150deg, #ffffff, #dcdcd6 75%);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 3px 0 #c9c9c3,
+    0 6px 0 #b9b9b3,
+    0 9px 0 #a8a8a2,
+    0 12px 0 #97978f,
+    0 16px 0 #85857f,
+    0 40px 60px rgb(0 0 0 / 0.6);
+}
+.keycap.decision .keycap-well {
+  background: linear-gradient(330deg, #f4f4f0, #e2e2dc);
+  box-shadow: inset 0 2px 5px rgb(0 0 0 / 0.15);
+}
+.keycap.decision > span {
+  color: var(--muted);
+}
+.belt-light {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(30% 40% at 60% 36%, rgb(255 255 255 / 0.14), transparent 70%),
+    radial-gradient(120% 90% at 55% 40%, transparent 45%, rgb(0 0 0 / 0.7));
+}
+.front-copy {
+  position: relative;
+  z-index: 2;
+  padding: 140px 0 clamp(48px, 7vw, 96px);
+}
+.lp .front-title {
+  font-size: clamp(40px, 4.8vw, 72px);
+  font-weight: 600;
+  letter-spacing: -0.046em;
+  line-height: 1;
+}
+.front-title .mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.07em;
+  margin-bottom: -0.07em;
+}
+.front-title .mask > span {
+  display: inline-block;
+  white-space: nowrap;
+}
+.front-title .mask:not(:last-child) {
+  color: #8f9198;
+}
+.front-arrow {
+  font-weight: 300;
+}
+.front-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 34px;
+}
+.pill-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  height: 54px;
+  padding: 0 8px 0 26px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--on-deep);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+.pill-cta > span {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--on-deep);
+  transition: transform 0.3s var(--ease);
+}
+.pill-cta:hover > span {
+  transform: translateX(3px);
+}
+.front-card {
+  display: grid;
+  gap: 4px;
+  width: 290px;
+  padding: 13px 16px;
+  border-radius: 14px;
+  background: #17171a;
+  border: 1px solid #2c2d33;
+  transition: border-color 0.3s var(--ease);
+}
+.front-card:hover {
+  border-color: #5c5e64;
+}
+.front-card-k {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--deep-muted);
+}
+.front-card-k i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--on-deep);
+}
+.front-card b {
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.front-card-go {
+  font-size: 12.5px;
+  color: var(--deep-muted);
+}
+.cc-section {
+  padding-top: clamp(96px, 11vw, 150px);
+}
+
+/* ── Sign-in page: dark, one narrow column ─────────────────────────────── */
+
+html[data-surface='signin'] {
+  color-scheme: dark;
+}
+html[data-surface='signin'] body {
+  background: #0b0b0d;
+  background-image: none;
+}
+.signin-page {
+  min-height: 100vh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--deep);
+  color: var(--on-deep);
+  color-scheme: dark;
+}
+.signin-main {
+  flex: 1;
+  width: min(340px, 100% - 32px);
+  margin: 0 auto;
+  padding: clamp(40px, 9vh, 96px) 0 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.signin-logo {
+  align-self: center;
+  color: var(--on-deep);
+}
+.lp .signin-main h1 {
+  margin: 18px 0 26px;
+  text-align: center;
+  font-size: 24px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+.signin-box {
+  display: grid;
+  gap: 14px;
+}
+.signin-field {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.signin-field input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #3a3b41;
+  border-radius: 6px;
+  background: #0f0f12;
+  color: var(--on-deep);
+  font-size: 14px;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.signin-field input:focus {
+  outline: none;
+  border-color: var(--on-deep);
+  box-shadow: 0 0 0 3px rgb(250 250 248 / 0.16);
+}
+.signin-field input[aria-invalid='true'] {
+  border-color: var(--harm);
+}
+.signin-submit {
+  display: grid;
+  place-items: center;
+  height: 40px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--on-deep);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.2s;
+}
+.signin-submit:hover {
+  background: #dcdcd6;
+}
+.lp .signin-error {
+  margin: -4px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgb(190 78 58 / 0.45);
+  border-radius: 6px;
+  background: rgb(190 78 58 / 0.12);
+  font-size: 13px;
+  color: #f0a898;
+}
+.lp .signin-or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 2px;
+  font-size: 13px;
+  color: var(--deep-muted);
+}
+.signin-or::before,
+.signin-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--deep-line);
+}
+.signin-roles {
+  display: grid;
+  gap: 8px;
+}
+.signin-alt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  border: 1px solid var(--deep-line);
+  border-radius: 6px;
+  background: #17171a;
+  color: var(--on-deep);
+  font-size: 14px;
+  font-weight: 600;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
+}
+.signin-alt:hover {
+  background: #1f1f23;
+  border-color: #4a4b52;
+}
+.signin-alt[aria-pressed='true'] {
+  border-color: var(--on-deep);
+}
+.signin-alt code {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--deep-muted);
+}
+.lp .signin-note {
+  font-size: 14px;
+  color: var(--deep-muted);
+  text-align: center;
+}
+.lp .signin-foot {
+  margin-top: 28px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--deep-muted);
+}
+.signin-foot a {
+  color: var(--on-deep);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lp .signin-dev {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #6e7077;
+}
+.signin-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  padding: 18px 16px 22px;
+  border-top: 1px solid var(--deep-line);
+  font-size: 12px;
+  color: #6e7077;
+}
+.signin-footer a {
+  color: var(--deep-muted);
+}
+.signin-footer a:hover {
+  color: var(--on-deep);
 }
 
 /* ── Hero ─────────────────────────────────────────────────────────────── */
@@ -2658,5 +3107,9 @@ html[data-surface='landing'] body {
   .lp *::before {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  .lp .belt-run {
+    animation: none !important;
   }
 }

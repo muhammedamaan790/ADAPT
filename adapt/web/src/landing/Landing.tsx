@@ -7,6 +7,7 @@ import { channels, inr, pct, proposal, roasChange, shift, totalDaily } from './s
 const channelRoas: Record<string, number> = { meta: 3.32, google: 4.15, tiktok: 2.9, other: 2.6 };
 import { AppWindow, Mark } from './parts';
 import { Story } from './Story';
+import { FrontHero } from './Front';
 import { Creative } from './Creative';
 import { Profit } from './Profit';
 import { Outcome } from './Outcome';
@@ -46,8 +47,8 @@ function Nav() {
           <a href="#profit">Profit</a>
           <a href="#outcomes">Outcomes</a>
         </nav>
-        <Link to="/" className="lp-btn primary small">
-          Open workspace <span aria-hidden="true">→</span>
+        <Link to="/signin" className="lp-btn outline small">
+          Sign in
         </Link>
       </div>
     </header>
@@ -248,70 +249,28 @@ function CommandCenter() {
   );
 }
 
-function Hero() {
+function CommandSection() {
   const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end start'] });
-  const rotateX = useTransform(scrollYProgress, [0, 0.35], [9, 0]);
-  const scale = useTransform(scrollYProgress, [0, 0.35], [0.95, 1]);
-  const lines = ['Know what changed.', 'Know why.', 'Know what to fund next.'];
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'center center'] });
+  const rotateX = useTransform(scrollYProgress, [0, 1], [12, 0]);
+  const scale = useTransform(scrollYProgress, [0, 1], [0.94, 1]);
   return (
-    <section ref={ref} className="hero">
-      <div className="lp-shell">
-        <p className="eyebrow hero-eyebrow">
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6 }}
-          >
-            Advertising decisions for D2C brands
-          </motion.span>
+    <section ref={ref} className="hero cc-section">
+      <div className="lp-shell section-head">
+        <p className="eyebrow">Command Center</p>
+        <h2 className="section-title">Every morning, one screen and the decision that matters.</h2>
+        <p className="lead">
+          ADAPT reads your ad platforms, orders, SKU margins and stock together. It explains what
+          moved, proposes where the budget should go and shows the evidence. You approve, and it
+          learns from the result.
         </p>
-        <h1 className="hero-title">
-          {lines.map((l, i) => (
-            <span className="mask" key={l}>
-              <motion.span
-                className={i === 2 ? 'accent' : ''}
-                initial={{ y: '105%' }}
-                animate={{ y: '0%' }}
-                transition={{ duration: 0.9, ease, delay: 0.1 + i * 0.09 }}
-              >
-                {l}
-              </motion.span>
-            </span>
-          ))}
-        </h1>
-        <motion.div
-          className="hero-sub"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease, delay: 0.45 }}
-        >
-          <p className="lead">
-            ADAPT reads your ad platforms, orders, SKU margins and stock together. Each morning it
-            explains what moved, proposes where the budget should go, and shows the evidence. You
-            approve, and it learns from the result.
-          </p>
-          <div className="hero-cta">
-            <Link to="/" className="lp-btn primary">
-              Open the workspace <span aria-hidden="true">→</span>
-            </Link>
-            <a href="#story" className="lp-btn ghost">
-              Follow one decision <span aria-hidden="true">↓</span>
-            </a>
-          </div>
-        </motion.div>
       </div>
       <div className="hero-visual lp-shell">
-        <motion.div
-          className="hero-tilt"
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, ease, delay: 0.35 }}
-        >
+        <div className="hero-tilt">
           <motion.div style={{ rotateX, scale, transformPerspective: 1800, originY: 0 }}>
             <CommandCenter />
           </motion.div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );
@@ -365,8 +324,8 @@ function Closing() {
           changes without approval, and every outcome is measured.
         </p>
         <div className="hero-cta">
-          <Link to="/" className="lp-btn light">
-            Open the workspace <span aria-hidden="true">→</span>
+          <Link to="/signin" className="lp-btn light">
+            Sign in <span aria-hidden="true">→</span>
           </Link>
           <Link to="/decisions" className="lp-btn ghost-light">
             See the Decision Center
@@ -419,8 +378,9 @@ export function Landing() {
         </a>
         <Nav />
         <main id="lp-main">
-          <Hero />
+          <FrontHero />
           <Sources />
+          <CommandSection />
           <Story />
           <Creative />
           <Profit />

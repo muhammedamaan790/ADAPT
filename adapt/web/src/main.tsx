@@ -14,6 +14,7 @@ import './design.css';
 
 // The public product page sits outside the workspace shell and its session gate.
 const Landing = lazy(() => import('./landing/Landing').then((m) => ({ default: m.Landing })));
+const SignInPage = lazy(() => import('./landing/SignIn').then((m) => ({ default: m.SignInPage })));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 1000 }, mutations: { retry: false } },
@@ -28,6 +29,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
             element={
               <Suspense fallback={null}>
                 <Landing />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/signin"
+            element={
+              <Suspense fallback={null}>
+                <SignInPage />
               </Suspense>
             }
           />
