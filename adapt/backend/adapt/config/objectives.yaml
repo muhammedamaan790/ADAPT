@@ -9,6 +9,9 @@ GROWTH:                           # max E[net revenue] s.t. E[abs CAA] >= CAA0 -
 INVENTORY_CLEARANCE:              # max E[CAA] + h x E[units sold on EXCESS-band SKUs]
   holding_cost_inr_per_unit: 25   # h: a holding cost per unit of excess stock moved (business parameter)
   excess_cover_days: 45           # EXCESS band: days of cover > 45 (spec §5)
+exploration:                      # spec §10.3 (Stage 3): OFF by default; bootstrap-draw randomized, not Thompson
+  enabled: false
+  max_budget_share: 0.02          # at most 2% of the budget per run, only from unallocated budget above the reserve
 sensitivity:                      # spec §8.3: risk-preference scenarios, NOT competing utilities; executable within policy
   conservative: {lambda: 1.0, max_daily_change_pct: 0.10}
   aggressive: {lambda: 0.2, max_daily_change_pct: 0.20}

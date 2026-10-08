@@ -850,3 +850,7 @@ class ConfirmBody(BaseModel):
 class MappingSuggestBody(BaseModel):
     type: Literal["ads", "inventory", "margins"]
     headers: list[str] = Field(min_length=1, max_length=200)
+
+
+class CreativeScoreBody(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)

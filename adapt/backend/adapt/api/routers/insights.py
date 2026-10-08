@@ -77,10 +77,12 @@ def creative_fatigue(request: Request):
 
 
 @router.post("/creatives/score", response_model=m.CreativeScore, dependencies=mutating)
-def creative_score():
-    return {"status": "NOT_ESTIMABLE", "score": None,
-            "explanation": "The structured creative prior (LightGBM on format, hook, CTA, category, channel and price "
-                           "band) is a Stage 3 model; no score is invented."}
+def creative_score(body: m.CreativeScoreBody, request: Request):
+    """The structured creative prior (Stage 3): attributes named in the brief, scored only when the prior beat the
+    category-mean baseline on its holdout; otherwise NOT_ESTIMABLE (never an invented score)."""
+    from adapt.predict.creative_model import score_text
+
+    return score_text(rt(request).db, body.text)
 
 
 # ---- learning ------------------------------------------------------------------------------------------------------

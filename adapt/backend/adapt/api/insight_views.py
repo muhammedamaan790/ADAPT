@@ -202,6 +202,15 @@ def models(db) -> list[dict]:
         out.append({"name": "demand", "version": "seasonal-naive-v1", "status": "CHAMPION", "trained_at": None,
                     "note": "seasonal-naive (last 7 days repeated); the LightGBM challenger is fitted weekly once "
                             "the STOCKOUT_PROBABILITY predicate is on"})
+    from adapt.learn import governance
+
+    for fam, what in (("cvr_prior", "Beta-Binomial CVR prior (80% predictive coverage in 70-90%)"),
+                      ("creative_prior", "structured creative prior (must beat the category-mean Spearman)")):
+        for r in (governance.history(db, fam) if v.has(db, "learn", "model_registry") else [])[-3:]:
+            out.append({"name": fam, "version": r["version"],
+                        "status": {"champion": "CHAMPION", "candidate": "CHALLENGER"}.get(r["role"], "NOT_AVAILABLE"),
+                        "trained_at": r["fit_ts"].isoformat() if r["fit_ts"] else None,
+                        "note": f"{what}: {r['promotion_reason'] or ''} {json.dumps(r['validation_metrics'])}"[:400]})
     return out
 
 

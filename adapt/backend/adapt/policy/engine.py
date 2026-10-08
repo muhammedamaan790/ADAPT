@@ -109,9 +109,16 @@ def validate(state: PortfolioState, allocation: dict[str, float], flags: dict[st
         if reasons:
             frozen_bad.append(f"{units[i].unit_id}:{'/'.join(sorted(reasons))}")
     checks.append(_check("FROZEN_OR_FIXED_UNITS", not frozen_bad, ",".join(frozen_bad)))
-    if decision_class == "OPTIMIZATION":
+    if decision_class in ("OPTIMIZATION", "EXPLORATION"):  # exploration has the lowest precedence (spec §9.1)
         cool = sorted(units[i].unit_id for i in changed if units[i].unit_id in (cooldown_units or set()))
         checks.append(_check("COOLDOWN", not cool, ",".join(cool)))
+    if decision_class == "EXPLORATION":  # at most max_budget_share of the budget, increases only (spec §10.3)
+        from adapt.decide.exploration import config as exploration_config
+
+        cap = float(exploration_config()["max_budget_share"]) * c.B
+        up = float(sum(max(s[i] - s0[i], 0.0) for i in changed))
+        checks.append(_check("EXPLORATION_SHARE", up <= cap + tol and all(s[i] >= s0[i] - tol for i in changed),
+                             f"{up:,.0f} of {cap:,.0f}"))
     # inventory gate on every increased unit, evaluated jointly on the final allocation
     if inc:
         # the gate is one deterministic predicate on expected units: same draw subset as the optimizer's search

@@ -202,6 +202,8 @@ def create_decisions(db, run: dict, state: PortfolioState, flags: dict, at: date
         proposals.append(("OPTIMIZATION", r["decision_id"], r))
     for cand in run["safety"]:
         proposals.append(("SAFETY", cand["decision_id"], cand))
+    for cand in run.get("exploration", []):
+        proposals.append(("EXPLORATION", cand["decision_id"], cand))
     if not proposals:
         return []
     objective = (r.get("objective") if r.get("status") == "OK" else None) or "PROFIT"

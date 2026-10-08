@@ -91,6 +91,15 @@ def _needs_weekly(db, schema: str, table: str, as_of: datetime) -> bool:
     return last is None or as_of - last >= timedelta(days=REFIT_DAYS)
 
 
+def _model_due(db, model: str, as_of: datetime) -> bool:
+    """No registry entry of `model` within the weekly refresh window."""
+    if not db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = 'learn' "
+                    "AND table_name = 'model_registry'"):
+        return True
+    last = db.query("SELECT max(fit_ts) FROM learn.model_registry WHERE model = ?", [model])[0][0]
+    return last is None or as_of - last >= timedelta(days=REFIT_DAYS)
+
+
 def _brief(x) -> dict:
     """Scalars of a step's result (lists become their length) for the run log."""
     if not isinstance(x, dict):
@@ -177,6 +186,10 @@ def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: s
             from adapt.predict.cvr_bayes import fit_cvr
 
             out["cvr_prior"] = _brief(fit_cvr(db, as_of))
+        if _model_due(db, "creative_prior", as_of):  # Stage 3: the structured creative prior, weekly
+            from adapt.predict.creative_model import fit_creative_prior
+
+            out["creative_prior"] = _brief(fit_creative_prior(db, as_of))
         return out
 
     step("predict", predict)
