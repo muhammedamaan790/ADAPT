@@ -39,3 +39,28 @@ def test_create_upload_and_switch(tmp_path):
         post(f"/workspaces/{settings.workspace}/activate", {}, 6)
         assert api.get("/api/v1/workspaces").json()["active_id"] == settings.workspace
         assert post("/workspaces", {}, 7).status_code == 422
+
+
+def test_inventory_page_reads_uploads(tmp_path):
+    world = httpx.Client(base_url="http://world", transport=httpx.MockTransport(
+        lambda req: httpx.Response(200, json={"seed": 42, "day": 0})))
+    settings = Settings(data_dir=tmp_path, env="test", auth_enabled=False)
+    with TestClient(create_app(settings, db=Database(":memory:"), world_client=world)) as api:
+        def post(path, body, n):
+            return api.post(f"/api/v1{path}", json=body, headers={"X-Request-ID": f"i{n}", "Idempotency-Key": f"i{n}"})
+
+        ws = post("/workspaces", {"name": "Stock Co"}, 1).json()
+        post(f"/workspaces/{ws['id']}/activate", {}, 2)
+        assert api.get("/api/v1/data/inventory").status_code == 503
+        for n, (kind, rows) in enumerate([
+                ("inventory", [{"sku": "S1", "on_hand": "5", "reserved": "0", "safety_stock": "10"},
+                               {"sku": "S2", "on_hand": "500", "reserved": "0", "safety_stock": "10"}]),
+                ("orders", [{"date": "2026-09-30", "order_id": "o1", "sku": "S1", "quantity": "28",
+                             "net_revenue": "2800"}])]):
+            st = post("/ingest/upload", {"type": kind, "records": rows, "source_currency": "INR",
+                                         "source_timezone": "Asia/Kolkata"}, 10 + n).json()
+            post("/ingest/mapping/confirm", {"import_id": st["import_id"], "mapping": {k: k for k in rows[0]}}, 20 + n)
+        inv = api.get("/api/v1/data/inventory").json()
+        by = {s["sku"]: s for s in inv["skus"]}
+        assert by["S1"]["action"] == "RESTOCK" and by["S1"]["units_28d_avg"] == 1.0
+        assert by["S2"]["action"] == "CLEAR_EXCESS"

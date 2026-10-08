@@ -8,7 +8,7 @@ by A3 (ops.data_health, core.campaign_sku, marts.recon_daily); nothing is recomp
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request
@@ -265,7 +265,58 @@ def _in_days(days: float) -> str:
 
 @router.get("/inventory", response_model=InventoryOut)
 def inventory(request: Request) -> InventoryOut:
+    if request.app.state.runtime.brands.active():
+        return upload_inventory_view(_db(request))
     return inventory_view(_db(request))
+
+
+UPLOAD_LEAD_DAYS = 7  # uploads carry no supplier lead time: a one-week default, stated in the note
+
+
+def upload_inventory_view(db) -> InventoryOut:
+    """A brand workspace's inventory from its uploads: stock from the inventory CSV, demand and contribution from the
+    orders (+ margins) CSVs, the same deterministic rules; no inbound orders and no ad attribution in uploads."""
+    from adapt.api.views import has
+
+    if not has(db, "stg", "upload_inventory"):
+        raise HTTPException(503, detail="no inventory uploaded yet: upload an inventory CSV (sku, on_hand, reserved, "
+                                        "safety_stock) with Upload CSV")
+    orders, margins = has(db, "stg", "upload_orders"), has(db, "stg", "upload_margins")
+    end = db.query("SELECT max(CAST(date AS DATE)) FROM stg.upload_orders")[0][0] if orders else None
+    end = end or datetime.now().date()
+    start, week = end - timedelta(days=WINDOW_DAYS - 1), end - timedelta(days=6)
+    excess = float(objectives_config()["INVENTORY_CLEARANCE"].get("excess_cover_days", 45))
+    demand = ("""SELECT sku, sum(quantity) / ? AS v28, sum(quantity) FILTER (WHERE CAST(date AS DATE) >= ?) / 7.0 AS v7,
+                        sum(net_revenue) AS rev,
+                        sum(net_revenue) - """ + ("sum(quantity * m.unit_cost)" if margins else "NULL") + """ AS cba
+                 FROM stg.upload_orders o """ + ("LEFT JOIN stg.upload_margins m USING (sku) " if margins else "")
+              + "WHERE CAST(date AS DATE) BETWEEN ? AND ? GROUP BY sku") if orders else None
+    rows = db.query(f"""SELECT i.sku, i.on_hand, i.reserved, i.safety_stock, d.v7, d.v28, d.rev, d.cba
+                        FROM stg.upload_inventory i {f"LEFT JOIN ({demand}) d USING (sku)" if demand else
+                        "LEFT JOIN (SELECT NULL AS sku, NULL AS v7, NULL AS v28, NULL AS rev, NULL AS cba) d "
+                        "ON false"} ORDER BY i.sku""", [WINDOW_DAYS, week, start, end] if demand else [])
+    skus = []
+    for sku, on_hand, reserved, ss, v7, v28, rev, cba in rows:
+        on_hand, reserved = int(on_hand or 0), int(reserved or 0)
+        available, v7, v28 = on_hand - reserved, float(v7 or 0), float(v28 or 0)
+        change = v7 / v28 - 1 if v28 > 0 else None
+        rop = float(ss or 0) + v28 * UPLOAD_LEAD_DAYS
+        action, reason = inventory_action(available=available, inbound=0, days_to_arrival=None, position=available,
+                                          rop=rop, v28=v28, change=change, spend=0.0, lead=UPLOAD_LEAD_DAYS,
+                                          excess=excess)
+        skus.append(InventorySku(
+            sku=sku, title=sku, category=None, promoted=False, on_hand=on_hand, reserved=reserved,
+            available=available, inbound_qty=0, expected_arrival=None, units_7d_avg=round(v7, 2),
+            units_28d_avg=round(v28, 2), velocity_change=round(change, 4) if change is not None else None,
+            cover_days=round(available / v28, 1) if v28 > 0 else None, reorder_point=round(rop, 1),
+            safety_stock=round(float(ss or 0), 1), stockout_days_28d=0, net_revenue_28d=round(float(rev or 0), 2),
+            cba_28d=round(float(cba or 0), 2), ad_spend_28d=0.0, action=action, reason=reason))
+    return InventoryOut(
+        as_of=end.isoformat(), window_days=WINDOW_DAYS, lead_time_days=UPLOAD_LEAD_DAYS, excess_cover_days=excess,
+        velocity_alert=VELOCITY_ALERT, skus=skus,
+        note=("From your uploads: stock from the inventory CSV, demand and contribution from the orders (and margins) "
+              f"CSVs over the last {WINDOW_DAYS} days of orders. Uploads carry no supplier lead time or inbound "
+              f"orders, so a {UPLOAD_LEAD_DAYS}-day lead time is assumed and ad spend per SKU is not attributed."))
 
 
 def inventory_view(db) -> InventoryOut:
