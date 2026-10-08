@@ -146,7 +146,8 @@ def test_qualification_artifact_hash_bound_and_mode_revision(db):
     q.import_artifact(db, artifact)
     assert len(q.records(db)) == 120
     db.write(lambda cur: cur.execute("CREATE TABLE ops.data_health(source VARCHAR, status VARCHAR, as_of TIMESTAMP); "
-                                    "INSERT INTO ops.data_health VALUES ('store','GREEN', now()), ('erp','GREEN',now()), "
+                                    "INSERT INTO ops.data_health VALUES ('store','GREEN', now()), "
+                                    "('erp','GREEN',now()), "
                                     "('finance','GREEN',now()), ('meta_ads','GREEN',now())"))
     pol = current_policy(db)
     out = autonomy.set_mode(

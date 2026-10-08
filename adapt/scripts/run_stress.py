@@ -45,7 +45,7 @@ def main():
             source,
             args.work / f"seed{seed}/forks",
             args.days,
-            progress=lambda day, total: print(f"{profile}: {day}/{total}", flush=True),
+            progress=lambda day, total, profile=profile: print(f"{profile}: {day}/{total}", flush=True),
         )
         worlds.append(
             {

@@ -249,7 +249,10 @@ def detail(db, iid):
                 "historical reports",
                 "current external budget state",
             ],
-            "note": "Isolated uploaded facts; source completeness blocks execution. Provenance is a source label, not authenticity verification.",
+            "note": (
+                "Isolated uploaded facts; source completeness blocks execution. "
+                "Provenance is a source label, not authenticity verification."
+            ),
         }
         if kind == "cvr":
             from adapt.predict.cvr_bayes import fit_rows

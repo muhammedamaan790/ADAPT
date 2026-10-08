@@ -1,7 +1,8 @@
 """Earn simulation track-record evidence on 901–903; reliability on 904. Never fabricate PASS.
 
 python scripts/qualify_simulation.py --backbone PATH --global-ads PATH --days 60
-python scripts/qualify_simulation.py --import-artifact evidence/qualification.json --workspace data/workspaces/demo.duckdb
+python scripts/qualify_simulation.py --import-artifact evidence/qualification.json
+    --workspace data/workspaces/demo.duckdb
 The workspace must be offline for the import (DuckDB refuses a second writer).
 """
 

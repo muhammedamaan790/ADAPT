@@ -77,7 +77,7 @@ def select_proposal(runtime, proposal_id, rationale, actor):
         state = load_state(runtime.db, now)
         if dec.check_fresh(runtime.db, proposal_id, now, state):
             raise ValueError("stale proposal; refresh the deterministic engine")
-        allocation = {u.unit_id: u.budget for u in state.units} | {l["unit_id"]: l["after"] for l in d["legs"]}
+        allocation = {u.unit_id: u.budget for u in state.units} | {leg["unit_id"]: leg["after"] for leg in d["legs"]}
         checks = validate(state, allocation, policy_flags(runtime.db, state, now), d["class"])
         if not all(c["passed"] for c in checks):
             raise ValueError("proposal no longer passes policy validation")
