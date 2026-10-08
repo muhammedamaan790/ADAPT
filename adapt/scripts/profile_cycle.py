@@ -48,6 +48,7 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=3)
     ap.add_argument("--cprofile", action="store_true")
     ap.add_argument("--reuse", action="store_true", help="keep an existing day-0 workspace in --work")
+    ap.add_argument("--from-workspace", help="start from a copy of this day-0 workspace (same seeded world, day 0)")
     ap.add_argument("--out", default=str(ROOT / "data" / "profile" / "cycle_profile.json"))
     args = ap.parse_args()
     work = Path(args.work)
@@ -57,6 +58,8 @@ def main() -> int:
     wdir = work / "world"
     if not wdir.exists():
         shutil.copytree(args.world, wdir)
+    if args.from_workspace and not (work / "workspace.duckdb").exists():
+        shutil.copyfile(args.from_workspace, work / "workspace.duckdb")
     out = {"days": []}
     with TestClient(create_app(world_dir=wdir)) as world:
         http = SourceHttp("http://testserver", client=world, sleep=lambda s: None)

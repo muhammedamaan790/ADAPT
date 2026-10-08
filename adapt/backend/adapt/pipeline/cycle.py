@@ -83,6 +83,14 @@ def _needs_demand_refit(db, as_of: datetime) -> bool:
     return last is None or as_of - last >= timedelta(days=demand_config()["refit_days"])
 
 
+def _needs_weekly(db, schema: str, table: str, as_of: datetime) -> bool:
+    if not db.query("SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ?",
+                    [schema, table]):
+        return True
+    last = db.query(f"SELECT max(fit_ts) FROM {schema}.{table}")[0][0]
+    return last is None or as_of - last >= timedelta(days=REFIT_DAYS)
+
+
 def _brief(x) -> dict:
     """Scalars of a step's result (lists become their length) for the run log."""
     if not isinstance(x, dict):
@@ -165,6 +173,10 @@ def run_cycle(db, http, as_of: datetime, adapters: dict | None = None, run_id: s
         ctx["curves"] = load_curves(db)
         if _needs_demand_refit(db, as_of):  # Stage 2: weekly LightGBM candidate vs the champion (spec §2, §10.2)
             out["demand"] = fit_demand(db, as_of)
+        if _needs_weekly(db, "models", "cvr_prior", as_of):  # Stage 3: the CVR prior, weekly, acceptance-gated
+            from adapt.predict.cvr_bayes import fit_cvr
+
+            out["cvr_prior"] = _brief(fit_cvr(db, as_of))
         return out
 
     step("predict", predict)
