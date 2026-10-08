@@ -1,0 +1,263 @@
+﻿{
+    "outcome":  {
+                    "decision_id":  "dec-demo_01-001",
+                    "world":  "SIMULATED",
+                    "class":  "OPTIMIZATION",
+                    "verdict":  "SUCCESS",
+                    "predicted":  7200,
+                    "measured":  5600,
+                    "counterfactual":  42000,
+                    "factor_before":  0.9,
+                    "factor_after":  0.8600000000000001,
+                    "method":  "Illustrative forecast-counterfactual outcome. Not observed simulator evidence or causal proof.",
+                    "calibration_applied":  true
+                },
+    "evidence":  {
+                     "decision_id":  "dec-demo_01-001",
+                     "chart":  [
+                                   {
+                                       "date":  "2026-09-24",
+                                       "baseline":  3.6,
+                                       "actual":  3.55
+                                   },
+                                   {
+                                       "date":  "2026-09-25",
+                                       "baseline":  3.7,
+                                       "actual":  3.75
+                                   },
+                                   {
+                                       "date":  "2026-09-26",
+                                       "baseline":  3.5,
+                                       "actual":  3.45
+                                   },
+                                   {
+                                       "date":  "2026-09-27",
+                                       "baseline":  3.8,
+                                       "actual":  3.85
+                                   },
+                                   {
+                                       "date":  "2026-09-28",
+                                       "baseline":  3.65,
+                                       "actual":  3.6
+                                   },
+                                   {
+                                       "date":  "2026-09-29",
+                                       "baseline":  3.7,
+                                       "actual":  3.65
+                                   },
+                                   {
+                                       "date":  "2026-09-30",
+                                       "baseline":  3.8,
+                                       "actual":  3.78
+                                   },
+                                   {
+                                       "date":  "2026-10-01",
+                                       "baseline":  3.75,
+                                       "actual":  3.4
+                                   },
+                                   {
+                                       "date":  "2026-10-02",
+                                       "baseline":  3.8,
+                                       "actual":  3.12
+                                   },
+                                   {
+                                       "date":  "2026-10-03",
+                                       "baseline":  3.9,
+                                       "actual":  2.95
+                                   },
+                                   {
+                                       "date":  "2026-10-04",
+                                       "baseline":  3.8,
+                                       "actual":  2.72
+                                   },
+                                   {
+                                       "date":  "2026-10-05",
+                                       "baseline":  3.7,
+                                       "actual":  2.55
+                                   },
+                                   {
+                                       "date":  "2026-10-06",
+                                       "baseline":  3.85,
+                                       "actual":  2.48
+                                   },
+                                   {
+                                       "date":  "2026-10-07",
+                                       "baseline":  3.8,
+                                       "actual":  2.3
+                                   }
+                               ],
+                     "chart_metric":  "Reconciled ROAS",
+                     "decomposition_kind":  "ROAS",
+                     "decomposition":  [
+                                           {
+                                               "label":  "CTR",
+                                               "value":  -0.91
+                                           },
+                                           {
+                                               "label":  "CVR",
+                                               "value":  -0.35
+                                           },
+                                           {
+                                               "label":  "AOV",
+                                               "value":  0.09
+                                           },
+                                           {
+                                               "label":  "CPM",
+                                               "value":  -0.33
+                                           }
+                                       ],
+                     "decomposition_total":  -1.5,
+                     "drivers":  [
+                                     {
+                                         "id":  "e-fatigue",
+                                         "title":  "Creative fatigue",
+                                         "detail":  "Declining click-through rate is concentrated in the hero creative. Two sibling creatives remain stable; auction pressure is weaker.",
+                                         "observations":  [
+                                                              "Hero creative CTR −40%",
+                                                              "Sibling creatives within ±4%",
+                                                              "Spend remains above the volume gate"
+                                                          ],
+                                         "score":  0.87,
+                                         "level":  "PROBABLE DRIVER",
+                                         "source":  "Ads reporting + creative registry",
+                                         "available_at":  "2026-10-07T09:30:00+05:30"
+                                     },
+                                     {
+                                         "id":  "e-inventory",
+                                         "title":  "Inventory limits the alternative",
+                                         "score":  0.76,
+                                         "level":  "PROBABLE DRIVER",
+                                         "detail":  "The high-ROAS hero SKU has a projected stock shortfall. Scaling this campaign is blocked, even if its trailing return looks attractive.",
+                                         "observations":  [
+                                                              "Inventory exposure gate: BLOCK SCALE",
+                                                              "42 units short before action",
+                                                              "Safety stock included in calculation"
+                                                          ],
+                                         "source":  "ERP inventory + SKU mapping",
+                                         "available_at":  "2026-10-07T09:30:00+05:30"
+                                     }
+                                 ]
+                 },
+    "decision":  {
+                     "decision_id":  "dec-demo_01-001",
+                     "title":  "Move spend toward stronger contribution",
+                     "summary":  "Reduce the fatigued Meta campaign, scale the bundle and refill campaigns, and retain ₹4,000 rather than force an unprofitable allocation.",
+                     "class":  "OPTIMIZATION",
+                     "type":  "reallocate",
+                     "objective":  "PROFIT",
+                     "status":  "PENDING_APPROVAL",
+                     "trigger":  {
+                                     "anomaly_id":  "anomaly-DEMO_01",
+                                     "opportunity_id":  null
+                                 },
+                     "legs":  [
+                                  {
+                                      "platform":  "Meta",
+                                      "entity":  "Hero · Prospecting",
+                                      "budget_id":  "m-hero",
+                                      "before":  40000,
+                                      "after":  32000
+                                  },
+                                  {
+                                      "platform":  "Google",
+                                      "entity":  "Bundle · Shopping",
+                                      "budget_id":  "g-bundle",
+                                      "before":  24000,
+                                      "after":  28800
+                                  },
+                                  {
+                                      "platform":  "Meta",
+                                      "entity":  "Refill · Retargeting",
+                                      "budget_id":  "m-refill",
+                                      "before":  20000,
+                                      "after":  22400
+                                  },
+                                  {
+                                      "platform":  "Google",
+                                      "entity":  "Brand · Search",
+                                      "budget_id":  "g-brand",
+                                      "before":  16000,
+                                      "after":  12800
+                                  }
+                              ],
+                     "expected":  {
+                                      "p10":  -1800,
+                                      "p50":  7200,
+                                      "p90":  11200,
+                                      "prob_loss":  0.14,
+                                      "delta_net_revenue":  14600,
+                                      "raw_pred":  8000,
+                                      "calibrated_pred":  7200
+                                  },
+                     "inventory_risk_after":  {
+                                                  "kind":  "PROJECTED_SHORTFALL",
+                                                  "by_sku":  {
+                                                                 "HERO-001":  0,
+                                                                 "BUNDLE-004":  0,
+                                                                 "REFILL-006":  0
+                                                             }
+                                              },
+                     "unallocated":  4000,
+                     "reserve_floor":  0,
+                     "budget_ceiling":  100000,
+                     "cost_of_inaction_7d":  14800,
+                     "checks":  [
+                                    {
+                                        "id":  "BUDGET_CEILING",
+                                        "label":  "Budget ceiling \u0026 reserve",
+                                        "passed":  true,
+                                        "detail":  "₹96,000 allocated ≤ ₹1,00,000 ceiling. ₹4,000 remains unallocated; reserve floor ₹0."
+                                    },
+                                    {
+                                        "id":  "DAILY_CHANGE",
+                                        "label":  "Daily change limit",
+                                        "passed":  true,
+                                        "detail":  "Every leg stays within ±20% of its daily anchor."
+                                    },
+                                    {
+                                        "id":  "INVENTORY_GATE",
+                                        "label":  "Inventory exposure",
+                                        "passed":  true,
+                                        "detail":  "Hero scaling blocked. Proposed allocation reduces projected stock shortfall."
+                                    },
+                                    {
+                                        "id":  "DEPENDENCY_HEALTH",
+                                        "label":  "Required data health",
+                                        "passed":  true,
+                                        "detail":  "Ads, store, attribution, inventory and SKU economics are available."
+                                    },
+                                    {
+                                        "id":  "EXECUTION_STATE",
+                                        "label":  "Execution state \u0026 reservations",
+                                        "passed":  true,
+                                        "detail":  "No unresolved external state or reserved entity. Revalidated by backend before execution."
+                                    }
+                                ],
+                     "evidence_ids":  [
+                                          "e-fatigue",
+                                          "e-inventory"
+                                      ],
+                     "why_not":  [
+                                     {
+                                         "entity":  "Hero · Shopping",
+                                         "rule_id":  "INVENTORY_BLOCK_SCALE",
+                                         "reason":  "A high historical ROAS does not create stock. Incremental scale exceeds the hero SKU inventory envelope.",
+                                         "metric":  "ROAS 5.2× · projected shortfall 42 units before action"
+                                     },
+                                     {
+                                         "entity":  "Keep every rupee deployed",
+                                         "rule_id":  "NONPOSITIVE_MARGINAL_CAA",
+                                         "reason":  "No remaining feasible receiver has a positive model-estimated marginal contribution after constraints.",
+                                         "metric":  "₹4,000 remains unallocated"
+                                     }
+                                 ],
+                     "snapshot_id":  "fixture-snapshot-001",
+                     "decision_hash":  "fixture-DEMO_01-immutable-v1",
+                     "policy_version":  "fixture-policy-1",
+                     "provenance_inputs":  [
+                                               "SIMULATED"
+                                           ],
+                     "created_at":  "2026-10-07T09:30:00+05:30",
+                     "horizon_days":  3
+                 }
+}
