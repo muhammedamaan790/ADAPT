@@ -56,6 +56,7 @@ test('stale hash conflict stays in approval dialog; no execution is fabricated',
   expect(approvalCount).toBe(1);
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('tab', { name: 'Execution & outcome', exact: true }).click();
   await expect(page.getByText('Waiting for your approval', { exact: true })).toBeVisible();
 });
 

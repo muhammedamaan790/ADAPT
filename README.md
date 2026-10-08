@@ -56,6 +56,10 @@ The Decision Center connects a performance shift to a probable driver, an invent
 
 </details>
 
+### Inventory-aware spend
+
+The Inventory page lists every SKU with available stock, 7-day versus 28-day sell rate, days of cover, inbound units and attributed ad spend. A rule-based recommendation (restock, hold ad spend, expedite, clear excess, scale or watch) and an alert feed sit beside it, so ad spend is read against stock. [Inventory API](./adapt/backend/adapt/api/routers/data.py).
+
 ### Close the loop
 
 Approval leads to an execution record, followed by an outcome comparison and a visible calibration update. An uncertain external state stays uncertain until read-back resolves it.
@@ -96,7 +100,7 @@ The frontend selects fixture or API mode explicitly. The engine cannot import th
 
 **Diagnosis.** On window totals, `ROAS = CTR × CVR × AOV × 1000 / CPM`. Log-factor contributions sum to the log ROAS change; midpoint rate/mix decomposition separates segment performance from composition changes. Evidence ranking is distinct from causal estimation. Synthetic control and difference-in-differences expose diagnostic gates and return no estimate when gates fail. Passing those gates does not prove identification. [Decomposition](./adapt/backend/adapt/diagnose/decomposition.py) · [Causal estimators](./adapt/backend/adapt/diagnose/causal/estimate.py).
 
-**Prediction.** Hill saturation curves with geometric adstock estimate attributed net revenue. Chronological train, promotion and diagnostic windows prevent overlap. Accepted response curves use 200 joint moving-block bootstrap draws; rejected fits fall back to pooled curves or `MODEL_UNAVAILABLE`. Demand uses a seasonal-naive baseline or a promoted LightGBM quantile model. A Beta-Binomial CVR prior uses estimated SKU click allocation. The structured creative prior reads attributes, not image or copy content, and is withheld if promotion criteria fail. [Response curves](./adapt/backend/adapt/predict/curves.py) · [Promotion](./adapt/backend/adapt/predict/fit_curves.py) · [Demand](./adapt/backend/adapt/predict/demand.py).
+**Prediction.** Hill saturation curves with geometric adstock estimate attributed net revenue. Chronological train, promotion and diagnostic windows prevent overlap. Accepted response curves use 200 joint moving-block bootstrap draws; rejected fits fall back to pooled curves or `MODEL_UNAVAILABLE`. Demand uses a seasonal-naive baseline or a promoted LightGBM quantile model. A Beta-Binomial CVR prior uses estimated SKU click allocation. The structured creative prior reads attributes, not image or copy content, and is withheld if promotion criteria fail; when accepted, the Learning page scores chosen format, hook, CTA, category and channel levels against it. [Creative prior](./adapt/backend/adapt/predict/creative_model.py) · [Response curves](./adapt/backend/adapt/predict/curves.py) · [Promotion](./adapt/backend/adapt/predict/fit_curves.py) · [Demand](./adapt/backend/adapt/predict/demand.py).
 
 **Allocation.** Contribution before ads is net revenue minus COGS, shipping and payment fees; contribution after ads subtracts ad spend. The profit objective maximizes `E[ΔCAA] − λ(E[ΔCAA] − P10[ΔCAA])`. Greedy marginal allocation is polished with SLSQP, validated, rounded, repaired and validated again. Constraints include budget/reserve, daily movement, channel shares, inventory and source/model availability. Unallocated money is allowed. Growth and inventory-clearance objectives are also implemented. There is no global-optimality claim. [Optimizer](./adapt/backend/adapt/decide/optimizer.py).
 
@@ -111,8 +115,8 @@ The frontend selects fixture or API mode explicitly. The engine cannot import th
 
 - Channel modes are **OBSERVE**, **APPROVE** and evidence-gated **AUTONOMOUS**. Simulation readiness uses separate warm-up worlds, a held-out reliability world, matured outcomes, guardrails and source health. Production readiness requires real outcomes; none are available in this build. A high raw confidence score alone cannot authorize execution. [Autonomy gates](./adapt/backend/adapt/policy/autonomy.py).
 - Narratives use claim atoms and check numbers, entities, direction and causal wording before display. Templates work without `GROQ_API_KEY`. These checks do not establish full semantic correctness. [Narrative guard](./adapt/backend/adapt/agent/guard.py).
-- Ask ADAPT uses read-only tools. SQL is parsed with SQLGlot, restricted to allowlisted marts and executed against a separate read-only DuckDB copy with external access disabled, row limits and a timeout. [SQL boundary](./adapt/backend/adapt/agent/sql.py).
-- Validated CSV imports create review workspaces. They do **not** automatically replace the complete world-backed engine workspace. [Upload contract](./adapt/backend/adapt/ingest/csv_upload.py).
+- Ask ADAPT uses read-only tools, and every figure in an answer must match a tool result; numbers inside hashes and ids never count as evidence. [Grounding](./adapt/backend/adapt/agent/grounding.py). SQL is parsed with SQLGlot, restricted to allowlisted marts and executed against a separate read-only DuckDB copy with external access disabled, row limits and a timeout. [SQL boundary](./adapt/backend/adapt/agent/sql.py).
+- Validated CSV imports create review workspaces, previewed read-only under **Saved upload workspaces** in the Data Hub. They do **not** automatically replace the complete world-backed engine workspace. [Upload contract](./adapt/backend/adapt/ingest/csv_upload.py).
 - Data lives in `stg` source tables, `core` canonical entities, `marts` reports, `intel` decisions/evidence, `models` fitted artifacts, `ops` pipeline/policy records, `exec` executions and `learn` outcomes. Generated workspace data and artifacts are git-ignored.
 
 </details>
@@ -248,7 +252,7 @@ Use the [hosted fixture demo](https://muhammedamaan790.github.io/ADAPT/) or a fr
 4. **40–50s — Execution:** inspect verified budget legs and choose **Advance 3 days** after execution settles.
 5. **50–60s — Outcomes:** compare ₹7,200 predicted with ₹5,600 illustrative measured effect and the 0.90 → 0.86 calibration update.
 
-If already used, reset the workspace in **Scenario Lab** and load **DEMO_01**. This walkthrough demonstrates interfaces and state transitions; engine quality requires the separate simulation/evaluation harness.
+The fixture workspace starts on **DEMO_01**; to start over, load **DEMO_01** again from **Inject scenario…** in the top live strip. This walkthrough demonstrates interfaces and state transitions; engine quality requires the separate simulation/evaluation harness.
 
 <details>
 <summary>Selected API endpoints</summary>
@@ -258,7 +262,7 @@ Paths are relative to `/api/v1`. The complete schema is served by the API at `/o
 | Method | Path | Purpose |
 | :--- | :--- | :--- |
 | GET | `/health`, `/overview`, `/pipeline/status` | Service and run state |
-| GET | `/data/health`, `/data/reconciliation` | Source health and reconciliation |
+| GET | `/data/health`, `/data/reconciliation`, `/data/inventory` | Source health, reconciliation and SKU inventory |
 | GET | `/anomalies/{id}`, `/decisions/{id}/evidence` | Investigation and evidence |
 | POST | `/optimizer/run`, `/optimizer/whatif` | Generate/evaluate an allocation |
 | POST | `/decisions/{id}/approve` | Approve the exact hashed proposal |
@@ -266,6 +270,8 @@ Paths are relative to `/api/v1`. The complete schema is served by the API at `/o
 | GET | `/learning/qualification` | Simulation qualification evidence |
 | POST | `/sim/advance`, `/sim/reset` | Controlled world progression/reset |
 | POST | `/copilot/sql`, `/copilot/chat` | Guarded read-only questions |
+| GET | `/ingest/imports`, `/ingest/imports/{id}` | Uploaded review workspaces and record previews |
+| GET, POST | `/creatives/attributes`, `/creatives/score` | Trained attribute levels; score a brief or chosen attributes |
 
 Sessions, roles and CSRF checks apply. Router mutations also require `X-Request-ID` and `Idempotency-Key`; consult OpenAPI for bodies. The browser client supplies these. An unauthenticated `curl` is not a complete approval flow.
 

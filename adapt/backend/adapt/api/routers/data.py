@@ -14,6 +14,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from adapt.economics.state import objectives_config
 from adapt.ingest.connectors.base import sources_config
 
 router = APIRouter(prefix="/api/v1/data", tags=["data"])
@@ -183,3 +184,134 @@ def reconciliation_view(db) -> ReconciliationOut:
         note=("Platform-claimed conversion value (includes view-through) against store net revenue attributed by "
               "last paid click (UTM), last 28 complete days. The excess is double counting across sources, not extra "
               "sales; over-attribution = platform conversions / store-attributed orders."))
+
+
+# -- inventory (one row per SKU, as of the latest built day) ---------------------------------------------------------
+VELOCITY_ALERT = 0.25  # "selling 25%+ faster than its 28-day average"
+InventoryAction = Literal["RESTOCK", "HOLD_SPEND", "EXPEDITE", "CLEAR_EXCESS", "SCALE_DEMAND", "WATCH", "CONTINUE"]
+
+
+class InventorySku(BaseModel):
+    sku: str
+    title: str
+    category: str | None
+    promoted: bool
+    on_hand: int
+    reserved: int
+    available: int
+    inbound_qty: int
+    expected_arrival: str | None
+    units_7d_avg: float
+    units_28d_avg: float
+    velocity_change: float | None  # 7-day average / 28-day average - 1; None without 28-day demand
+    cover_days: float | None  # available / 28-day average; None = no recent demand
+    reorder_point: float
+    safety_stock: float
+    stockout_days_28d: int
+    net_revenue_28d: float
+    cba_28d: float  # contribution before ads
+    ad_spend_28d: float  # campaign spend x the campaign's attribution weight on this SKU
+    action: InventoryAction
+    reason: str
+
+
+class InventoryOut(BaseModel):
+    as_of: str
+    window_days: int
+    lead_time_days: int
+    excess_cover_days: float
+    velocity_alert: float
+    skus: list[InventorySku]
+    note: str
+
+
+def inventory_action(*, available: int, inbound: int, days_to_arrival: int | None, position: float, rop: float,
+                     v28: float, change: float | None, spend: float, lead: int, excess: float) -> tuple[str, str]:
+    """Deterministic inventory recommendation for one SKU (rules, not a model): the first matching rule wins."""
+    cover = available / v28 if v28 > 0 else None
+    faster = f" Selling {change:.0%} faster than its 28-day average." if change and change >= VELOCITY_ALERT else ""
+    arrives = (f"{inbound:,} inbound units arrive {_in_days(days_to_arrival)}" if days_to_arrival is not None
+               else "no inbound order is open")
+    if position <= rop:
+        return "RESTOCK", (f"Available plus confirmed inbound ({position:,.0f} units) is at or below the reorder point "
+                           f"({rop:,.0f}); reorder now to cover the {lead}-day lead time.{faster}")
+    if available <= 0 or (cover is not None and days_to_arrival is not None and cover < days_to_arrival):
+        runs_out = "Out of stock" if available <= 0 else f"Sells out {_in_days(cover)}"
+        when = arrives
+        if spend > 0:
+            return "HOLD_SPEND", f"{runs_out}; {when}. Its ads keep spending: reduce them until stock lands.{faster}"
+        return "EXPEDITE", f"{runs_out}; {when}. Bring the inbound forward if possible.{faster}"
+    if cover is None:
+        return "CLEAR_EXCESS", f"{available:,} units on hand and no sales in 28 days."
+    if cover > excess:
+        return "CLEAR_EXCESS", (f"{cover:.0f} days of cover, above the {excess:.0f}-day excess band; the Inventory "
+                                "Clearance objective can move spend toward it.")
+    if change is not None and change >= VELOCITY_ALERT:
+        if cover >= 2 * lead:
+            return "SCALE_DEMAND", (f"Selling {change:.0%} faster than its 28-day average with {cover:.0f} days of "
+                                    "cover: stock supports more spend.")
+        return "WATCH", (f"Selling {change:.0%} faster than its 28-day average; {cover:.0f} days of cover against a "
+                         f"{lead}-day lead time. Check the next reorder.")
+    if days_to_arrival is not None and cover < lead:
+        return "CONTINUE", f"{cover:.0f} days of cover and {arrives}; demand within its normal range."
+    return "CONTINUE", f"{cover:.0f} days of cover; demand within its normal range."
+
+
+def _in_days(days: float) -> str:
+    n = round(days)
+    return "within a day" if n < 1 else "in 1 day" if n == 1 else f"in about {n} days"
+
+
+@router.get("/inventory", response_model=InventoryOut)
+def inventory(request: Request) -> InventoryOut:
+    return inventory_view(_db(request))
+
+
+def inventory_view(db) -> InventoryOut:
+    _require(db, "marts.sku_daily")
+    end = db.query("SELECT max(date) FROM marts.sku_daily")[0][0]
+    if end is None:
+        raise HTTPException(503, detail="no inventory days yet")
+    start, week = end - timedelta(days=WINDOW_DAYS - 1), end - timedelta(days=6)
+    excess = float(objectives_config()["INVENTORY_CLEARANCE"].get("excess_cover_days", 45))
+    rows = db.query("""
+        WITH w AS (SELECT * FROM marts.sku_daily WHERE date BETWEEN ? AND ?),
+             agg AS (SELECT sku, avg(units) AS v28, avg(units) FILTER (WHERE date >= ?) AS v7,
+                            sum(net_revenue) AS rev, sum(cba) AS cba,
+                            count(*) FILTER (WHERE on_hand - reserved <= 0) AS oos_days
+                     FROM w GROUP BY sku),
+             cs AS (SELECT campaign_id, sum(spend) AS spend FROM marts.campaign_daily
+                    WHERE date BETWEEN ? AND ? GROUP BY 1),
+             spend AS (SELECT m.sku, sum(cs.spend * m.attribution_weight) AS spend
+                       FROM core.campaign_sku m JOIN cs USING (campaign_id)
+                       WHERE m.sku <> '__unmapped__' GROUP BY 1)
+        SELECT l.sku, coalesce(k.title, l.sku), l.category, coalesce(k.promoted, false), l.on_hand, l.reserved,
+               l.inbound_qty, l.expected_arrival, l.inbound_confidence, l.lead_time_days, l.reorder_point,
+               l.safety_stock, a.v7, a.v28, a.rev, a.cba, a.oos_days, coalesce(s.spend, 0)
+        FROM marts.sku_daily l JOIN agg a USING (sku) LEFT JOIN core.skus k USING (sku) LEFT JOIN spend s USING (sku)
+        WHERE l.date = ? ORDER BY l.sku""", [start, end, week, start, end, end])
+    skus, lead_time = [], 0
+    for (sku, title, cat, promoted, on_hand, reserved, inbound, arrival, conf, lead, rop, ss, v7, v28, rev, cba,
+         oos, spend) in rows:
+        on_hand, reserved, inbound = int(on_hand or 0), int(reserved or 0), int(inbound or 0)
+        available, v7, v28, lead_time = on_hand - reserved, float(v7 or 0), float(v28 or 0), int(lead)
+        change = v7 / v28 - 1 if v28 > 0 else None
+        days_to_arrival = max(0, (arrival - end).days) if inbound > 0 and arrival else None
+        action, reason = inventory_action(
+            available=available, inbound=inbound, days_to_arrival=days_to_arrival,
+            position=available + inbound * float(conf or 0), rop=float(rop or 0), v28=v28, change=change,
+            spend=float(spend), lead=lead_time, excess=excess)
+        skus.append(InventorySku(
+            sku=sku, title=title, category=cat, promoted=bool(promoted), on_hand=on_hand, reserved=reserved,
+            available=available, inbound_qty=inbound, expected_arrival=arrival.isoformat() if arrival else None,
+            units_7d_avg=round(v7, 2), units_28d_avg=round(v28, 2),
+            velocity_change=round(change, 4) if change is not None else None,
+            cover_days=round(available / v28, 1) if v28 > 0 else None, reorder_point=round(float(rop or 0), 1),
+            safety_stock=round(float(ss or 0), 1), stockout_days_28d=int(oos), net_revenue_28d=round(rev or 0, 2),
+            cba_28d=round(cba or 0, 2), ad_spend_28d=round(float(spend), 2), action=action, reason=reason))
+    return InventoryOut(
+        as_of=end.isoformat(), window_days=WINDOW_DAYS, lead_time_days=lead_time, excess_cover_days=excess,
+        velocity_alert=VELOCITY_ALERT, skus=skus,
+        note=("Stock from the ERP feed, demand from store orders, ad spend from each campaign's attribution weights "
+              "(last 28 complete days). Recommendations are deterministic rules on cover, reorder point, inbound and "
+              "velocity; budget changes still go through a decision and its policy checks."))

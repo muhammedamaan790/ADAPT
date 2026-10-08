@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useId, type ReactNode } from 'react';
 import { AlertCircle, Check, Inbox, ChevronDown, Info, Loader2, X } from 'lucide-react';
 import type { Metric } from '../api/contracts';
+import { dataMode } from '../api/client';
 import { humanStatus, money, percent } from '../lib/format';
 
 export function Badge({
@@ -108,18 +109,27 @@ export function MetricTile({ metric }: { metric: Metric }) {
   const lineageId = useId();
   const popover = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 16, top: 100 });
-  const value =
-    metric.value === null
-      ? '—'
-      : metric.format === 'money'
-        ? money(metric.value, true)
-        : metric.format === 'ratio'
-          ? `${metric.value.toFixed(2)}×`
-          : metric.value.toLocaleString('en-IN');
+  const fmt = (n: number) =>
+    metric.format === 'money'
+      ? money(n, true)
+      : metric.format === 'ratio'
+        ? `${n.toFixed(2)}×`
+        : n.toLocaleString('en-IN');
+  const value = metric.value === null ? '—' : fmt(metric.value);
+  // Mark a value the backend just moved, so a live demo shows what changed and by how much.
+  const prev = useRef(metric.value);
+  const [delta, setDelta] = useState<{ by: number; at: number } | null>(null);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = metric.value;
+    if (before !== null && metric.value !== null && before !== metric.value)
+      setDelta({ by: metric.value - before, at: Date.now() });
+  }, [metric.value]);
   return (
     <div className="metric-tile">
       <div className="metric-label">
         {metric.label}
+        {dataMode === 'fixture' && <span className="metric-example">Example</span>}
         <button
           className="icon-button"
           aria-label={`Lineage for ${metric.label}`}
@@ -138,10 +148,18 @@ export function MetricTile({ metric }: { metric: Metric }) {
         </button>
       </div>
       <strong
+        key={delta?.at}
+        className={delta ? 'metric-changed' : undefined}
         title={metric.value === null ? metric.reason || 'ZERO_DENOMINATOR' : String(metric.value)}
       >
         {value}
       </strong>
+      {delta && (
+        <small className={`metric-delta ${delta.by > 0 ? 'metric-delta-up' : 'metric-delta-down'}`}>
+          {delta.by > 0 ? '▲ +' : '▼ −'}
+          {fmt(Math.abs(delta.by))} <span className="muted">since last update</span>
+        </small>
+      )}
       {metric.change !== null ? (
         <small
           className={

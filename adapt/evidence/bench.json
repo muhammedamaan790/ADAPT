@@ -1,0 +1,18 @@
+{
+  "seed": 101,
+  "days": 3,
+  "seconds_seeding": 0.0011510848999023438,
+  "seconds_per_day": {
+    "safe-static": 32.3558406829834,
+    "roas-rank": 23.32598853111267,
+    "contribution-rank": 19.1676127910614,
+    "safe-contribution": 19.108957052230835,
+    "adapt": 145.93242692947388,
+    "oracle": 21.67861795425415
+  },
+  "machine": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 186 Stepping 3, GenuineIntel",
+    "python": "3.12.14"
+  }
+}

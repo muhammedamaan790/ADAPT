@@ -22,23 +22,11 @@ test('fixture readiness is read-only, separates outcome pools and has no fake sh
     'true',
   );
 });
-test('unbuilt scenarios are named correctly without selectable substitutes', async ({ page }) => {
-  await page.goto('/scenarios');
-  await expect(page.getByRole('radio')).toHaveCount(7);
-  await page.getByText('Later-stage scenarios', { exact: true }).click();
-  for (const name of [
-    'S6 · Category demand surge',
-    'S8 · Audience saturation',
-    'S12 · Fatigue and demand surge',
-  ])
-    await expect(page.getByText(name, { exact: true })).toBeVisible();
-  await expect(page.getByRole('radio', { name: /S6/ })).toHaveCount(0);
-});
 test('policy and objective controls fit mobile, dark theme and keyboard navigation', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const route of ['/executions?section=policy', '/decisions', '/scenarios']) {
+  for (const route of ['/executions?section=policy', '/decisions', '/inventory']) {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

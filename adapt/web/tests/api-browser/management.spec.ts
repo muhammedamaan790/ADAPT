@@ -133,6 +133,7 @@ test('replay manifest refuses evidence for another decision hash', async ({ page
     return r.fulfill({ json });
   });
   await page.goto('/decisions');
+  await page.getByRole('tab', { name: 'Alternatives', exact: true }).click();
   await page.getByRole('button', { name: 'Decision replay timeline' }).click();
   await expect(page.getByText(/Archive belongs to a different decision/)).toBeVisible();
   await expect(page.getByText('Wrong archive', { exact: true })).toHaveCount(0);

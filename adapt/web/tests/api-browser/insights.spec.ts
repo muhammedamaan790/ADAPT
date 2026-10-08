@@ -127,6 +127,7 @@ test('replay verification is rejected when it belongs to a different proposal ha
     return r.fulfill({ json });
   });
   await page.goto('/decisions');
+  await page.getByRole('tab', { name: 'Alternatives', exact: true }).click();
   await page.getByRole('button', { name: 'Decision replay timeline' }).click();
   await page.getByRole('button', { name: 'Check replay availability' }).click();
   await expect(page.getByText(/Replay result belongs to a different decision hash/)).toBeVisible();

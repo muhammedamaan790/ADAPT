@@ -5,6 +5,7 @@ import { Badge, Empty, ErrorState, Loading, SectionTitle } from '../components/u
 import { dateTime, money } from '../lib/format';
 import { ModelManagement } from '../components/ModelManagement';
 import { ConfidenceBands } from '../components/ConfidenceBands';
+import { CreativeAssessment } from '../components/CreativeAssessment';
 
 export function Learning() {
   return (
@@ -22,6 +23,7 @@ export function Learning() {
       <LearningMetrics />
       <ConfidenceBands />
       <ModelManagement />
+      <CreativeAssessment />
     </>
   );
 }

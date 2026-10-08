@@ -83,8 +83,8 @@ export function CommandCenter() {
             <Empty title="No allocation needs review">
               No open proposal has been supplied for this workspace.
             </Empty>
-            <Link className="button secondary" to="/scenarios">
-              Explore scenarios <ArrowRight size={15} />
+            <Link className="button secondary" to="/inventory">
+              Check inventory <ArrowRight size={15} />
             </Link>
           </section>
         )}

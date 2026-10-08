@@ -36,11 +36,13 @@ test('live golden journey: evidence → approve → verified → advance → out
   // the top decision: evidence, why-not, checks, unallocated
   const link = page.locator('a[href^="/decisions/"]').first();
   await link.click();
+  await expect(page.getByText(/unallocated/).first()).toBeVisible();
+  await page.getByRole('tab', { name: 'Alternatives', exact: true }).click();
   await expect(
     page.getByRole('heading', { name: 'Why not the obvious alternative?' }),
   ).toBeVisible();
+  await page.getByRole('tab', { name: 'Checks & details', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Policy checks' })).toBeVisible();
-  await expect(page.getByText(/unallocated/).first()).toBeVisible();
   await page.screenshot({
     path: `${process.env.PW_OUT || 'test-results/live'}/live_decision.png`,
     fullPage: true,
@@ -75,12 +77,13 @@ test('live golden journey: evidence → approve → verified → advance → out
     fullPage: true,
   });
 
-  // S3 in the Scenario Lab -> a safety proposal that needs review; reject it with a reason
-  await page.getByRole('link', { name: 'Scenario Lab', exact: true }).click();
-  await page.getByRole('radio', { name: /S3/ }).check();
-  await page.getByRole('button', { name: 'Load scenario', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm load', exact: true }).click();
-  await page.waitForTimeout(1500);
+  // S3 (loaded through the API; the UI no longer has a Scenario Lab) -> a safety proposal that needs
+  // review; reject it with a reason
+  const load = await page.request.post('/api/v1/sim/scenario/S3', {
+    data: {},
+    headers: await writeHeaders(page, 'live-s3-load'),
+  });
+  expect(load.status()).toBe(200);
   const before2 = await jobStart(page);
   const adv = await page.request.post('/api/v1/sim/advance?days=2', {
     data: {},
@@ -106,10 +109,11 @@ test('live golden journey: evidence → approve → verified → advance → out
   });
 
   // reset: world and workspace back to day 0
-  await page.getByRole('link', { name: 'Scenario Lab', exact: true }).click();
-  await page.getByRole('button', { name: 'Reset workspace', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm reset', exact: true }).click();
-  await page.waitForTimeout(3000);
+  const reset = await page.request.post('/api/v1/sim/reset?seed=42', {
+    data: {},
+    headers: await writeHeaders(page, 'live-reset'),
+  });
+  expect(reset.status()).toBe(200);
   const ov = await (await page.request.get('/api/v1/overview')).json();
   expect(ov.world_day).toBe(0);
   expect(ov.counts.success + ov.counts.neutral + ov.counts.failed + ov.counts.inconclusive).toBe(0);

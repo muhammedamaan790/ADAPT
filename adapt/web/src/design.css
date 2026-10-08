@@ -2217,3 +2217,126 @@ td code,
     border-radius: 1.25rem;
   }
 }
+
+/* Live strip: is this data live, which day, and the demo driver */
+.live-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.875rem;
+  padding-top: 1rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.live-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: rgb(var(--c-lime));
+  box-shadow: 0 0 0 0 rgb(var(--c-lime) / 0.6);
+  flex-shrink: 0;
+}
+.live-dot-example {
+  background: rgb(var(--c-warn));
+}
+.live-dot-stale {
+  background: rgb(var(--c-stop));
+}
+.live-dot-pulse {
+  animation: live-pulse 1.2s var(--ease) 2;
+}
+@keyframes live-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgb(var(--c-lime) / 0.7);
+  }
+  100% {
+    box-shadow: 0 0 0 0.6rem rgb(var(--c-lime) / 0);
+  }
+}
+.live-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+}
+.live-state strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.live-state > span {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.live-state > .live-age {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+}
+.live-updated {
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: rgb(var(--c-sage-soft));
+  color: rgb(var(--c-go-text));
+}
+.live-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-left: auto;
+}
+.live-controls select,
+.live-button {
+  height: 2rem;
+  padding: 0 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.75rem;
+  max-width: 100%;
+}
+.live-button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.live-button:disabled,
+.live-controls select:disabled {
+  opacity: 0.5;
+}
+.live-note {
+  flex-basis: 100%;
+  font-size: 0.75rem;
+}
+.metric-example {
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  border-radius: 999px;
+  border: 1px solid rgb(var(--c-warn) / 0.4);
+  color: rgb(var(--c-warn-text));
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.metric-changed {
+  animation: metric-flash 1.6s var(--ease);
+  border-radius: 0.375rem;
+}
+@keyframes metric-flash {
+  0% {
+    background: rgb(var(--c-lime) / 0.55);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.metric-tile > small.metric-delta-up {
+  color: rgb(var(--c-go-text));
+}
+.metric-tile > small.metric-delta-down {
+  color: rgb(var(--c-stop-text));
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot-pulse,
+  .metric-changed {
+    animation: none;
+  }
+}

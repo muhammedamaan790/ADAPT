@@ -69,3 +69,21 @@ def test_stage_is_idempotent_and_confirm_creates_its_own_workspace(tmp_path):
         con.close()
     assert rows == [("b1", 1200.5, "UPLOADED"), ("b2", 900.0, "UPLOADED")] and actor == "maria"
     assert cu.confirm(reg, a["import_id"], mapping, "maria")["message"].startswith("already imported")
+
+
+def test_imports_list_and_read_only_detail_preview(tmp_path):
+    reg = cu.Registry(tmp_path)
+    assert cu.imports(reg) == []
+    a = cu.stage(reg, "ads", ADS, "INR", "Asia/Kolkata")
+    assert [(u["import_id"], u["status"], u["workspace_id"]) for u in cu.imports(reg)] == [
+        (a["import_id"], "STAGED", None)]
+    with pytest.raises(cu.UploadError):
+        cu.detail(reg, a["import_id"])                                               # staged, not imported
+    with pytest.raises(cu.UploadError):
+        cu.detail(reg, "imp-missing")
+    cu.confirm(reg, a["import_id"], {f: f for f in cu.FIELDS["ads"]}, "maria")
+    d = cu.detail(reg, a["import_id"], limit=1)
+    assert d["table"] == "stg.upload_ads" and d["truncated"] and len(d["records"]) == 1 and d["row_count"] == 2
+    assert d["records"][0]["spend"] == 1200.5 and d["records"][0]["_provenance"] == "UPLOADED"
+    assert d["engine_eligible"] is False and d["missing_sources"] == ["orders", "inventory", "pricing"]
+    assert "_import_id" not in d["columns"]

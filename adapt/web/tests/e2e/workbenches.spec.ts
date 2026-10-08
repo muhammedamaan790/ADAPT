@@ -28,9 +28,6 @@ test('unknown read-back, failed retry, settings restoration and action ledger', 
   await page.getByRole('button', { name: 'Inject unknown result', exact: true }).click();
   await expect(page.getByText('unknown', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Retry failed legs', exact: true })).toBeDisabled();
-  await page.getByRole('link', { name: 'Scenario Lab', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Advance 3 days', exact: true })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Reset workspace', exact: true })).toBeDisabled();
   await page.getByRole('link', { name: 'Execution & Ledger', exact: true }).click();
   await page.getByRole('button', { name: 'Verify platform state', exact: true }).click();
   await expect(page.getByText('succeeded', { exact: true })).toBeVisible();
@@ -68,7 +65,7 @@ test('new workspaces fit mobile and preserve keyboard-accessible navigation', as
     await page.goto(path);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await page.getByRole('button', { name: 'Open navigation' }).click();
-    await expect(page.getByRole('link', { name: 'Scenario Lab', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Inventory', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     if (path === '/anomalies') {
       const signal = await page.locator('.signal-change b').boundingBox();

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { testPolicy, testShadow, testCatalog } from '../policy-data';
+import { testPolicy, testShadow } from '../policy-data';
 import { fixtureOverview } from '../../src/api/fixtures';
 import type { Policy } from '../../src/api/policy-contracts';
 test('mode request binds revision, requires review, retains conflicts and never executes budgets', async ({
@@ -104,51 +104,7 @@ test('invalid Google production permission and measured shadow claims fail visib
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Review mode change' })).toHaveCount(0);
 });
-test('catalog availability is checked again before scenario writes and false acknowledgements fail', async ({
-  page,
-}) => {
-  let available = true,
-    writes = 0;
-  await page.route('**/api/v1/**', (r) => {
-    const path = new URL(r.request().url()).pathname;
-    if (path.endsWith('/sim/scenarios'))
-      return r.fulfill({
-        json: {
-          ...testCatalog,
-          items: testCatalog.items.map((s) =>
-            available ? s : { ...s, status: 'NOT_BUILT', missing_modules: ['optimizer'] },
-          ),
-        },
-      });
-    if (path.endsWith('/sim/scenario/S9')) {
-      writes++;
-      return r.fulfill({ json: { ok: false } });
-    }
-    return r.fulfill({ json: path.endsWith('/overview') ? fixtureOverview('DEMO_01', 0) : [] });
-  });
-  await page.goto('/scenarios');
-  await expect(page.getByRole('radio')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Load scenario', exact: true }).click();
-  available = false;
-  await page.getByRole('button', { name: 'Confirm load', exact: true }).click();
-  await expect(
-    page
-      .getByText('This scenario is unavailable in the current stage. Refresh the catalog.')
-      .first(),
-  ).toBeVisible();
-  expect(writes).toBe(0);
-  if (await page.getByRole('dialog').count())
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  available = true;
-  await page.reload();
-  await page.getByRole('button', { name: 'Load scenario', exact: true }).click();
-  await page.getByRole('button', { name: 'Confirm load', exact: true }).click();
-  await expect(
-    page.getByRole('dialog').getByText(/Response contract mismatch at \/sim\/scenario\/S9/),
-  ).toBeVisible();
-  expect(writes).toBe(1);
-});
-test('absent policy and catalog endpoints never substitute bundled fixtures', async ({ page }) => {
+test('absent policy endpoints never substitute bundled fixtures', async ({ page }) => {
   await page.route('**/api/v1/**', (r) => {
     const path = new URL(r.request().url()).pathname;
     if (path.endsWith('/overview')) return r.fulfill({ json: fixtureOverview('DEMO_01', 0) });
@@ -158,7 +114,4 @@ test('absent policy and catalog endpoints never substitute bundled fixtures', as
   await page.goto('/executions?section=policy');
   await expect(page.getByText('Capability endpoint not yet implemented.')).toHaveCount(2);
   await expect(page.getByRole('heading', { name: 'Meta policy' })).toHaveCount(0);
-  await page.goto('/scenarios');
-  await expect(page.getByRole('button', { name: 'Load scenario', exact: true })).toBeDisabled();
-  await expect(page.getByRole('radio')).toHaveCount(0);
 });
