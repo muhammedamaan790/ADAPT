@@ -37,7 +37,7 @@ export function Copilot({ close }: { close: () => void }) {
         <Badge tone={dataMode === 'fixture' ? 'warning' : 'accent'}>
           {dataMode === 'fixture' ? 'GROUNDED TEMPLATES' : 'BACKEND COPILOT'}
         </Badge>
-        <span className="caption">Read-only assistance</span>
+        <span className="caption">Evidence & proposal review</span>
       </div>
       <p className="workbench-copy">
         {dataMode === 'fixture'

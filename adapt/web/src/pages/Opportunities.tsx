@@ -9,13 +9,15 @@ import { Badge, Empty, ErrorState, InlineError, Loading, SectionTitle } from '..
 import { money } from '../lib/format';
 import { CreativeSignals } from '../components/CreativeSignals';
 import { dataMode } from '../api/client';
+import { stage3, creativeFields } from '../api/stage3';
 
 export function Opportunities() {
   const query = useQuery({ queryKey: ['opportunities'], queryFn: insights.opportunities });
   const fatigue = useQuery({ queryKey: ['creative-fatigue'], queryFn: insights.fatigue });
   const [selected, setSelected] = useState<string | null>(null);
   const [channel, setChannel] = useState('ALL');
-  const [text, setText] = useState('');
+  const domains = useQuery({queryKey: ['creative-attributes'], queryFn: stage3.attributes});
+  const [attributes, setAttributes] = useState<Record<string, string>>({});
   const score = useAction(insights.scoreCreative);
   if (query.isPending) return <Loading label="Loading ranked opportunities" />;
   if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />;
@@ -98,26 +100,27 @@ export function Opportunities() {
       <section className="panel">
         <SectionTitle title="Creative assessment" />
         <p className="section-description">
-          Submit creative context to the configured scorer. Missing model output stays unavailable.
+          Estimate early click-through from six observed creative attributes. Copy and images are not analysed.
         </p>
-        <label className="field">
-          Creative context
-          <textarea
-            rows={3}
-            maxLength={2000}
-            value={text}
-            disabled={score.isPending}
-            onChange={(e) => {
-              setText(e.target.value);
-              score.reset();
-            }}
-            placeholder="Audience, offer, creative message and asset reference"
-          />
-        </label>
+        {domains.isPending ? <Loading label="Loading trained attribute domains" /> : domains.error ?
+          <ErrorState error={domains.error} retry={() => void domains.refetch()} /> :
+          domains.data?.status !== 'AVAILABLE' ? <p className="notice">{domains.data?.note}</p> :
+          <fieldset disabled={score.isPending} className="creative-attributes">
+            <legend className="sr-only">Structured creative attributes</legend>
+            {creativeFields.map(field => <label className="field" key={field}>
+              {field === 'cta' ? 'Call to action' : field.replaceAll('_', ' ')}
+              <select value={attributes[field] || ''} onChange={e => {
+                setAttributes(old => ({...old, [field]: e.target.value})); score.reset();
+              }}>
+                <option value="">Choose {field.replaceAll('_', ' ')}</option>
+                {(domains.data?.domains[field] || []).map(value => <option key={value}>{value}</option>)}
+              </select>
+            </label>)}
+          </fieldset>}
         <button
           className="button secondary"
-          disabled={score.isPending || text.trim().length < 10}
-          onClick={() => score.mutate(text)}
+          disabled={score.isPending || domains.data?.status !== 'AVAILABLE' || creativeFields.some(f => !attributes[f])}
+          onClick={() => score.mutate({attributes})}
         >
           {score.isPending ? 'Assessing…' : 'Assess creative'}
         </button>
@@ -126,7 +129,7 @@ export function Opportunities() {
           <p className="notice" role="status">
             {score.data.score === null
               ? 'Not estimable'
-              : `Model score: ${score.data.score.toFixed(2)}`}{' '}
+              : `Expected early CTR: ${(score.data.score*100).toFixed(2)}%`}{' '}
             · {score.data.explanation}
           </p>
         )}
