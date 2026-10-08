@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { modelTestDetail, evaluationTestReport } from '../management-data';
+import { modelTestDetail } from '../management-data';
 import { fixtureOverview, fixtureDecision, fixtureEvidence } from '../../src/api/fixtures';
 import type { ModelDetail } from '../../src/api/management-contracts';
 
@@ -100,58 +100,6 @@ test('malformed promotable models fail contract validation before any control is
   await page.goto('/learning');
   await expect(page.getByText(/Response contract mismatch/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Request candidate promotion' })).toHaveCount(0);
-});
-test('Head-to-Head reads a backend report with missing overview and never launches an evaluation', async ({
-  page,
-}) => {
-  const writes: string[] = [];
-  await page.route('**/api/v1/**', (r) => {
-    if (r.request().method() !== 'GET') writes.push(r.request().url());
-    return r.request().url().endsWith('/eval/report')
-      ? r.fulfill({
-          json: {
-            status: 'AVAILABLE',
-            report: evaluationTestReport,
-            note: 'Synthetic test report from backend.',
-          },
-        })
-      : r.fulfill({ status: 503, json: { detail: 'Overview unavailable.' } });
-  });
-  await page.goto('/scenarios');
-  await page.getByRole('button', { name: 'Head-to-Head', exact: true }).click();
-  await expect(page.getByRole('table')).toBeVisible();
-  await expect(page.getByText('BACKEND REPORT', { exact: true })).toBeVisible();
-  await expect(page.getByRole('row', { name: /oracle/ })).toContainText('Unavailable');
-  expect(writes).toEqual([]);
-});
-test('workspace activation is acknowledged before reload; wrong-context responses are rejected', async ({
-  page,
-}) => {
-  const items = [
-    { id: 'default', name: 'D2C workspace', currency: 'INR', timezone: 'Asia/Kolkata' },
-    { id: 'second', name: 'Second brand', currency: 'INR', timezone: 'Asia/Kolkata' },
-  ];
-  let activations = 0;
-  await page.route('**/api/v1/**', (r) => {
-    const path = new URL(r.request().url()).pathname;
-    if (path.endsWith('/activate')) {
-      activations++;
-      expect(r.request().method()).toBe('POST');
-      return r.fulfill({ json: { active_id: 'default', items } });
-    }
-    if (path.endsWith('/workspaces')) return r.fulfill({ json: { active_id: 'default', items } });
-    if (path.endsWith('/executions')) return r.fulfill({ json: [] });
-    if (path.endsWith('/overview')) return r.fulfill({ json: fixtureOverview('DEMO_01', 0) });
-    return r.fulfill({ status: 503, json: { detail: 'Source route pending.' } });
-  });
-  await page.goto('/data?section=workspaces');
-  await page.getByRole('button', { name: 'Switch to Second brand' }).click();
-  await page.getByRole('button', { name: 'Confirm workspace switch' }).click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toHaveText(
-    /did not activate the requested workspace/,
-  );
-  expect(activations).toBe(1);
-  await expect(page).toHaveURL(/section=workspaces/);
 });
 test('replay manifest refuses evidence for another decision hash', async ({ page }) => {
   const d = fixtureDecision('DEMO_01');

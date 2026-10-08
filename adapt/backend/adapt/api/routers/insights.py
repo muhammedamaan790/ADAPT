@@ -15,6 +15,7 @@ import threading
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from adapt.api import agent
 from adapt.api import insight_views as iv
 from adapt.api import models as m
 from adapt.api import views as v
@@ -290,12 +291,17 @@ def copilot_sql():
 
 @router.post("/copilot/chat", dependencies=mutating)
 def copilot_chat(body: m.CopilotBody, request: Request):
-    """LLM offline (Stage 1): a deterministic template answer from stored engine state, streamed as the agreed SSE
-    contract (answer + done events), with citations to app routes only."""
-    reply = iv.copilot_answer(rt(request).db, body.message)
+    """Ask ADAPT (api/agent.py): Groq tool-calling over the workspace's read-only views, every figure checked against
+    the tool results; the deterministic template answer when the LLM is offline. Streamed as SSE: `status` events
+    while tools run, then `answer` and `done`."""
+    history = [t.model_dump() for t in body.history]
 
     def stream():
-        yield f"data: {json.dumps({'type': 'answer', 'reply': reply})}\n\n"
-        yield 'data: {"type": "done"}\n\n'
+        try:
+            for event in agent.answer(request, body.message, history):
+                yield f"data: {json.dumps(event, default=str)}\n\n"
+        except Exception as exc:  # surfaced to the browser as the contract's error event, never a broken stream
+            yield f"data: {json.dumps({'type': 'error', 'message': f'The assistant failed: {exc}'})}\n\n"
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

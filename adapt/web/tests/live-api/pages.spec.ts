@@ -6,14 +6,11 @@ const routes = [
   '/',
   '/decisions',
   '/anomalies',
-  '/optimizer',
   '/executions',
   '/outcomes',
-  '/opportunities',
   '/learning',
   '/data',
   '/scenarios',
-  '/connection',
 ];
 
 test.beforeEach(async ({ page }) => signIn(page));

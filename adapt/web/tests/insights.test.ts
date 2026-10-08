@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseCsv, validateImport, importFields } from '../src/lib/csv';
-import { insights, askCopilot } from '../src/api/insights';
+import { insights, askAdapt } from '../src/api/insights';
 import { fixtureService, resetFixtureForTests } from '../src/api/fixture-service';
 import { appHref, replaySchema, creativeScoreSchema } from '../src/api/insight-contracts';
 
@@ -122,13 +122,16 @@ describe('Insight truth and lifecycle boundaries', () => {
     );
     expect(await insights.fatigue()).toEqual([]);
   });
-  it('copilot is grounded and cancellation produces no answer', async () => {
-    const c = await askCopilot('Why this allocation?', new AbortController().signal);
+  it('the assistant is grounded, greets, and cancellation produces no answer', async () => {
+    const c = await askAdapt('Why this allocation?', [], new AbortController().signal);
     expect(c.mode).toBe('TEMPLATE');
     expect(c.evidence.some((e) => e.href.startsWith('/decisions/'))).toBe(true);
     const abort = new AbortController();
     abort.abort();
-    await expect(askCopilot('What feedback?', abort.signal)).rejects.toThrow('Cancelled');
+    await expect(askAdapt('What feedback?', [], abort.signal)).rejects.toThrow('Cancelled');
+    const hi = await askAdapt('hello', [], new AbortController().signal);
+    expect(hi.text.startsWith('Hi!')).toBe(true);
+    expect(hi.note).toContain('GROQ_API_KEY');
   });
   it('rejects external evidence links and dishonest replay or creative states', () => {
     for (const href of ['https://example.com', '//example.com', 'javascript:alert(1)', '/settings'])

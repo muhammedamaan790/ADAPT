@@ -705,5 +705,11 @@ class SimulateBody(BaseModel):
     decision_hash: str
 
 
+class CopilotTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
+
+
 class CopilotBody(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
+    history: list[CopilotTurn] = Field(default_factory=list, max_length=40)

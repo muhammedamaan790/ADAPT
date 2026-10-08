@@ -2719,34 +2719,6 @@ table caption {
 .alternative-row .fact-grid {
   margin: 16px 0;
 }
-.copilot-prompts {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin: 18px 0;
-}
-.copilot-prompts .button {
-  font-size: 13px;
-}
-.copilot-transcript {
-  max-height: 36vh;
-  overflow-y: auto;
-  padding: 0 4px 14px 0;
-  margin-bottom: 18px;
-}
-.copilot-transcript article {
-  padding: 16px 0;
-  border-bottom: 1px solid var(--rule);
-}
-.copilot-transcript h3 {
-  font-size: 15px;
-  margin: 0 0 10px;
-}
-.copilot-transcript p {
-  font-size: 14px;
-  line-height: 1.7;
-  overflow-wrap: anywhere;
-}
 .mobile-filter-toggle {
   display: none;
 }

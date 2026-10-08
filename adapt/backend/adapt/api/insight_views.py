@@ -54,7 +54,7 @@ def opportunities(db, state, flags) -> list[dict]:
         delta = float(max(min(1000.0, c.hi[i] - u.budget, c.cap_total - fe.pf.s0.sum()), 0.0))
         row = {"id": f"OPP-{u.unit_id}", "budget_id": u.unit_id, "entity": names.get(u.unit_id, u.unit_id),
                "platform": v.PLATFORM[u.platform], "delta_budget": delta, "decision_id": pending.get(u.unit_id),
-               "evidence": [{"label": "Optimizer workbench", "href": "/optimizer"}] +
+               "evidence": [{"label": "Decision Center", "href": "/decisions"}] +
                            ([{"label": "Pending decision", "href": f"/decisions/{pending[u.unit_id]}"}]
                             if u.unit_id in pending else []),
                "provenance": v.PROVENANCE, "score": None, "marginal_caa": None}

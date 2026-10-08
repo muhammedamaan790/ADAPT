@@ -3,8 +3,8 @@
 - At first use, GET /openai/v1/models filters the configured chain to the models that are available; an empty chain
   (or no API key) means LLM offline mode, and every caller falls back to deterministic templates.
 - The NARRATOR request configuration is non-streaming, never activates tool calling, and uses Groq strict structured
-  outputs (response_format json_schema, strict: true). The Copilot (Stage 3) gets its own configuration object;
-  strict schemas cannot be combined with streaming or tools in one request.
+  outputs (response_format json_schema, strict: true). The Ask ADAPT agent uses its own profile (AGENT_REQUEST:
+  tools, no strict schema) and its own model chain (`copilot.llm` in narrative.yaml); the two never mix.
 - 20 s timeout, 429 -> exponential backoff (max 2 retries) then the next model; any other failure -> next model.
 - Responses are cached per (workspace_id, model_id, prompt_hash, schema_version, evidence_package_hash) in
   ops.llm_cache, so a replayed narrative costs nothing and never changes.
@@ -47,6 +47,9 @@ class RequestConfig:
 
 NARRATOR_REQUEST = RequestConfig(stream=False, tools=False, strict_schema=True)
 COPILOT_REQUEST = RequestConfig(stream=True, tools=True, strict_schema=False)
+# The agent's answers are checked before anything is shown, so its requests are not streamed: progress is streamed
+# to the browser as tool steps instead (api/agent.py).
+AGENT_REQUEST = RequestConfig(stream=False, tools=True, strict_schema=False)
 
 
 class GroqClient:
@@ -145,6 +148,49 @@ class GroqClient:
         raise LLMUnavailable("; ".join(errors) or "no model available")
 
 
+    # ---- one tool-calling agent turn over the chain ---------------------------------------------------------------
+    def complete(self, messages: list[dict], tools: list[dict],
+                 request: RequestConfig = AGENT_REQUEST) -> tuple[str, dict]:
+        """(model, assistant message) for one agent round; the message may carry tool_calls. Raises LLMUnavailable
+        when no model answers. Never cached: answers depend on live workspace state."""
+        if request.strict_schema or not request.tools or request.stream:
+            raise ValueError("the agent request uses tools, no strict schema and no streaming")
+        errors = []
+        for model in self.chain():
+            body = {"model": model, "messages": messages, "stream": False,
+                    "temperature": self.cfg["temperature"], "max_completion_tokens": self.cfg["max_tokens"]}
+            if tools:  # the last round offers none, so the model must answer
+                body.update(tools=tools, tool_choice="auto")
+            if model.startswith("openai/gpt-oss"):
+                body["reasoning_effort"] = "low"
+            for attempt in range(int(self.cfg["max_retries_429"]) + 1):
+                try:
+                    r = self.http.post(f"{self.base}/chat/completions", headers=self._headers(), json=body)
+                except httpx.HTTPError as exc:
+                    errors.append(f"{model}: {exc}")
+                    break
+                if r.status_code == 429 and attempt < int(self.cfg["max_retries_429"]):
+                    self.sleep(float(self.cfg["backoff_s"]) * 2 ** attempt)
+                    continue
+                if r.status_code != 200:
+                    errors.append(f"{model}: HTTP {r.status_code}")
+                    break
+                try:
+                    msg = r.json()["choices"][0]["message"]
+                except (KeyError, IndexError, ValueError, TypeError) as exc:
+                    errors.append(f"{model}: unparseable response ({exc})")
+                    break
+                return model, msg
+        raise LLMUnavailable("; ".join(errors) or "no model available")
+
+
 def from_settings(settings, db=None) -> GroqClient:
     """The app's narrator client: GROQ_API_KEY from the backend .env (no key -> offline templates)."""
     return GroqClient(settings.groq_api_key, db=db, workspace_id=settings.workspace)
+
+
+def agent_client(settings) -> GroqClient:
+    """The Ask ADAPT agent's client: the narrator's endpoint and retry rules with the agent's own model chain."""
+    cfg = narrative_config()
+    return GroqClient(settings.groq_api_key, cfg={**cfg["llm"], **cfg["copilot"]["llm"]},
+                      workspace_id=settings.workspace)

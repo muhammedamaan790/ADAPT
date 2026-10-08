@@ -676,11 +676,6 @@ export function DecisionCenter() {
             >
               Reject with a reason
             </button>
-            {d.class === 'OPTIMIZATION' && d.status === 'PENDING_APPROVAL' && (
-              <Link className="button secondary full" to="/optimizer">
-                Modify allocation
-              </Link>
-            )}
             <div className="approval-footnote">
               <LockKeyhole size={13} />
               <span>

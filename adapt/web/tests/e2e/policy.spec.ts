@@ -1,22 +1,4 @@
 import { expect, test } from '@playwright/test';
-test('objective choices show all six policies but enable only connected capabilities', async ({
-  page,
-}) => {
-  await page.goto('/optimizer');
-  const select = page.getByLabel('Evaluation objective');
-  await expect(select).toHaveValue('PROFIT');
-  await expect(select.locator('option')).toHaveCount(6);
-  for (const value of [
-    'GROWTH',
-    'ACQUISITION',
-    'INVENTORY_CLEARANCE',
-    'MARGIN_PROTECTION',
-    'BALANCED',
-  ])
-    await expect(select.locator(`option[value="${value}"]`)).toHaveAttribute('disabled', '');
-  await page.getByRole('button', { name: 'Evaluate allocation', exact: true }).click();
-  await expect(page.getByText('Recorded valuation', { exact: true })).toBeVisible();
-});
 test('fixture readiness is read-only, separates outcome pools and has no fake shadow records', async ({
   page,
 }) => {
@@ -56,7 +38,7 @@ test('policy and objective controls fit mobile, dark theme and keyboard navigati
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const route of ['/executions?section=policy', '/optimizer', '/scenarios']) {
+  for (const route of ['/executions?section=policy', '/decisions', '/scenarios']) {
     await page.goto(route);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(

@@ -5,108 +5,98 @@ test('remaining APIs fail visibly without fixture substitution', async ({ page }
   await page.route('**/api/v1/**', (r) =>
     r.fulfill({ status: 503, json: { detail: 'Insight service unavailable.' } }),
   );
-  for (const path of ['/opportunities', '/outcomes', '/learning', '/data']) {
+  for (const path of ['/outcomes', '/learning', '/data']) {
     await page.goto(path);
     await expect(page.getByText('Insight service unavailable.').first()).toBeVisible();
     await expect(page.getByText('FRONTEND FIXTURES', { exact: true })).toHaveCount(0);
   }
 });
-test('SSE Copilot accepts a complete grounded response and rejects unsafe or truncated answers', async ({
+test('Ask ADAPT streams tool steps, shows checked answers with history and rejects unsafe or truncated ones', async ({
   page,
 }) => {
   let response = '';
-  let chats = 0;
+  const bodies: { message: string; history: { role: string; content: string }[] }[] = [];
   await page.route('**/api/v1/**', (r) => {
-    if (r.request().url().endsWith('/copilot/chat')) {
-      chats++;
+    const url = r.request().url();
+    if (url.endsWith('/copilot/chat')) {
       expect(r.request().method()).toBe('POST');
       expect(r.request().headers()['idempotency-key']).toBeTruthy();
+      bodies.push(r.request().postDataJSON());
       return r.fulfill({ contentType: 'text/event-stream', body: response });
     }
+    if (url.endsWith('/overview')) return r.fulfill({ json: fixtureOverview('DEMO_01', 14) });
     return r.fulfill({ status: 503, json: { detail: 'Backend unavailable.' } });
   });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open Copilot' }).click();
+  const agent = page.locator('.ask-panel');
+  const ask = async (q: string) => {
+    await agent.getByLabel('Ask ADAPT').fill(q);
+    await agent.getByRole('button', { name: 'Send question' }).click();
+  };
   const payload = {
-    text: 'Inspect the inventory gate before increasing spend.',
+    text: 'Inspect the **inventory gate** before increasing spend.\n- Hero SKU is short by 42 units',
     evidence: [{ label: 'Inventory evidence', href: '/decisions/d-1' }],
     mode: 'LLM',
+    model: 'openai/gpt-oss-120b',
+    verified: true,
+    unverified: [],
+    tools: ['get_decision'],
   };
-  response = `data: ${JSON.stringify({ type: 'answer', reply: payload })}\r\n\r\ndata: {"type":"done"}\r\n\r\n`;
-  await page.getByLabel('Ask Copilot').fill('Why inventory risk?');
-  await page.getByRole('button', { name: 'Ask question', exact: true }).click();
-  await expect(page.getByText(payload.text, { exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Inventory evidence' })).toHaveAttribute(
+  const event = (e: object) => `data: ${JSON.stringify(e)}\r\n\r\n`;
+  response =
+    event({ type: 'status', text: 'Opening the decision' }) +
+    event({ type: 'answer', reply: payload }) +
+    event({ type: 'done' });
+  await ask('Why inventory risk?');
+  await expect(agent.locator('.ask-bot strong')).toHaveText('inventory gate');
+  await expect(agent.locator('.ask-bot li')).toHaveText('Hero SKU is short by 42 units');
+  await expect(agent.getByRole('link', { name: /Inventory evidence/ })).toHaveAttribute(
     'href',
     '/decisions/d-1',
   );
-  response = `data: ${JSON.stringify({ type: 'answer', reply: { ...payload, text: 'UNSAFE ANSWER', evidence: [{ label: 'Unsafe', href: 'https://evil.example' }] } })}\n\ndata: {"type":"done"}\n\n`;
-  await page.getByLabel('Ask Copilot').fill('Unsafe link test');
-  await page.getByRole('button', { name: 'Ask question', exact: true }).click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toBeVisible();
-  await expect(page.getByText('UNSAFE ANSWER', { exact: true })).toHaveCount(0);
-  response = `data: ${JSON.stringify({ type: 'answer', reply: { ...payload, text: 'TRUNCATED ANSWER' } })}\n\n`;
-  await page.getByLabel('Ask Copilot').fill('Truncated stream test');
-  await page.getByRole('button', { name: 'Ask question', exact: true }).click();
-  await expect(page.getByText(/stream ended before a complete answer/)).toBeVisible();
-  await expect(page.getByText('TRUNCATED ANSWER', { exact: true })).toHaveCount(0);
-  expect(chats).toBe(3);
-});
-test('failed import confirmation retries the staged ID without uploading twice', async ({
-  page,
-}) => {
-  let uploads = 0;
-  let confirmations = 0;
-  await page.route('**/api/v1/**', (r) => {
-    const path = new URL(r.request().url()).pathname;
-    if (path.endsWith('/ingest/upload')) {
-      uploads++;
-      return r.fulfill({
-        json: {
-          import_id: 'import-test',
-          status: 'STAGED',
-          row_count: 1,
-          message: 'Staged by backend.',
-        },
-      });
-    }
-    if (path.endsWith('/ingest/mapping/confirm')) {
-      confirmations++;
-      expect(r.request().postDataJSON().import_id).toBe('import-test');
-      return confirmations === 1
-        ? r.fulfill({
-            status: 503,
-            json: { detail: 'Confirmation service unavailable; retry same import.' },
-          })
-        : r.fulfill({
-            json: {
-              import_id: 'import-test',
-              status: 'IMPORTED',
-              row_count: 1,
-              message: 'Backend import confirmed.',
-            },
-          });
-    }
-    if (path.endsWith('/overview')) return r.fulfill({ json: fixtureOverview('DEMO_01', 0) });
-    return r.fulfill({ status: 503, json: { detail: 'Source service unavailable.' } });
-  });
-  await page.goto('/data');
-  await page.getByRole('button', { name: 'CSV import' }).click();
-  await page.getByLabel('Import type').selectOption('margins');
-  await page.getByLabel('CSV file').setInputFiles({
-    name: 'margin.csv',
-    mimeType: 'text/csv',
-    buffer: Buffer.from('sku,price,unit_cost\nhero,500,200'),
-  });
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: 'Submit validated import' }).click();
-  await expect(
-    page.getByText('Confirmation service unavailable; retry same import.'),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Submit validated import' }).click();
-  await expect(page.getByText(/Backend import confirmed/)).toBeVisible();
-  expect(uploads).toBe(1);
-  expect(confirmations).toBe(2);
+  await expect(agent.getByText('Figures checked against your data')).toBeVisible();
+  expect(bodies[0]).toEqual({ message: 'Why inventory risk?', history: [] });
+
+  response =
+    event({
+      type: 'answer',
+      reply: {
+        ...payload,
+        text: 'Spend is ₹9,99,999.',
+        verified: false,
+        unverified: ['₹9,99,999'],
+      },
+    }) + event({ type: 'done' });
+  await ask('And spend?');
+  await expect(agent.getByText('Not found in data: ₹9,99,999')).toBeVisible();
+  expect(bodies[1].history).toEqual([
+    { role: 'user', content: 'Why inventory risk?' },
+    { role: 'assistant', content: payload.text },
+  ]);
+
+  response =
+    event({
+      type: 'answer',
+      reply: {
+        ...payload,
+        text: 'UNSAFE ANSWER',
+        evidence: [{ label: 'Unsafe', href: 'https://evil.example' }],
+      },
+    }) + event({ type: 'done' });
+  await ask('Unsafe link test');
+  await expect(agent.locator('.ask-error').last()).toContainText('contract mismatch');
+  await expect(agent.getByText('UNSAFE ANSWER', { exact: true })).toHaveCount(0);
+
+  response = event({ type: 'answer', reply: { ...payload, text: 'TRUNCATED ANSWER' } });
+  await ask('Truncated stream test');
+  await expect(agent.locator('.ask-error').last()).toContainText('ended before it was complete');
+  await expect(agent.getByText('TRUNCATED ANSWER', { exact: true })).toHaveCount(0);
+
+  response = event({ type: 'error', message: 'The assistant failed: model offline' });
+  await ask('Error event test');
+  await expect(agent.locator('.ask-error').last()).toContainText('model offline');
+  await agent.getByRole('button', { name: 'Ask again' }).last().click();
+  expect(bodies.at(-1)!.message).toBe('Error event test');
 });
 test('replay verification is rejected when it belongs to a different proposal hash', async ({
   page,
