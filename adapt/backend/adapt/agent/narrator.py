@@ -150,8 +150,8 @@ def template_narrative(pkg: dict) -> dict:
         if "U1" in a:
             out.append(_sentence(f"{_display(a['U1'])} per day is left unallocated.", ["U1"]))
     step = next((o for o in pkg["next_step_options"] if o["kind"] != "NONE"), {"kind": "NONE", "ref_id": None})
-    if headline is None:
-        headline = f"{pkg['kind'].title()} {pkg['ref_id']}"
+    if headline is None:  # no lead atom: a plain title; the id (with its digits) is shown by the UI, never in prose
+        headline = f"{pkg['kind'].title()} summary"
     return {"headline": headline, "sentences": out, "next_step": step}
 
 

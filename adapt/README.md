@@ -60,6 +60,12 @@ Run exactly **one** process: the workspace DuckDB file allows a single writer, a
 - Health: `GET http://127.0.0.1:8000/api/v1/health`
 - OpenAPI contract for the frontend: `GET http://127.0.0.1:8000/openapi.json` (interactive docs at `/docs`)
 
+## Ask ADAPT (the AI agent on the Command Center)
+Put a Groq key in `adapt/.env` (git-ignored): `GROQ_API_KEY=gsk_...` (free at console.groq.com), restart the API, and
+run the web app in API mode (`VITE_DATA_MODE=api npm run dev` in `web/`). The agent answers questions about everything
+in the workspace through read-only tools and checks every figure against the data; without a key it answers from
+templates. Contract: `docs/contracts/ask_adapt.md`.
+
 ## Stage 2 (see `docs/STAGE2.md`)
 - Seed a world with the simulated TikTok + Amazon channels: `python -m world.seed --seed 42 --overwrite --demo --channels tiktok,amazon_sp`
 - Narratives use Groq when `GROQ_API_KEY` is set (strict JSON, guarded), deterministic templates otherwise.

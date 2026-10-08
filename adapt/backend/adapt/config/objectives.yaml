@@ -9,6 +9,9 @@ GROWTH:                           # max E[net revenue] s.t. E[abs CAA] >= CAA0 -
 INVENTORY_CLEARANCE:              # max E[CAA] + h x E[units sold on EXCESS-band SKUs]
   holding_cost_inr_per_unit: 25   # h: a holding cost per unit of excess stock moved (business parameter)
   excess_cover_days: 45           # EXCESS band: days of cover > 45 (spec §5)
+exploration:                      # spec §10.3 (Stage 3): OFF by default; bootstrap-draw randomized, not Thompson
+  enabled: false
+  max_budget_share: 0.02          # at most 2% of the budget per run, only from unallocated budget above the reserve
 sensitivity:                      # spec §8.3: risk-preference scenarios, NOT competing utilities; executable within policy
   conservative: {lambda: 1.0, max_daily_change_pct: 0.10}
   aggressive: {lambda: 0.2, max_daily_change_pct: 0.20}
@@ -16,6 +19,8 @@ economics:
   horizon_days: 7                 # H
   search_draws: 50                # fixed subset of the 200 joint draws used by the search (reported values use all)
   greedy_step_inr: 500
+  greedy_coarse_steps_inr: [8000, 4000, 2000, 1000]  # coarse-to-fine greedy, finishing at the Rs 500 step: ~10x
+                                                     # faster; final objective equal or within 0.02% on real states
   allocation_increment_inr: 100   # application allocation increment (spec §22.3; demo default for readability)
   attribution_window_days: 28     # unit SKU mix, unmapped contribution rate, observed ROAS
   pacing_window_days: 7           # delivered spend / budget

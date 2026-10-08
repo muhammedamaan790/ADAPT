@@ -176,8 +176,8 @@ Three self-hosted variable families: **Instrument Sans** (interface and page tit
 ## Layout
 
 - The content shell is 76rem with 2rem gutters (1.5rem ≤ 900px, 1rem ≤ 600px).
-- The header is 64px. On desktop, a 48px route strip below it lists all 11 routes in three hairline-separated groups.
-- At 900px and below, the strip is replaced by the menu button and a native navigation dialog with the same 11 routes.
+- The header is 64px. On desktop, a 48px route strip below it lists all 8 routes in three hairline-separated groups (Operate, Analyze, Workspace).
+- At 900px and below, the strip is replaced by the menu button and a native navigation dialog with the same 8 routes.
 - `--nav-h` keeps anchors and the sticky decision review clear of the header.
 - The footer repeats the identity, deep-links into key views (names distinct from the route labels) and shows the data mode.
 
@@ -206,6 +206,7 @@ Cards are flat at rest. Hover adds `0 8px 40px -16px rgba(32,29,43,.16)` and a s
 - **Slider:** 6px line track with a 22px lime thumb and a 3px ink keyline, growing 12% on hover.
 - **Tables:** uppercase faint headers, hairline rows, a faint row hover, tabular numerals.
 - **Charts:** solid sage actual, dashed warn baseline, mono axis labels. Exact values stay available through the range input and the data-table disclosure.
+- **Ask ADAPT** (`.ask-panel`, Command Center, above the metrics): the reference's hero-card treatment (2rem radius, surface-to-lime/0.1 wash), an eyebrow pill with a lime dot, a Fraunces time-of-day greeting, popular-search chips for suggestions, ink user bubbles and raised assistant bubbles, evidence pills, a "figures checked" line or a warning badge listing unmatched figures, and a pill composer with a round sage send button. Tool steps show as a short list with a pulsing lime dot on the live step.
 - **Identity:** the approved two-form Forward Shift symbol, monochrome ink, beside the Fraunces wordmark. Its forms ease apart on hover.
 
 ## Do's and don'ts

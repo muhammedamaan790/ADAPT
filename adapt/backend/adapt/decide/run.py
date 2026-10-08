@@ -143,8 +143,11 @@ def run_optimizer(db, as_of: datetime, flags: dict | None = None, persist: bool 
         result["class"] = "OPTIMIZATION"
         for k, cand in enumerate(safety):
             cand["decision_id"] = f"{run_id}-S{k}"
+    from adapt.decide.exploration import candidate as exploration_candidate
+
+    explore = exploration_candidate(opt, result, as_of)  # Stage 3, off by default (objectives.yaml exploration)
     out = {"run_id": run_id, "as_of": as_of.isoformat(), "result": result, "safety": safety,
-           "calibration_factor": factor, "flags": flags}
+           "exploration": [explore] if explore else [], "calibration_factor": factor, "flags": flags}
     if persist:
         _persist(db, as_of, state, opt, out)
     out["state"] = state  # in-memory only (decision creation snapshots it); never persisted from here
@@ -178,6 +181,12 @@ def _persist(db, as_of: datetime, state, opt: Optimizer, out: dict) -> None:
         for leg in cand["legs"]:
             s[opt.pf.unit_index[leg["unit_id"]]] = leg["after"]
         proposals.append((cand["decision_id"], "SAFETY", None, cand["expected"]["E"], cand["expected"]["E"],
+                          measurement_basis(state, s, cand["legs"], db)))
+    for cand in out.get("exploration", []):  # measured like an optimization; never calibrates the factor
+        s = opt.s0.copy()
+        for leg in cand["legs"]:
+            s[opt.pf.unit_index[leg["unit_id"]]] = leg["after"]
+        proposals.append((cand["decision_id"], "EXPLORATION", None, cand["expected"]["E"], cand["expected"]["E"],
                           measurement_basis(state, s, cand["legs"], db)))
 
     def work(cur):

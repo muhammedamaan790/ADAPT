@@ -288,25 +288,6 @@ hr {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
 }
-.nav-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4375rem;
-  height: 2.25rem;
-  padding: 0 0.875rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--muted);
-  font-size: 0.875rem;
-  transition:
-    color 0.3s var(--ease),
-    background-color 0.3s var(--ease);
-}
-.nav-pill:hover {
-  color: var(--ink);
-  background: rgb(var(--c-surface));
-}
 .mode-pill {
   display: inline-flex;
   align-items: center;
@@ -1559,23 +1540,314 @@ td code,
   letter-spacing: -0.02em;
 }
 
-/* Copilot prompts behave like the reference's popular-search chips. */
-.copilot-prompts .button,
-.copilot-prompts .button.secondary {
+/* ── Ask ADAPT: the workspace agent on the Command Center ─────────────── */
+.ask-panel,
+.command-workspace .ask-panel {
+  margin-bottom: 1.5rem;
+  padding: 2rem;
+  border-radius: 2rem;
+  border-color: rgb(var(--c-line));
+  background: linear-gradient(to bottom, rgb(var(--c-surface)), rgb(var(--c-lime) / 0.1));
+}
+:root.dark .ask-panel {
+  background: linear-gradient(to bottom, rgb(var(--c-surface)), rgb(var(--c-lime) / 0.05));
+}
+.ask-panel:hover {
+  border-color: rgb(var(--c-line));
+  box-shadow: none;
+}
+.ask-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.5rem;
+}
+.ask-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.875rem;
+  border: 1px solid rgb(var(--c-line));
+  border-radius: 999px;
+  background: rgb(var(--c-surface));
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+.ask-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: rgb(var(--c-lime));
+  box-shadow: 0 0 0 1px rgb(var(--c-ink) / 0.15);
+}
+.ask-panel .ask-greeting {
+  margin-top: 1rem;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: 1.875rem;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.ask-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+.ask-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   min-height: 2.75rem;
-  border-color: rgb(var(--c-sage) / 0.35);
+  padding: 0.625rem 1rem;
+  border: 1px solid rgb(var(--c-sage) / 0.35);
+  border-radius: 999px;
   background: rgb(var(--c-sage-soft) / 0.3);
   color: var(--ink);
-  white-space: normal;
+  font-size: 0.875rem;
   text-align: left;
+  transition:
+    border-color 0.3s var(--ease),
+    transform 0.3s var(--ease);
 }
-.copilot-prompts .button:hover:not(:disabled) {
+.ask-chip span {
+  color: rgb(var(--c-ink) / 0.3);
+  transition:
+    transform 0.3s var(--ease),
+    color 0.3s var(--ease);
+}
+.ask-chip:hover {
   border-color: rgb(var(--c-sage) / 0.6);
-  background: rgb(var(--c-sage-soft) / 0.3);
+  transform: translateY(-2px);
 }
-.copilot-transcript article {
+.ask-chip:hover span {
+  transform: translateX(2px);
+  color: var(--ink);
+}
+.ask-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  max-height: 28rem;
+  margin-top: 1.5rem;
+  padding: 0.25rem 0.25rem 0.25rem 0;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+.ask-thread:focus-visible {
+  outline-offset: 4px;
   border-radius: 1rem;
-  border-color: rgb(var(--c-line) / 0.7);
+}
+.ask-msg {
+  max-width: min(46rem, 85%);
+  padding: 0.875rem 1.125rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  animation: ask-in 0.5s var(--ease);
+}
+@keyframes ask-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.ask-user {
+  align-self: flex-end;
+  border-radius: 1.25rem 1.25rem 0.375rem 1.25rem;
+  background: rgb(var(--c-ink));
+  color: rgb(var(--c-paper));
+}
+.ask-user p {
+  white-space: pre-wrap;
+}
+.ask-bot {
+  align-self: flex-start;
+  border: 1px solid rgb(var(--c-line) / 0.8);
+  border-radius: 1.25rem 1.25rem 1.25rem 0.375rem;
+  background: rgb(var(--c-raised));
+}
+.ask-text p + p,
+.ask-text p + ul,
+.ask-text p + ol,
+.ask-text ul + p,
+.ask-text ol + p {
+  margin-top: 0.625rem;
+}
+.ask-text ul,
+.ask-text ol {
+  margin: 0.375rem 0 0;
+  padding-left: 1.25rem;
+}
+.ask-text li + li {
+  margin-top: 0.25rem;
+}
+.ask-text li::marker {
+  color: var(--faint);
+}
+.ask-text strong {
+  font-weight: 600;
+}
+.ask-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+}
+.ask-meta:empty {
+  display: none;
+}
+.ask-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid rgb(var(--c-line));
+  border-radius: 999px;
+  background: rgb(var(--c-surface));
+  color: var(--ink);
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: border-color 0.3s var(--ease);
+}
+.ask-source span {
+  color: rgb(var(--c-ink) / 0.3);
+  transition:
+    transform 0.3s var(--ease),
+    color 0.3s var(--ease);
+}
+.ask-source:hover {
+  border-color: rgb(var(--c-lime) / 0.6);
+}
+.ask-source:hover span {
+  transform: translateX(2px);
+  color: var(--ink);
+}
+.ask-checked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  color: var(--success);
+  font-size: 0.75rem;
+}
+.ask-meta .badge {
+  white-space: normal;
+}
+.ask-note {
+  margin-top: 0.625rem;
+  font-size: 0.75rem;
+  color: var(--faint);
+}
+.ask-error p {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--danger);
+}
+.ask-error .button {
+  margin-top: 0.5rem;
+  padding-inline: 0;
+}
+.ask-working {
+  display: grid;
+  gap: 0.375rem;
+}
+.ask-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.ask-step::before {
+  content: '';
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: rgb(var(--c-line));
+  flex-shrink: 0;
+}
+.ask-step-done::before {
+  background: rgb(var(--c-go-text) / 0.6);
+}
+.ask-step-live {
+  color: var(--ink);
+}
+.ask-step-live::before {
+  background: rgb(var(--c-lime));
+  animation: ask-pulse 1.2s var(--ease) infinite;
+}
+.ask-step-live::after {
+  content: '…';
+  animation: ask-pulse 1.2s var(--ease) infinite;
+}
+@keyframes ask-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.ask-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 0.4375rem 0.4375rem 0.4375rem 1.25rem;
+  border: 1px solid rgb(var(--c-line));
+  border-radius: 1.75rem;
+  background: rgb(var(--c-surface));
+  transition:
+    border-color 0.3s var(--ease),
+    box-shadow 0.3s var(--ease);
+}
+.ask-form:focus-within {
+  border-color: rgb(var(--c-sage));
+  box-shadow: inset 0 0 0 1px rgb(var(--c-sage));
+}
+.app .ask-form textarea,
+.app .ask-form textarea:focus {
+  flex: 1;
+  min-height: 2.5rem;
+  max-height: 10rem;
+  padding: 0.5rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+}
+.ask-send {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(var(--c-sage));
+  color: rgb(var(--c-sage-ink));
+  box-shadow: var(--shadow-button);
+  transition:
+    filter 0.3s var(--ease),
+    opacity 0.3s var(--ease);
+}
+.ask-send:hover:not(:disabled) {
+  filter: brightness(1.25);
+}
+.ask-send:disabled {
+  opacity: 0.35;
+  box-shadow: none;
+}
+.ask-foot {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--faint);
 }
 
 /* ── Charts and bars ───────────────────────────────────────────────────── */
@@ -1866,14 +2138,6 @@ td code,
   :root {
     --page-pad: 1rem;
   }
-  .copilot-label {
-    display: none;
-  }
-  .nav-pill {
-    width: 2.25rem;
-    padding: 0;
-    justify-content: center;
-  }
   .mode-pill {
     display: none;
   }
@@ -1933,6 +2197,20 @@ td code,
   }
   .report-tabs {
     border-radius: 1.25rem;
+  }
+  .ask-panel,
+  .command-workspace .ask-panel {
+    padding: 1.25rem;
+    border-radius: 1.5rem;
+  }
+  .ask-panel .ask-greeting {
+    font-size: 1.5rem;
+  }
+  .ask-msg {
+    max-width: 92%;
+  }
+  .ask-head .button {
+    padding-inline: 0.5rem;
   }
   .modal {
     padding: 1.25rem;

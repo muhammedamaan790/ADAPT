@@ -1,7 +1,8 @@
 """C2 pipeline cycle + the closed loop through the REAL execution path (fixture world):
 day-0 cycle (ingest .. decide, forecasts backfilled) -> approve -> C5 saga against the world's mock platform APIs ->
 advance -> scheduler catch-up cycles (verify, measure, learn) -> outcome measured with rolling-origin residuals.
-Idempotent per run_id; steps of later stages are logged NOT_BUILT; duplicate events mark once (T15)."""
+Idempotent per run_id; every step is built (auto-execute is a no-op while every channel is in Approve mode);
+duplicate events mark once (T15)."""
 
 import json
 from datetime import date
@@ -18,7 +19,8 @@ from adapt.reconcile.build import logical_now
 
 START = date(2026, 10, 1)  # fixture world day 0
 STEPS = ["ingest", "reconcile", "dq_gate", "detect", "diagnose", "predict", "forecast", "optimize", "decide",
-         "policy", "auto_execute", "verify", "safety_monitor", "measure", "learn"]
+         "policy", "auto_execute", "verify", "safety_monitor", "measure", "learn", "narrate",
+         "copilot_marts"]
 
 
 def test_events_mark_once(db):
@@ -36,7 +38,7 @@ def test_closed_loop_through_the_real_execution_path(world, http, db):
     run0 = day0[0]["run_id"]
     steps = db.query("SELECT step, status FROM ops.pipeline_steps WHERE run_id = ? ORDER BY seq", [run0])
     assert [s for s, _ in steps] == STEPS
-    assert dict(steps)["auto_execute"] == "NOT_BUILT" and dict(steps)["safety_monitor"] == "OK"  # Stage 2 built
+    assert dict(steps)["auto_execute"] == "OK" and dict(steps)["safety_monitor"] == "OK"  # Stages 2-3 built
     assert run_cycle(db, http, logical_now(START), ad)["idempotent_replay"]           # idempotent per run_id
     assert forecast_days(db) >= POOL_DAYS
 

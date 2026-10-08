@@ -23,7 +23,8 @@ def hdr(n) -> dict:
 
 @pytest.fixture
 def api(world, tmp_path):
-    settings = Settings(data_dir=tmp_path / "data", workspace="screens")
+    settings = Settings(data_dir=tmp_path / "data", workspace="screens",
+                        eval_report_path=tmp_path / "no-eval.json")
     bootstrap(settings, world_client=world)
     with TestClient(create_app(settings, world_client=world, sync_jobs=True)) as c:
         yield c
@@ -75,7 +76,7 @@ def test_screen_endpoints(api):
     hist = get(api, "/policy/history")
     assert hist["status"] == "AVAILABLE" and hist["versions"][0]["version"] == pol["policy_version"]
     obj = get(api, "/objective")
-    assert obj["objective"] == "PROFIT" and not obj["can_change"]
+    assert obj["objective"] == "PROFIT" and obj["can_change"] and "GROWTH" in obj["supported_objectives"]
     assert api.put("/api/v1/objective", json={}, headers=hdr(2)).status_code == 422
 
     tl = get(api, f"/decisions/{did}/timeline", name="timeline")
@@ -106,6 +107,12 @@ def test_screen_endpoints(api):
         assert api.post(f"/api/v1{path}", json={}, headers=hdr(path)).status_code == 422, path
     score = api.post("/api/v1/creatives/score", json={"text": "bold hook"}, headers=hdr(6)).json()
     assert score["status"] == "NOT_ESTIMABLE" and score["score"] is None
+    both = api.post("/api/v1/creatives/score", json={"text": "video", "attributes": {"format": "video"}},
+                    headers=hdr(61))
+    assert both.status_code == 422
+    assert get(api, "/creatives/attributes")["status"] in ("AVAILABLE", "NOT_ESTIMABLE")
+    assert isinstance(get(api, "/ingest/imports"), list)
+    assert api.get("/api/v1/ingest/imports/imp-missing").status_code == 404
 
     chat = api.post("/api/v1/copilot/chat", json={"message": "Why should I approve this?"}, headers=hdr(7))
     assert chat.status_code == 200 and chat.headers["content-type"].startswith("text/event-stream")

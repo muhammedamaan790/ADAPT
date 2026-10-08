@@ -18,3 +18,16 @@ guard:
     severe: [35, 1000000]
   hedges: [associated with, evidence points to, points to, probable, probably, likely, consistent with, suggests]
   evaluative_allowlist: [material, materially, notable, notably]
+copilot:
+  # The Ask ADAPT agent (api/agent.py): a tool-calling chat over the product's read-only views. It shares the guard's
+  # number rule (every figure must appear in a tool result) but never the narrator's request profile.
+  llm:
+    models: [openai/gpt-oss-120b, llama-3.3-70b-versatile, openai/gpt-oss-20b]   # tool-capable fallback chain
+    timeout_s: 30
+    max_tokens: 1200
+    temperature: 0.3
+  max_tool_steps: 6                # tool rounds per question (spec §11: <= 6)
+  history_turns: 8                 # earlier user/assistant turns sent back with each question
+  tool_result_chars: 7000          # each tool result is compacted, then cut to this many characters
+  list_items: 15                   # lists inside a tool result keep this many items
+  small_int_allowance: 12          # bare integers up to this are counts or list numbering, not claims

@@ -155,7 +155,11 @@ def mapping_coverage(request: Request) -> MappingCoverageOut:
 
 @router.get("/reconciliation", response_model=ReconciliationOut)
 def reconciliation(request: Request) -> ReconciliationOut:
-    db = _db(request)
+    return reconciliation_view(_db(request))
+
+
+def reconciliation_view(db) -> ReconciliationOut:
+    """Shared by the endpoint and the Copilot's get_reconciliation tool."""
     _require(db, "marts.recon_daily")
     end = db.query("SELECT max(date) FROM marts.recon_daily")[0][0]
     if end is None:

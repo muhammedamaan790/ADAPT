@@ -1,0 +1,92 @@
+{
+  "started_at": "2026-10-07T22:43:19.230362Z",
+  "account": "6876531111",
+  "api_version": "v25",
+  "health": {
+    "ok": true,
+    "checks": {
+      "credentials": true,
+      "auth": true,
+      "api_version": true,
+      "account": true,
+      "test_account": true,
+      "currency": true
+    },
+    "reason": null
+  },
+  "budget": "30000000001",
+  "live_budget": "15934879153",
+  "steps": [
+    {
+      "at": "2026-10-07T22:43:19.785114Z",
+      "step": "PRE_READ",
+      "observed_inr": 136800.0
+    },
+    {
+      "at": "2026-10-07T22:43:20.475027Z",
+      "step": "SET",
+      "desired_inr": 136900.0,
+      "ok": true,
+      "http": 200,
+      "request": {
+        "operations": [
+          {
+            "update": {
+              "resourceName": "customers/6876531111/campaignBudgets/15934879153",
+              "amountMicros": "136900000000"
+            },
+            "updateMask": "amount_micros"
+          }
+        ]
+      },
+      "response": {
+        "results": [
+          {
+            "resourceName": "customers/6876531111/campaignBudgets/15934879153"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-07T22:43:21.197015Z",
+      "step": "VERIFY_SET",
+      "verified": true,
+      "observed_inr": 136900.0,
+      "polls": 1
+    },
+    {
+      "at": "2026-10-07T22:43:21.941316Z",
+      "step": "RESTORE",
+      "desired_inr": 136800.0,
+      "ok": true,
+      "http": 200,
+      "request": {
+        "operations": [
+          {
+            "update": {
+              "resourceName": "customers/6876531111/campaignBudgets/15934879153",
+              "amountMicros": "136800000000"
+            },
+            "updateMask": "amount_micros"
+          }
+        ]
+      },
+      "response": {
+        "results": [
+          {
+            "resourceName": "customers/6876531111/campaignBudgets/15934879153"
+          }
+        ]
+      }
+    },
+    {
+      "at": "2026-10-07T22:43:22.644386Z",
+      "step": "VERIFY_RESTORE",
+      "verified": true,
+      "observed_inr": 136800.0,
+      "polls": 1
+    }
+  ],
+  "passed": true,
+  "finished_at": "2026-10-07T22:43:22.644386Z"
+}

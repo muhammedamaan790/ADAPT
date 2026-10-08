@@ -22,7 +22,7 @@ from adapt.decide.decisions import get_decision
 from adapt.learn.calibration import current_factor
 
 PROVENANCE = ["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED"]
-PLATFORM = {"meta": "Meta", "google": "Google"}
+PLATFORM = {"meta": "Meta", "google": "Google", "tiktok": "TikTok", "amazon": "Amazon"}  # Stage 2 adds the last two
 KIND = {"efficiency_anomaly": "EFFICIENCY", "tracking_issue": "TRACKING", "budget_change": "BUDGET_CHANGE"}
 ANOMALY_STATUS = {"detected": "OPEN", "investigating": "OPEN", "acknowledged": "ACKNOWLEDGED",
                   "resolved": "RESOLVED"}
@@ -103,6 +103,8 @@ def decision_view(db, decision_id: str, names: dict | None = None) -> dict:
         why.append({"entity": names.get(w["unit_id"], w["unit_id"]), "rule_id": rule, "reason": text,
                     "metric": metric})
     risk = d["inventory_risk_after"]
+    kind = risk.get("kind") or "PROJECTED_SHORTFALL"
+    value_key = "shortfall" if kind == "PROJECTED_SHORTFALL" else "stockout_probability"
     return {
         "decision_id": decision_id, "title": nar.decision_title(d, names), "summary": nar.decision_summary(d, names),
         "class": d["class"], "type": d["type"], "objective": d.get("objective", "PROFIT"), "status": d["status"],
@@ -112,8 +114,8 @@ def decision_view(db, decision_id: str, names: dict | None = None) -> dict:
         "expected": {"p10": e["p10"], "p50": e["p50"], "p90": e["p90"], "prob_loss": e["prob_loss"],
                      "delta_net_revenue": e["delta_net_revenue"], "raw_pred": e["raw_pred"],
                      "calibrated_pred": e["calibrated_pred"]},
-        "inventory_risk_after": {"kind": "PROJECTED_SHORTFALL",
-                                 "by_sku": {k: float(v.get("shortfall", 0.0)) if isinstance(v, dict) else float(v)
+        "inventory_risk_after": {"kind": kind,
+                                 "by_sku": {k: float(v.get(value_key, 0.0)) if isinstance(v, dict) else float(v)
                                             for k, v in risk.get("by_sku", {}).items()}},
         "unallocated": max(float(d.get("unallocated") or 0.0), 0.0),
         "reserve_floor": float(d.get("reserve_floor") or 0.0),
@@ -125,7 +127,18 @@ def decision_view(db, decision_id: str, names: dict | None = None) -> dict:
         "decision_hash": d["decision_hash"], "policy_version": pv, "valuation_status": "AVAILABLE",
         "follows": follows, "provenance_inputs": PROVENANCE, "created_at": d["created_at"].isoformat(),
         "horizon_days": 7,
+        "confidence": {k: d["confidence"][k] for k in ("overall", "band", "region", "data_quality",
+                                                        "prediction_quality", "track_record", "constraint_coverage")}
+        if d.get("confidence") else None,
+        "autonomy": _autonomy(db, decision_id),
     }
+
+
+def _autonomy(db, decision_id: str) -> dict | None:
+    from adapt.policy.autonomy import autonomy_entry
+
+    e = autonomy_entry(db, decision_id)
+    return {**e, "at": e["at"].isoformat()} if e else None
 
 
 def decision_list(db) -> list[dict]:
@@ -303,7 +316,10 @@ def event_list(db, limit: int = 100) -> list[dict]:
             p = json.loads(payload or "{}")
             did = ent if etype == "decision" else None
             msg = {"action_executed": f"Budget {ent} set to {nar.inr(p.get('after'))}/day and verified",
-                   "outcome_matured": f"Outcome matured: {p.get('verdict')}"}.get(typ, f"{typ} on {etype} {ent}")
+                   "outcome_matured": f"Outcome matured: {p.get('verdict')}",
+                   "safety_alert": f"{p.get('priority', 'P1')} safety alert: {p.get('message', '')}"
+                                   + (f" ({', '.join(p['triggers'])})" if p.get("triggers") else "")
+                   }.get(typ, f"{typ} on {etype} {ent}")
             ev.append({"id": eid, "at": at.isoformat(), "kind": typ, "message": msg, "decision_id": did})
     if has(db, "ops", "pipeline_runs"):
         for rid, as_of, st in db.query("SELECT run_id, as_of, status FROM ops.pipeline_runs"):
@@ -358,11 +374,41 @@ def _anomaly_row_view(db, row, names_by_campaign) -> dict | None:
                    "detail": f"{nar.inr(impact)} over {ws.isoformat()}..{we.isoformat()}"},
                   {"id": "COLLAPSE", "label": "Collapse state", "passed": not bool(collapse),
                    "detail": "a numerator or denominator reached zero" if collapse else ""}],
-        "causal": {"status": "NOT_ESTIMABLE", "reason": "the synthetic-control estimator is Stage 2; Stage 1 shows "
-                   "exact accounting and evidence-scored probable drivers only", "effect_pct": None,
-                   "lower_pct": None, "upper_pct": None, "assumptions": []},
+        "causal": causal_view(db, aid),
         "resolution_reason": reason,
     }
+
+
+def causal_view(db, anomaly_id: str) -> dict:
+    """The gated synthetic-control estimate stored by the diagnose step (Stage 2 ★, spec §7.1 level 3): the % effect
+    with its 90% interval when every gate passed, otherwise "No causal estimate: <reason>"."""
+    if not has(db, "intel", "causal_estimates"):
+        row = []
+    else:
+        row = db.query("""SELECT status, reason, effect_pct, ci_lo, ci_hi, details, gates FROM intel.causal_estimates
+                          WHERE anomaly_id = ? ORDER BY as_of DESC LIMIT 1""", [anomaly_id])
+    if not row:
+        return {"status": "NOT_ESTIMABLE", "reason": "no causal estimate was attempted for this incident (only "
+                "ROAS-family incidents are estimated)", "effect_pct": None, "lower_pct": None, "upper_pct": None,
+                "assumptions": []}
+    status, reason, eff, lo, hi, details, gates = row[0]
+    assumptions = (json.loads(details or "{}") or {}).get("assumptions") or []
+    if status == "ESTIMATED" and None not in (eff, lo, hi):
+        return {"status": "ESTIMABLE", "reason": "every gate passed (pre-fit sMAPE, positivity, controls, placebo); "
+                "an estimate under the stated assumptions, not proof", "effect_pct": float(eff),
+                "lower_pct": float(lo), "upper_pct": float(hi), "assumptions": assumptions}
+    failed = [g for g, v in (json.loads(gates or "{}") or {}).items() if isinstance(v, dict) and not v.get("passed")]
+    return {"status": "NOT_ESTIMABLE", "reason": f"No causal estimate: {reason or ', '.join(failed) or 'gates failed'}",
+            "effect_pct": None, "lower_pct": None, "upper_pct": None, "assumptions": assumptions}
+
+
+def latest_narrative(db, kind: str, ref_id: str) -> dict | None:
+    """The newest stored narrative for an incident, decision or the brief (written by the pipeline's narrate step)."""
+    if not has(db, "intel", "narratives"):
+        return None
+    row = db.query("SELECT narrative FROM intel.narratives WHERE kind = ? AND ref_id = ? ORDER BY created_at DESC "
+                   "LIMIT 1", [kind, ref_id])
+    return json.loads(row[0][0]) if row else None
 
 
 ANOMALY_COLS = ("anomaly_id, scope, entity_key, entity_ids, platform, metric, direction, classification, status, "
@@ -412,8 +458,10 @@ def overview_view(db, workspace: str, world: dict, scenario: str) -> dict:
         mer = lambda w: w["net_revenue"] / w["spend"] if w["spend"] else None  # noqa: E731
         poas = lambda w: w["att_cba"] / w["att_spend"] if w["att_spend"] else None  # noqa: E731
         res = optimizer_result(db, _run_opt_id(db, run[0])) if run else {}
-        risk = [k for k, v in (res.get("inventory_risk_after") or {}).get("by_sku", {}).items()
-                if v.get("shortfall", 0) > 0]
+        inv = res.get("inventory_risk_after") or {}
+        stockout = inv.get("kind") == "STOCKOUT_PROBABILITY"
+        # status applies the stage's predicate: projected shortfall > 0, or P(stockout) > p_unsafe
+        risk = [k for k, v in inv.get("by_sku", {}).items() if v.get("status", "OK") != "OK"]
         spec = [("net_revenue", "Net revenue (7d)", cur["net_revenue"], "money", _rel(cur["net_revenue"],
                  prev["net_revenue"]), "GMV − discounts − refunds (tax excluded)", "marts.brand_daily", None),
                 ("spend", "Ad spend (7d)", cur["spend"], "money", _rel(cur["spend"], prev["spend"]),
@@ -424,8 +472,10 @@ def overview_view(db, workspace: str, world: dict, scenario: str) -> dict:
                  "marts.brand_daily", None if cur["spend"] else "ZERO_DENOMINATOR"),
                 ("poas", "POAS (7d)", poas(cur), "ratio", _rel(poas(cur), poas(prev)),
                  "attributed CBA / spend", "marts.campaign_daily", None if cur["att_spend"] else "ZERO_DENOMINATOR"),
-                ("inventory_risk_skus", "SKUs with projected shortfall", float(len(risk)), "count", None,
-                 "count of SKUs with projected shortfall > 0 over 7 days (Stage 1)", "intel.optimizer_runs", None)]
+                ("inventory_risk_skus", "SKUs at stockout risk" if stockout else "SKUs with projected shortfall",
+                 float(len(risk)), "count", None,
+                 "count of SKUs with model P(stockout over 7 days) > p_unsafe (NB2)" if stockout else
+                 "count of SKUs with projected shortfall > 0 over 7 days", "intel.optimizer_runs", None)]
         metrics = [{"key": k, "label": lab, "value": None if v is None else float(v), "format": f, "change": ch,
                     "reason": r, "formula": form, "source": src, "available_at": as_of or last.isoformat(),
                     "provenance_inputs": PROVENANCE} for k, lab, v, f, ch, form, src, r in spec]
@@ -477,10 +527,12 @@ def overview_view(db, workspace: str, world: dict, scenario: str) -> dict:
             for i, lab in enumerate(labels)] if loop_state != "Data" else \
         [{"label": lab, "state": "complete"} for lab in labels]
     verdicts = {k.upper(): int(v) for k, v in counts.items()}
+    stored = latest_narrative(db, "brief", f"brief-{run[1]:%Y%m%d}") if run else None
+    brief = (" ".join([stored["headline"] + ":"] + [x["text"] for x in stored["sentences"]]) if stored else
+             nar.brief(int(world.get("day", 0)), incidents,
+                       [{"expected": {"E": d["expected"]["p50"]}} for d in pending], len(executing), verdicts, factor))
     return {"workspace": workspace, "decision_ts": as_of, "world_day": int(world.get("day", 0)),
-            "scenario": scenario, "brief": nar.brief(int(world.get("day", 0)), incidents,
-                                                     [{"expected": {"E": d["expected"]["p50"]}} for d in pending],
-                                                     len(executing), verdicts, factor),
+            "scenario": scenario, "brief": brief,
             "metrics": metrics, "sources": sources, "attention": attention[:12], "series": series, "loop": loop,
             "calibration": float(factor), "counts": counts}
 

@@ -43,6 +43,21 @@ CREATE TABLE IF NOT EXISTS ops.live_entity_map (
 """
 
 
+def load_env(path) -> dict:
+    """The process environment plus the backend .env (process values win): the OAuth client, refresh token and
+    customer ids live only in .env (spec §9.5), which pydantic settings read without exporting."""
+    from pathlib import Path
+
+    env = dict(os.environ)
+    path = Path(path)
+    if path.exists():
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.split("=", 1)
+                env.setdefault(k.strip(), v.strip())
+    return env
+
+
 @dataclass(frozen=True)
 class GoogleAdsCredentials:
     client_id: str | None

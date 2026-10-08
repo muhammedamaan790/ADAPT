@@ -6,11 +6,11 @@ from __future__ import annotations
 
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel, Field, model_serializer
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 Provenance = Literal["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED", "LIVE"]
 Objective = Literal["PROFIT", "GROWTH", "ACQUISITION", "INVENTORY_CLEARANCE", "MARGIN_PROTECTION", "BALANCED"]
-Platform = Literal["Meta", "Google"]
+Platform = Literal["Meta", "Google", "TikTok", "Amazon"]  # TikTok + Amazon: Stage 2 simulated channels
 
 
 class OmitNone(BaseModel):
@@ -119,7 +119,7 @@ class Expected(BaseModel):
 
 
 class InventoryRisk(BaseModel):
-    kind: Literal["PROJECTED_SHORTFALL"]
+    kind: Literal["PROJECTED_SHORTFALL", "STOCKOUT_PROBABILITY"]  # by_sku: units short | P(stockout) in [0, 1]
     by_sku: dict[str, float]
 
 
@@ -139,8 +139,30 @@ DecisionStatus = Literal["DRAFT", "PENDING_APPROVAL", "APPROVED", "REJECTED", "E
                          "EXECUTED", "PARTIAL", "BLOCKED"]
 
 
+class Confidence(BaseModel):
+    overall: float = Field(ge=0, le=1)
+    band: Literal["HIGH", "MEDIUM", "LOW"]
+    region: Literal["R1", "R2", "R3"]
+    data_quality: float = Field(ge=0, le=1)
+    prediction_quality: float = Field(ge=0, le=1)
+    track_record: float = Field(ge=0, le=1)
+    constraint_coverage: bool
+
+
+class AutonomyGate(BaseModel):
+    id: str
+    passed: bool
+    detail: str
+
+
+class AutonomyEntry(BaseModel):
+    at: str
+    result: Literal["EXECUTED", "DOWNGRADED"]
+    gates: list[AutonomyGate]
+
+
 class Decision(OmitNone):
-    omit_if_none = ("valuation_status", "follows")
+    omit_if_none = ("valuation_status", "follows", "confidence", "autonomy")
     decision_id: str
     title: str
     summary: str
@@ -167,6 +189,8 @@ class Decision(OmitNone):
     provenance_inputs: list[Provenance]
     created_at: str
     horizon_days: int = Field(gt=0)
+    confidence: Confidence | None = None   # spec §8.4 confidence index (omitted for decisions created before it)
+    autonomy: AutonomyEntry | None = None  # the auto-execute verdict on an AUTONOMOUS channel
 
     model_config = {"populate_by_name": True}
 
@@ -705,5 +729,171 @@ class SimulateBody(BaseModel):
     decision_hash: str
 
 
+class CopilotTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
+
+
 class CopilotBody(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
+    history: list[CopilotTurn] = Field(default_factory=list, max_length=40)
+
+
+# ---- Stage 2 wiring --------------------------------------------------------------------------------------------------
+class ObjectiveChangeBody(BaseModel):
+    workspace_id: str
+    revision: str
+    objective: Objective
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class ModelActionBody(BaseModel):
+    version: str
+    registry_revision: str
+    artifact_hash: str | None = None
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class ModelActionOut(BaseModel):
+    name: str
+    version: str
+    registry_revision: str
+    message: str
+
+
+class ChooseAlternativeBody(BaseModel):
+    decision_hash: str
+
+
+class NarrativeSentence(BaseModel):
+    text: str
+    atom_ids: list[str]
+    evidence_ids: list[str]
+    claim_levels: list[str]
+
+
+class NextStep(BaseModel):
+    kind: Literal["VIEW_DECISION", "APPROVE_REVIEW", "RECONCILE", "INVESTIGATE", "NONE"]
+    ref_id: str | None
+
+
+class NarrativeOut(BaseModel):
+    """A guarded narrative (spec §11): LLM prose whose every number, direction and entity was checked against the
+    deterministic claim atoms, or the offline template. `badge` is never a blanket "verified"."""
+    kind: Literal["incident", "decision", "brief"]
+    ref_id: str
+    headline: str
+    sentences: list[NarrativeSentence]
+    next_step: NextStep
+    source: str
+    badge: str
+    fallback_reason: str | None = None
+    not_estimable_reason: str | None = None
+
+
+class PlatformHealth(BaseModel):
+    platform: str
+    mode: Literal["MOCK", "LIVE"]
+    ok: bool
+    label: str
+    reason: str | None = None
+    checks: dict[str, bool] = {}
+
+
+class SimDivergence(BaseModel):
+    leg_id: str
+    budget_id: str
+    amount: float
+    state: Literal["MIRROR_PENDING", "MIRROR_FAILED"]
+
+
+class PlatformsOut(BaseModel):
+    platforms: list[PlatformHealth]
+    sim_out_of_sync: list[SimDivergence]
+
+
+class PolicyModeBody(BaseModel):
+    policy_version: str
+    revision: str
+    channel: Literal["Meta", "Google", "TikTok", "Amazon"]
+    mode: Literal["OBSERVE", "APPROVE", "SIMULATION_AUTONOMOUS", "PRODUCTION_AUTONOMOUS"]
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class SqlBody(BaseModel):
+    query: str = Field(min_length=3, max_length=4000)
+    limit: int = Field(500, ge=1, le=500)
+
+
+class SqlResult(BaseModel):
+    query: str
+    columns: list[str] = Field(min_length=1, max_length=40)
+    rows: list[list[str | float | int | bool | None]]
+    truncated: bool
+    elapsed_ms: float = Field(ge=0)
+    as_of: str
+
+
+class ImportAck(BaseModel):
+    import_id: str
+    status: Literal["STAGED", "IMPORTED"]
+    row_count: int = Field(ge=0)
+    message: str
+
+
+class UploadBody(BaseModel):
+    type: Literal["ads", "inventory", "margins"]
+    records: list[dict] = Field(min_length=1, max_length=5000)
+    source_currency: str
+    source_timezone: str
+
+
+class ConfirmBody(BaseModel):
+    import_id: str
+    mapping: dict[str, str]
+
+
+class MappingSuggestBody(BaseModel):
+    type: Literal["ads", "inventory", "margins"]
+    headers: list[str] = Field(min_length=1, max_length=200)
+
+
+class CreativeScoreBody(BaseModel):
+    """Either a free-text brief (attributes read from its words) or explicit trained attribute levels."""
+    text: str | None = Field(default=None, min_length=1, max_length=2000)
+    attributes: dict[str, str] | None = Field(default=None, max_length=5)
+
+    @model_validator(mode="after")
+    def _one_input(self):
+        if (self.text is None) == (self.attributes is None):
+            raise ValueError("send exactly one of text or attributes")
+        return self
+
+
+class CreativeAttributes(BaseModel):
+    status: Literal["AVAILABLE", "NOT_ESTIMABLE"]
+    domains: dict[str, list[str]]
+    note: str
+
+
+class UploadImport(BaseModel):
+    import_id: str
+    type: Literal["ads", "inventory", "margins"]
+    status: Literal["STAGED", "IMPORTED"]
+    row_count: int = Field(ge=0)
+    staged_at: str
+    workspace_id: str | None
+
+
+class UploadDetail(BaseModel):
+    import_id: str
+    type: Literal["ads", "inventory", "margins"]
+    workspace_id: str
+    table: str
+    columns: list[str] = Field(max_length=40)
+    records: list[dict[str, str | float | int | bool | None]] = Field(max_length=100)
+    truncated: bool
+    row_count: int = Field(ge=0)
+    engine_eligible: Literal[False]
+    missing_sources: list[str]
+    note: str

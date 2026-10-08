@@ -24,6 +24,8 @@ dependencies = [
     "lightgbm>=4.7.0",
     "argon2-cffi>=25.1.0",
     "itsdangerous>=2.2.0",
+    "sqlglot>=30.21.0",
+    "rapidfuzz>=3.14.6",
 ]
 
 [dependency-groups]

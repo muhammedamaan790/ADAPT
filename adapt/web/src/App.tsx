@@ -1,15 +1,12 @@
 import { lazy, Suspense, useState, useEffect, useRef, type CSSProperties } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
+import { PlatformBanner } from './components/PlatformBanner';
 import {
   FlaskConical,
   LayoutDashboard,
   Workflow,
   Radar,
-  SlidersHorizontal,
   ListChecks,
-  PlugZap,
-  MessageSquare,
-  TrendingUp,
   BookOpen,
   Database,
   ChartNoAxesCombined,
@@ -32,28 +29,17 @@ const ScenarioLab = lazy(() =>
   import('./pages/ScenarioLab').then((m) => ({ default: m.ScenarioLab })),
 );
 const Anomalies = lazy(() => import('./pages/Anomalies').then((m) => ({ default: m.Anomalies })));
-const Optimizer = lazy(() => import('./pages/Optimizer').then((m) => ({ default: m.Optimizer })));
 const ExecutionLedger = lazy(() =>
   import('./pages/ExecutionLedger').then((m) => ({ default: m.ExecutionLedger })),
-);
-const Connection = lazy(() =>
-  import('./pages/Connection').then((m) => ({ default: m.Connection })),
-);
-const Opportunities = lazy(() =>
-  import('./pages/Opportunities').then((m) => ({ default: m.Opportunities })),
 );
 const Outcomes = lazy(() => import('./pages/Outcomes').then((m) => ({ default: m.Outcomes })));
 const Learning = lazy(() => import('./pages/Learning').then((m) => ({ default: m.Learning })));
 const DataHub = lazy(() => import('./pages/DataHub').then((m) => ({ default: m.DataHub })));
-const Copilot = lazy(() => import('./components/Copilot').then((m) => ({ default: m.Copilot })));
 const routeNames: Record<string, string> = {
   decisions: 'Decision Center',
   scenarios: 'Scenario Lab',
   anomalies: 'Anomalies',
-  optimizer: 'Optimizer',
   executions: 'Execution & Ledger',
-  connection: 'Backend Connection',
-  opportunities: 'Opportunity Map',
   outcomes: 'Outcomes',
   learning: 'Learning',
   data: 'Data Hub',
@@ -72,8 +58,6 @@ const navigation = [
     label: 'Analyze',
     items: [
       { to: '/anomalies', label: 'Anomalies', icon: Radar },
-      { to: '/opportunities', label: 'Opportunity Map', icon: TrendingUp },
-      { to: '/optimizer', label: 'Optimizer', icon: SlidersHorizontal },
       { to: '/outcomes', label: 'Outcomes', icon: ChartNoAxesCombined },
       { to: '/learning', label: 'Learning', icon: BookOpen },
     ],
@@ -83,7 +67,6 @@ const navigation = [
     items: [
       { to: '/data', label: 'Data Hub', icon: Database },
       { to: '/scenarios', label: 'Scenario Lab', icon: FlaskConical },
-      { to: '/connection', label: 'Backend Connection', icon: PlugZap },
     ],
   },
 ];
@@ -102,7 +85,6 @@ const footerLinks = [
     label: 'Evidence',
     links: [
       { to: '/anomalies', label: 'Signals & incidents' },
-      { to: '/opportunities', label: 'Growth candidates' },
       { to: '/outcomes', label: 'Measured results' },
       { to: '/learning', label: 'Calibration history' },
     ],
@@ -111,8 +93,8 @@ const footerLinks = [
     label: 'Controls',
     links: [
       { to: '/executions?section=policy', label: 'Channel policy' },
-      { to: '/data?section=workspaces', label: 'Workspaces' },
-      { to: '/connection', label: 'Endpoint checks' },
+      { to: '/data', label: 'Source health' },
+      { to: '/scenarios', label: 'World controls' },
     ],
   },
 ];
@@ -179,7 +161,6 @@ function readTheme() {
 export function App() {
   const [dark, setDark] = useState(readTheme);
   const [mobileNav, setMobileNav] = useState(false);
-  const [copilot, setCopilot] = useState(false);
   const overview = useOverview();
   const route = useLocation().pathname;
   const section = route.split('/')[1];
@@ -225,20 +206,12 @@ export function App() {
               <BrandMark />
               <span className="wordmark-text">ADAPT</span>
             </Link>
-            <Link
-              className="workspace workspace-pill"
-              to="/data?section=workspaces"
-              aria-label="Manage workspaces"
-            >
+            <span className="workspace workspace-pill" title="Active workspace">
               <strong className="workspace-pill-name">{workspace}</strong>
               <span className="workspace-pill-meta">INR</span>
-            </Link>
+            </span>
           </div>
           <div className="site-header-actions">
-            <button className="nav-pill" aria-label="Open Copilot" onClick={() => setCopilot(true)}>
-              <MessageSquare size={15} aria-hidden="true" />
-              <span className="copilot-label">Copilot</span>
-            </button>
             <span className={`mode-pill ${dataMode === 'fixture' ? 'mode-fixture' : 'mode-api'}`}>
               {dataMode === 'fixture' ? 'FRONTEND FIXTURES' : 'API MODE'}
             </span>
@@ -272,6 +245,7 @@ export function App() {
         className="shell-wide"
         style={{ '--eyebrow': `"${group?.label || 'Workspace'}"` } as CSSProperties}
       >
+        <PlatformBanner />
         <ViewBoundary key={route}>
           <Suspense fallback={<Loading label="Loading workspace" />}>
             <Routes>
@@ -280,10 +254,7 @@ export function App() {
               <Route path="/decisions/:id" element={<DecisionCenter />} />
               <Route path="/scenarios" element={<ScenarioLab />} />
               <Route path="/anomalies" element={<Anomalies />} />
-              <Route path="/optimizer" element={<Optimizer />} />
               <Route path="/executions" element={<ExecutionLedger />} />
-              <Route path="/connection" element={<Connection />} />
-              <Route path="/opportunities" element={<Opportunities />} />
               <Route path="/outcomes" element={<Outcomes />} />
               <Route path="/learning" element={<Learning />} />
               <Route path="/data" element={<DataHub />} />
@@ -348,30 +319,6 @@ export function App() {
         <Modal title="Navigation" close={() => setMobileNav(false)}>
           <Navigation close={() => setMobileNav(false)} />
         </Modal>
-      )}
-      {copilot && (
-        <ViewBoundary
-          fallback={
-            <Modal title="Copilot unavailable" close={() => setCopilot(false)}>
-              <p className="modal-description">
-                The assistant could not be displayed. Close this dialog to continue reviewing the
-                workspace, or reload to retrieve the latest application.
-              </p>
-              <div className="modal-actions">
-                <button className="button secondary" onClick={() => setCopilot(false)}>
-                  Close assistant
-                </button>
-                <button className="button primary" onClick={() => window.location.reload()}>
-                  Reload workspace
-                </button>
-              </div>
-            </Modal>
-          }
-        >
-          <Suspense fallback={<Loading label="Opening Copilot" />}>
-            <Copilot close={() => setCopilot(false)} />
-          </Suspense>
-        </ViewBoundary>
       )}
     </div>
   );
