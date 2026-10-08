@@ -18,6 +18,8 @@ export function UploadDialog({ close }: { close: () => void }) {
   const [type, setType] = useState<ImportType>('ads');
   const [csv, setCsv] = useState<Csv | null>(null);
   const [fileName, setFileName] = useState('');
+  // Bumped only after an import, to clear the file box for the next file (never while one is being picked).
+  const [inputKey, setInputKey] = useState(0);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [parseError, setParseError] = useState('');
   const [done, setDone] = useState('');
@@ -57,6 +59,7 @@ export function UploadDialog({ close }: { close: () => void }) {
       setDone(ack.message);
       setCsv(null);
       setFileName('');
+      setInputKey((k) => k + 1);
       void queryClient.invalidateQueries();
     },
   });
@@ -87,7 +90,7 @@ export function UploadDialog({ close }: { close: () => void }) {
           <input
             type="file"
             accept=".csv,text/csv"
-            key={fileName || 'empty'}
+            key={inputKey}
             onChange={(e) => void pick(e.target.files?.[0])}
           />
         </label>
