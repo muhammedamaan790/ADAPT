@@ -1,0 +1,145 @@
+{
+  "audited_revision": "1b5ec191f6453d144c2af08fca83066724123e68",
+  "date": "2026-10-08",
+  "branch": "docs/readme-showcase",
+  "application_modified": false,
+  "data_mode": "fixture",
+  "scenario": "DEMO_01",
+  "value_sources": [
+    "adapt/web/src/api/fixtures.ts",
+    "adapt/web/src/api/fixture-service.ts"
+  ],
+  "snapshot": "story-data.json",
+  "nature": "Illustrative frontend fixtures; not seeded-world output, measured advertising uplift or earned production qualification.",
+  "screenshots": {
+    "command-center.png": "Actual Command Center; crop from business metrics through attention register.",
+    "command-center-dark.png": "Same actual screen in its native dark theme.",
+    "intelligence.png": "Actual ranked evidence list in Decision Center.",
+    "budget-allocation.png": "Actual allocation section in Decision Center.",
+    "outcome-feedback.png": "Actual Outcomes after fixture approval, settled execution and three-day advance; measurement context expanded."
+  },
+  "story_values": {
+    "last_actual_roas": 2.3,
+    "last_baseline_roas": 3.8,
+    "hero_creative_ctr_change": -0.4,
+    "shortfall_before_action_units": 42,
+    "current_daily_budgets_inr": [
+      40000,
+      24000,
+      20000,
+      16000
+    ],
+    "proposed_daily_budgets_inr": [
+      32000,
+      28800,
+      22400,
+      12800
+    ],
+    "unallocated_daily_inr": 4000,
+    "calibrated_forecast_3d_inr": 7200,
+    "illustrative_outcome_3d_inr": 5600,
+    "fixture_correction_before": 0.9,
+    "fixture_correction_after": 0.86
+  },
+  "animation": {
+    "tooling": "Pillow frame rendering; shared 128-color GIF palette; optional imageio-ffmpeg H.264 encoding. No Remotion tooling was installed or available.",
+    "duration_ms": 7250,
+    "nominal_fps": 24,
+    "frames": 174,
+    "loop": "infinite; first and last composited GIF frames identical",
+    "intermediate_numbers": "Visual interpolation between fixture budgets, not additional logged execution states.",
+    "transfer": "An illustrative feasible decomposition of the fixture's net budget movement, not a source-reported transfer ledger.",
+    "mobile": "Static stacked story selected below 600px.",
+    "reduced_motion": "Static first-frame poster.",
+    "gif_bytes": 1058075
+  },
+  "validation": {
+    "frontend_build": "passed",
+    "frontend_unit_tests": "69 passed",
+    "focused_backend_tests": "61 passed: metrics, detect/diagnose, guarded SQL and authentication",
+    "import_boundaries": "2 kept; 0 broken",
+    "python_setup": "uv sync --frozen passed with Python 3.12.15",
+    "cli_entrypoints": "profile, backbone, seed, bootstrap, Kaggle download, evaluation and warm-up help verified; Windows evaluation help requires UTF-8 console output",
+    "live_demo": "Existing GitHub Pages URL returned HTTP 200 and ADAPT HTML; Pages API reported built",
+    "not_run": [
+      "raw Kaggle downloads",
+      "full seeded-world bootstrap",
+      "overnight evaluation/warm-up",
+      "live Google mutation",
+      "Groq inference",
+      "full backend suite",
+      "all Playwright suites"
+    ],
+    "rendering": "GitHub Markdown API GFM HTML, locally previewed with github-markdown-css and Mermaid 11; native GitHub repository publication not performed",
+    "preview_checks": [
+      {
+        "theme": "light",
+        "width": 1200,
+        "errors": [],
+        "overflow": false,
+        "broken": [],
+        "hero": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/hero-light.png",
+        "motion": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/decision-loop-poster.png",
+        "diagram": 1,
+        "details": 7
+      },
+      {
+        "theme": "light",
+        "width": 390,
+        "errors": [],
+        "overflow": false,
+        "broken": [],
+        "hero": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/hero-light.png",
+        "motion": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/decision-loop-mobile.png",
+        "diagram": 1,
+        "details": 7
+      },
+      {
+        "theme": "dark",
+        "width": 1200,
+        "errors": [],
+        "overflow": false,
+        "broken": [],
+        "hero": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/hero-dark.png",
+        "motion": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/decision-loop-poster.png",
+        "diagram": 1,
+        "details": 7
+      },
+      {
+        "theme": "dark",
+        "width": 390,
+        "errors": [],
+        "overflow": false,
+        "broken": [],
+        "hero": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/hero-dark.png",
+        "motion": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/decision-loop-mobile.png",
+        "diagram": 1,
+        "details": 7
+      },
+      {
+        "animatedSource": "http://127.0.0.1:8892/ADAPT-readme/docs/assets/readme/adapt-decision-loop.gif"
+      }
+    ],
+    "link_check": {
+      "checked": 38,
+      "broken": 0
+    }
+  },
+  "rendering_references": [
+    "https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax",
+    "https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams"
+  ],
+  "asset_sha256": {
+    "adapt-decision-loop.gif": "b191bb3236d906fc7aa31a53391aad31c93341f903ccb5a4acc185bf0ae5e1a5",
+    "adapt-decision-loop.mp4": "5a7872feebcf96a61a22c6daaed07c28a40b08eb88c91eae3f85519c9669173a",
+    "budget-allocation.png": "54dca3c1c7c8f0688c35a67741c98ff4d63e3f261b19f4b767346adce20af6b0",
+    "command-center-dark.png": "c6c69252190a376f8f2f665fd3dbbcd19181baad59948f9532575917c84a75c9",
+    "command-center.png": "3d0d3b59ca81674b6b9434768db111e9d444fca296988343d46c4aa089b19684",
+    "decision-loop-mobile.png": "60c656c769eeedbc864e447a95bec14dc106bc918812d359bd8f6e871743f5f7",
+    "decision-loop-poster.png": "310a2dae6a43e2ba1716d6f1c53859587a57b152c5419b026a154ded44d420b2",
+    "hero-dark.png": "6d2553b93e1e6d549f80c65336eb72e936679b26d3c5543f92d07283e8816310",
+    "hero-light.png": "ad03fbcf411012571cb7448dbd4471c2ccc49f90df18df026b640d5775e2de7f",
+    "intelligence.png": "97a94a54731584e5e36ba7e829aef599d43bbb2b844889c2b26919502a472b49",
+    "outcome-feedback.png": "856a500d45ea665233dbd919a4f0bebd722c61c1f8202639c12009bc96210776"
+  }
+}
