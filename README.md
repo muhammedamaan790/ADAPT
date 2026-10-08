@@ -14,7 +14,7 @@ npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:5173**. Routes: `/`, `/decisions`, `/scenarios`, `/anomalies`, `/optimizer`, `/executions`, `/connection`, `/opportunities`, `/outcomes`, `/learning`, `/data`. Copilot opens from the top bar; mobile navigation exposes the new pages under **More pages**.
+Open **http://127.0.0.1:5173**. Routes: `/`, `/decisions`, `/inventory`, `/anomalies`, `/optimizer`, `/executions`, `/connection`, `/opportunities`, `/outcomes`, `/learning`, `/data`. Copilot opens from the top bar; mobile navigation exposes the new pages under **More pages**.
 
 For this workstation, if Node is not on PATH, use the workspace's portable runtime before the commands above:
 
@@ -25,8 +25,8 @@ $env:Path = 'C:\DataQuest\.runtime\node-v22.16.0-win-x64;' + $env:Path
 ## What works now
 
 - Command Center: financial metrics with formula/source lineage, financial-impact attention queue, actual/baseline chart, source health and loop status.
-- Decision Center: accounting decomposition, diagnostic evidence, campaign allocation, unallocated cash/reserve, rejected alternatives with rule IDs, policy checks, hash-bound approval dialog, rejection reason, execution legs and outcome feedback.
-- Scenario Lab: Stage 1 examples S1–S5, S7 and DEMO_01; clock advance, reset, event feed and all four outcome verdict counts. A backend capability catalog controls availability, with a fresh check before loading; six later scenarios remain unbuilt in the bundled demo.
+- Decision Center: a three-part brief (what happened, what ADAPT recommends, expected result) with the approval bar, then tabs for budget changes, evidence, alternatives, execution and policy checks. Covers accounting decomposition, diagnostic evidence, campaign allocation, unallocated cash/reserve, rejected alternatives with rule IDs, policy checks, hash-bound approval dialog, rejection reason, execution legs and outcome feedback.
+- Inventory: one row per SKU with available stock, sell rate (7-day vs 28-day), days of cover, inbound and attributed ad spend, plus the agent's rule-based recommendation (restock, hold ad spend, expedite, clear excess, scale, watch) and an alert feed. API: `GET /api/v1/data/inventory` from `marts.sku_daily`.
 - Anomalies: searchable investigation queue, channel/status filters, source gates, causal estimability, linked evidence, acknowledgement and reasoned resolution. Expected budget movements stay outside efficiency incident counts.
 - Optimizer: editable budgets with input bounds, recorded valuation inspection, explicit unavailable forecasts for arbitrary fixture edits, and separate superseding drafts. Six objective policies are named; only backend-supported objectives can be selected. Valuations and revisions must match the selected objective and proposal identity. Drafts cannot execute.
 - Execution & Ledger: per-leg request/read-back/mirror states, unknown-result verification, confirmed-failure retry, prior-settings restoration, verified reconciliation and an action ledger. Recovery fault examples are fixture-only. **Policy & readiness** separates simulation/real qualification evidence, shows Google test-account limits and supports reviewed backend mode requests. Fixture policy is read-only and has no qualification evidence.

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect } from 'react';
+import { lazy, Suspense, useState, useEffect, type KeyboardEvent } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -41,6 +41,9 @@ import { BudgetMovement } from '../components/FinancialComparison';
 import { Narrative } from '../components/Narrative';
 import { ConfidencePanel } from '../components/ConfidencePanel';
 import { dateTime, humanStatus, money, percent, signedMoney } from '../lib/format';
+import './decision-center.css';
+
+type Tab = 'changes' | 'why' | 'alternatives' | 'execution' | 'details';
 
 export function DecisionCenter() {
   const { id: routeId } = useParams();
@@ -74,6 +77,7 @@ export function DecisionCenter() {
     null,
   );
   const [confirmed, setConfirmed] = useState(false);
+  const [picked, setPicked] = useState<Record<string, Tab>>({});
   const [reason, setReason] = useState('');
   const approve = useAction((d: Decision) => api.approve(d.decision_id, d.decision_hash));
   const reject = useAction((v: { d: Decision; reason: string }) =>
@@ -109,11 +113,12 @@ export function DecisionCenter() {
         </div>
         <section className="panel">
           <Empty title="No decisions to review">
-            This workspace has no open proposal. Run a scenario to investigate a new example.
+            This workspace has no open proposal. New proposals appear here when the daily cycle
+            finds one.
           </Empty>
           <div className="empty-action">
-            <Link className="button secondary" to="/scenarios">
-              Open Scenario Lab <ArrowRight size={15} />
+            <Link className="button secondary" to="/inventory">
+              Check inventory <ArrowRight size={15} />
             </Link>
           </div>
         </section>
@@ -200,6 +205,30 @@ export function DecisionCenter() {
         'The execution record is needed to inspect completed legs and resolve the remaining state.',
     },
   };
+  const tab: Tab =
+    picked[d.decision_id] ||
+    (execution || ['EXECUTING', 'EXECUTED', 'PARTIAL'].includes(d.status)
+      ? 'execution'
+      : 'changes');
+  const setTab = (t: Tab) => setPicked((p) => ({ ...p, [d.decision_id]: t }));
+  const passed = d.checks.filter((c) => c.passed).length;
+  const moves = d.legs.filter((l) => l.after !== l.before);
+  const driver = e.drivers[0];
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'changes', label: isOperational ? 'Required action' : 'Budget changes' },
+    { id: 'why', label: 'Why this decision' },
+    { id: 'alternatives', label: 'Alternatives' },
+    { id: 'execution', label: 'Execution & outcome' },
+    { id: 'details', label: 'Checks & details' },
+  ];
+  const onTabKey = (event: KeyboardEvent, index: number) => {
+    const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const next = tabs[(index + step + tabs.length) % tabs.length];
+    setTab(next.id);
+    document.getElementById(`dc-tab-${next.id}`)?.focus();
+  };
   return (
     <>
       <Link className="back-link" to="/">
@@ -232,92 +261,156 @@ export function DecisionCenter() {
         </p>
       )}
       <DecisionInbox decisions={decisions.data || []} selected={id} />
-      <nav className="section-nav" aria-label="Decision sections">
-        <a href="#why">Why this decision</a>
-        <a href="#allocation">Budget recommendation</a>
-        <a href="#execution">Execution & outcome</a>
-        <a href="#decision-review">Review action</a>
-      </nav>
-      {!isOperational && !valuationMissing && (
-        <section className="proposal-context" aria-label="Proposal summary">
-          <dl>
-            <div>
-              <dt>Est. contribution after ads · {d.horizon_days} days</dt>
-              <dd>{signedMoney(d.expected.p50)}</dd>
-            </div>
-            <div>
-              <dt>Unallocated budget</dt>
-              <dd>{money(d.unallocated)}</dd>
-            </div>
-          </dl>
-          <a href="#decision-review" className="text-link">
-            Review proposal <ArrowRight size={15} />
-          </a>
-        </section>
-      )}
-      <div className="decision-layout">
-        <div className="decision-main">
-          <Narrative kind="decision" id={d.decision_id} />
-          <section className="panel" id="why">
-            <SectionTitle title="The signal behind the decision">
-              <Badge tone="warning">Probable driver</Badge>
-            </SectionTitle>
-            <p className="section-description">
-              Trigger {d.trigger.anomaly_id || d.trigger.opportunity_id || 'manual review'} ·
-              deterministic detection
+
+      <section className="dc-brief" id="decision-review" aria-label="Review action" tabIndex={-1}>
+        <div className="dc-brief-grid">
+          <div className="dc-brief-cell">
+            <span className="dc-step">1 · What happened</span>
+            <h2>{driver ? driver.title : 'Manual review'}</h2>
+            <p>
+              {driver
+                ? driver.detail
+                : `Trigger ${d.trigger.anomaly_id || d.trigger.opportunity_id || 'manual review'}.`}
             </p>
-            <TrendChart data={e.chart} title={e.chart_metric} />
-            {e.decomposition_kind === 'ROAS' ? (
-              <div className="decomposition-section">
-                <div>
-                  <h3>Where did the change come from?</h3>
-                  <p>
-                    Funnel terms explain the accounting change. They do not establish causality.
-                  </p>
-                  <Badge>ACCOUNTING IDENTITY</Badge>
-                </div>
-                <Waterfall data={e.decomposition} total={e.decomposition_total} />
-              </div>
+            <button type="button" className="text-link dc-more" onClick={() => setTab('why')}>
+              See the evidence <ArrowRight size={13} />
+            </button>
+          </div>
+          <div className="dc-brief-cell">
+            <span className="dc-step">2 · What ADAPT recommends</span>
+            <p className="dc-summary">{d.summary}</p>
+            {moves.length > 0 ? (
+              <ul className="dc-moves">
+                {moves.slice(0, 4).map((leg) => (
+                  <li key={leg.budget_id}>
+                    <span>
+                      <strong>{leg.entity}</strong>
+                      <small>{leg.platform}</small>
+                    </span>
+                    <b className={leg.after > leg.before ? 'is-up' : 'is-down'}>
+                      {signedMoney(leg.after - leg.before)}/day
+                    </b>
+                  </li>
+                ))}
+                {moves.length > 4 && (
+                  <li className="dc-moves-more">
+                    <button type="button" className="text-link" onClick={() => setTab('changes')}>
+                      +{moves.length - 4} more changes
+                    </button>
+                  </li>
+                )}
+              </ul>
             ) : (
-              <p className="caption">
-                ROAS accounting decomposition does not apply to this metric family. Drivers below
-                are ranked by evidence score.
+              <p className="dc-quiet">
+                <LockKeyhole size={14} /> No budget change is proposed.
               </p>
             )}
-            <div className="evidence-list">
-              {e.drivers.map((driver) => (
-                <article className="evidence-item" key={driver.id}>
-                  <div className="evidence-heading">
-                    <h3>{driver.title}</h3>
-                    <Badge tone="accent">Evidence score {driver.score.toFixed(2)}</Badge>
+          </div>
+          <div className="dc-brief-cell dc-result">
+            <span className="dc-step">3 · Expected result</span>
+            {valuationMissing ? (
+              <>
+                <h3 className="dc-hold">Awaiting backend valuation</h3>
+                <p>This draft has no forecast yet and cannot be approved.</p>
+              </>
+            ) : isOperational ? (
+              <>
+                <h3 className="dc-hold">Resolve tracking first</h3>
+                <p>Forecasts are withheld while reporting is unreliable.</p>
+              </>
+            ) : (
+              <>
+                <strong className={d.expected.p50 >= 0 ? 'is-up' : 'is-down'}>
+                  {signedMoney(d.expected.p50)}
+                </strong>
+                <small>
+                  {lossLabel} over {d.horizon_days} days
+                </small>
+                <dl>
+                  <div>
+                    <dt>Likely range</dt>
+                    <dd>
+                      {money(d.expected.p10)} to {money(d.expected.p90)}
+                    </dd>
                   </div>
-                  <Badge>{driver.level}</Badge>
-                  <p>{driver.detail}</p>
-                  <ul>
-                    {driver.observations.map((o) => (
-                      <li key={o}>
-                        <CheckCircle2 size={14} />
-                        {o}
-                      </li>
-                    ))}
-                  </ul>
-                  <Disclosure title={`Evidence lineage · ${driver.id}`}>
-                    <p>{driver.source}</p>
-                    <p>
-                      Available at {driver.available_at}. Evidence score is a diagnostic strength
-                      index, not a probability of causation.
-                    </p>
-                    <div className="badge-row">
-                      {d.provenance_inputs.map((p) => (
-                        <Badge key={p}>{p}</Badge>
-                      ))}
-                    </div>
-                  </Disclosure>
-                </article>
-              ))}
-            </div>
-          </section>
-          <ConfidencePanel decision={d} />
+                  <div>
+                    <dt>Chance of a loss</dt>
+                    <dd>{percent(d.expected.prob_loss)}</dd>
+                  </div>
+                </dl>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="dc-actionbar">
+          <button
+            type="button"
+            className={`dc-checks ${passed === d.checks.length ? 'is-pass' : 'is-fail'}`}
+            onClick={() => setTab('details')}
+          >
+            {passed === d.checks.length ? <CheckCircle2 size={15} /> : <ShieldCheck size={15} />}
+            {passed} of {d.checks.length} policy checks passed
+          </button>
+          <span className="dc-footnote">
+            <LockKeyhole size={13} />
+            {dataMode === 'fixture'
+              ? 'Frontend example only. No ad account changes.'
+              : 'Backend revalidates the hash, policy and external state.'}
+          </span>
+          <div className="dc-buttons">
+            <button
+              className="button ghost"
+              disabled={d.status !== 'PENDING_APPROVAL'}
+              onClick={() => open('reject', d)}
+            >
+              Reject with a reason
+            </button>
+            <button
+              className="button primary"
+              disabled={!canApprove || approve.isPending}
+              onClick={() => open('approve', d)}
+            >
+              <FileCheck2 size={17} />
+              {d.status === 'EXECUTING'
+                ? 'Execution in progress'
+                : d.status === 'EXECUTED'
+                  ? 'Executed & verified'
+                  : d.status === 'BLOCKED'
+                    ? 'Execution blocked'
+                    : d.status === 'REJECTED'
+                      ? 'Proposal rejected'
+                      : 'Approve & execute'}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <div className="dc-tabs" role="tablist" aria-label="Decision sections">
+        {tabs.map((t, i) => (
+          <button
+            key={t.id}
+            id={`dc-tab-${t.id}`}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            aria-controls="dc-panel"
+            tabIndex={tab === t.id ? 0 : -1}
+            onClick={() => setTab(t.id)}
+            onKeyDown={(event) => onTabKey(event, i)}
+          >
+            {t.label}
+            {t.id === 'execution' && execution && <i className="dc-dot" aria-hidden="true" />}
+          </button>
+        ))}
+      </div>
+      <div
+        className="dc-panel"
+        id="dc-panel"
+        role="tabpanel"
+        aria-labelledby={`dc-tab-${tab}`}
+        tabIndex={0}
+      >
+        {tab === 'changes' && (
           <section className="panel" id="allocation">
             <SectionTitle
               title={
@@ -326,7 +419,6 @@ export function DecisionCenter() {
             >
               <Badge tone="accent">Recommended</Badge>
             </SectionTitle>
-            <p className="allocation-summary">{d.summary}</p>
             {d.legs.length > 0 && <BudgetMovement legs={d.legs} />}
             {d.legs.length ? (
               <div className="table-scroll">
@@ -393,14 +485,7 @@ export function DecisionCenter() {
                       </div>
                       <div>
                         <dt>Change</dt>
-                        <dd>
-                          {signedMoney(leg.after - leg.before)}
-                          <small>
-                            {leg.before
-                              ? percent((leg.after - leg.before) / leg.before)
-                              : 'New budget unit'}
-                          </small>
-                        </dd>
+                        <dd>{signedMoney(leg.after - leg.before)}</dd>
                       </div>
                     </dl>
                   </article>
@@ -408,7 +493,7 @@ export function DecisionCenter() {
               </div>
             )}
             {!isOperational && !valuationMissing && (
-              <>
+              <div className="dc-side-facts">
                 <div className="reserve-callout">
                   <div>
                     <strong>{money(d.unallocated)} unallocated</strong>
@@ -452,34 +537,111 @@ export function DecisionCenter() {
                         <small>Deterministic projection · not a stockout probability</small>
                       </>
                     )}
+                    <Link className="text-link" to="/inventory">
+                      Open Inventory <ArrowRight size={13} />
+                    </Link>
                   </div>
                 </div>
-              </>
+              </div>
             )}
           </section>
-          {!valuationMissing && (
-            <section className="panel">
-              <SectionTitle title="Why not the obvious alternative?" />
-              <div className="why-not-list">
-                {d.why_not.map((item) => (
-                  <article key={item.entity}>
-                    <div className="why-not-title">
-                      <h3>{item.entity}</h3>
-                      <Badge tone="warning">Not selected</Badge>
+        )}
+
+        {tab === 'why' && (
+          <>
+            <Narrative kind="decision" id={d.decision_id} />
+            <section className="panel" id="why">
+              <SectionTitle title="The signal behind the decision">
+                <Badge tone="warning">Probable driver</Badge>
+              </SectionTitle>
+              <p className="section-description">
+                Trigger {d.trigger.anomaly_id || d.trigger.opportunity_id || 'manual review'} ·
+                deterministic detection
+              </p>
+              <TrendChart data={e.chart} title={e.chart_metric} />
+              {e.decomposition_kind === 'ROAS' ? (
+                <div className="decomposition-section">
+                  <div>
+                    <h3>Where did the change come from?</h3>
+                    <p>
+                      Funnel terms explain the accounting change. They do not establish causality.
+                    </p>
+                    <Badge>ACCOUNTING IDENTITY</Badge>
+                  </div>
+                  <Waterfall data={e.decomposition} total={e.decomposition_total} />
+                </div>
+              ) : (
+                <p className="caption">
+                  ROAS accounting decomposition does not apply to this metric family. Drivers below
+                  are ranked by evidence score.
+                </p>
+              )}
+              <div className="evidence-list">
+                {e.drivers.map((driver) => (
+                  <article className="evidence-item" key={driver.id}>
+                    <div className="evidence-heading">
+                      <h3>{driver.title}</h3>
+                      <Badge tone="accent">Evidence score {driver.score.toFixed(2)}</Badge>
                     </div>
-                    <p>{item.reason}</p>
-                    <div className="why-not-footer">
-                      <span>{item.metric}</span>
-                      <code>{item.rule_id}</code>
-                    </div>
+                    <Badge>{driver.level}</Badge>
+                    <p>{driver.detail}</p>
+                    <ul>
+                      {driver.observations.map((o) => (
+                        <li key={o}>
+                          <CheckCircle2 size={14} />
+                          {o}
+                        </li>
+                      ))}
+                    </ul>
+                    <Disclosure title={`Evidence lineage · ${driver.id}`}>
+                      <p>{driver.source}</p>
+                      <p>
+                        Available at {driver.available_at}. Evidence score is a diagnostic strength
+                        index, not a probability of causation.
+                      </p>
+                      <div className="badge-row">
+                        {d.provenance_inputs.map((p) => (
+                          <Badge key={p}>{p}</Badge>
+                        ))}
+                      </div>
+                    </Disclosure>
                   </article>
                 ))}
               </div>
             </section>
-          )}
-          <Suspense fallback={<Loading label="Loading decision tools" />}>
-            <DecisionInsights key={d.decision_id} decision={d} />
-          </Suspense>
+            <ConfidencePanel decision={d} />
+          </>
+        )}
+
+        {tab === 'alternatives' && (
+          <>
+            {!valuationMissing && (
+              <section className="panel">
+                <SectionTitle title="Why not the obvious alternative?" />
+                <div className="why-not-list">
+                  {d.why_not.map((item) => (
+                    <article key={item.entity}>
+                      <div className="why-not-title">
+                        <h3>{item.entity}</h3>
+                        <Badge tone="warning">Not selected</Badge>
+                      </div>
+                      <p>{item.reason}</p>
+                      <div className="why-not-footer">
+                        <span>{item.metric}</span>
+                        <code>{item.rule_id}</code>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
+            <Suspense fallback={<Loading label="Loading decision tools" />}>
+              <DecisionInsights key={d.decision_id} decision={d} />
+            </Suspense>
+          </>
+        )}
+
+        {tab === 'execution' && (
           <section className="panel" id="execution">
             <SectionTitle title="Execution & verification">
               {execution && <Status value={execution.state} />}
@@ -611,50 +773,34 @@ export function DecisionCenter() {
               )
             )}
           </section>
-        </div>
-        <aside
-          className="decision-review"
-          id="decision-review"
-          aria-label="Review action"
-          tabIndex={-1}
-        >
-          <section className="panel review-card">
-            <SectionTitle title="Review the proposal">
-              <ShieldCheck size={19} />
-            </SectionTitle>
-            {valuationMissing ? (
-              <div className="operational-review">
-                <h3>Awaiting backend valuation</h3>
-                <p>
-                  This draft has no forecast, updated inventory projection or executable approval.
-                  Connect the engine to revalue the revised allocation.
-                </p>
+        )}
+
+        {tab === 'details' && (
+          <div className="dc-details">
+            <section className="panel">
+              <SectionTitle title="Policy checks">
+                <Badge tone={passed === d.checks.length ? 'success' : 'danger'}>
+                  {passed}/{d.checks.length} passed
+                </Badge>
+              </SectionTitle>
+              <div className="policy-list">
+                {d.checks.map((check) => (
+                  <PolicyCheck key={check.id} {...check} />
+                ))}
               </div>
-            ) : isOperational ? (
-              <div className="operational-review">
-                <LockKeyhole size={22} />
-                <h3>Resolve tracking first</h3>
-                <p>
-                  Allocation forecasts are withheld while required reporting is unreliable. No
-                  budget action is proposed.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="forecast-value">
-                  <span>
-                    {lossLabel} · {d.horizon_days} days
-                  </span>
-                  <strong>{signedMoney(d.expected.p50)}</strong>
-                  <small>
-                    P10 {money(d.expected.p10)} — P90 {money(d.expected.p90)}
-                  </small>
+            </section>
+            <div className="dc-details-side">
+              {!isOperational && !valuationMissing && (
+                <div className="inaction-note">
+                  <h3>What if we do nothing?</h3>
+                  <strong>{money(d.cost_of_inaction_7d)}</strong>
+                  <p>
+                    Model-estimated 7-day cost of inaction. Shown separately; not added to ΔCAA.
+                  </p>
                 </div>
+              )}
+              {!isOperational && !valuationMissing && (
                 <div className="review-facts">
-                  <div>
-                    <span>Model P(loss)</span>
-                    <strong>{percent(d.expected.prob_loss)}</strong>
-                  </div>
                   <div>
                     <span>Net revenue change</span>
                     <strong>{signedMoney(d.expected.delta_net_revenue)}</strong>
@@ -663,88 +809,43 @@ export function DecisionCenter() {
                     <span>Unallocated budget</span>
                     <strong>{money(d.unallocated)}</strong>
                   </div>
+                  <p className="caption">
+                    <Info size={13} /> Model-derived risk; not a calibrated probability.
+                  </p>
                 </div>
-                <p className="caption">
-                  <Info size={13} /> Model-derived risk; not a calibrated probability.
+              )}
+              {overview.data && (
+                <div className="track-record">
+                  <h3>Outcome track record</h3>
+                  <div>
+                    {Object.entries(overview.data.counts).map(([key, value]) => (
+                      <span key={key}>
+                        <b>{value}</b>
+                        {key}
+                      </span>
+                    ))}
+                  </div>
+                  <p>All verdicts included. No production autonomy.</p>
+                </div>
+              )}
+              <Disclosure title="Decision identity & provenance">
+                <p>
+                  Hash <code className="break-all">{d.decision_hash}</code>
                 </p>
-              </>
-            )}
-            <hr />
-            <h3>Policy checks</h3>
-            <div className="policy-list">
-              {d.checks.map((check) => (
-                <PolicyCheck key={check.id} {...check} />
-              ))}
+                <p>
+                  Snapshot {d.snapshot_id}
+                  <br />
+                  Policy {d.policy_version}
+                </p>
+                <div className="badge-row">
+                  {d.provenance_inputs.map((p) => (
+                    <Badge key={p}>{p}</Badge>
+                  ))}
+                </div>
+              </Disclosure>
             </div>
-            <button
-              className="button primary full"
-              disabled={!canApprove || approve.isPending}
-              onClick={() => open('approve', d)}
-            >
-              <FileCheck2 size={17} />
-              {d.status === 'EXECUTING'
-                ? 'Execution in progress'
-                : d.status === 'EXECUTED'
-                  ? 'Executed & verified'
-                  : d.status === 'BLOCKED'
-                    ? 'Execution blocked'
-                    : d.status === 'REJECTED'
-                      ? 'Proposal rejected'
-                      : 'Approve & execute'}
-            </button>
-            <button
-              className="button ghost full"
-              disabled={d.status !== 'PENDING_APPROVAL'}
-              onClick={() => open('reject', d)}
-            >
-              Reject with a reason
-            </button>
-            <div className="approval-footnote">
-              <LockKeyhole size={13} />
-              <span>
-                {dataMode === 'fixture'
-                  ? 'Frontend example only. No ad account changes.'
-                  : 'Backend revalidates the hash, policy and external state.'}
-              </span>
-            </div>
-            <Disclosure title="Decision identity & provenance">
-              <p>
-                Hash <code className="break-all">{d.decision_hash}</code>
-              </p>
-              <p>
-                Snapshot {d.snapshot_id}
-                <br />
-                Policy {d.policy_version}
-              </p>
-              <div className="badge-row">
-                {d.provenance_inputs.map((p) => (
-                  <Badge key={p}>{p}</Badge>
-                ))}
-              </div>
-            </Disclosure>
-          </section>
-          {!isOperational && !valuationMissing && (
-            <div className="inaction-note">
-              <h3>What if we do nothing?</h3>
-              <strong>{money(d.cost_of_inaction_7d)}</strong>
-              <p>Model-estimated 7-day cost of inaction. Shown separately; not added to ΔCAA.</p>
-            </div>
-          )}
-          {overview.data && (
-            <div className="track-record">
-              <h3>Outcome track record</h3>
-              <div>
-                {Object.entries(overview.data.counts).map(([key, value]) => (
-                  <span key={key}>
-                    <b>{value}</b>
-                    {key}
-                  </span>
-                ))}
-              </div>
-              <p>All verdicts included. No production autonomy.</p>
-            </div>
-          )}
-        </aside>
+          </div>
+        )}
       </div>
       {dialog && (
         <Modal
@@ -795,7 +896,14 @@ export function DecisionCenter() {
                 <button
                   className="button primary"
                   disabled={!confirmed || approve.isPending}
-                  onClick={() => approve.mutate(dialog.decision, { onSuccess: close })}
+                  onClick={() =>
+                    approve.mutate(dialog.decision, {
+                      onSuccess: () => {
+                        setTab('execution');
+                        close();
+                      },
+                    })
+                  }
                 >
                   {approve.isPending
                     ? 'Submitting approval…'

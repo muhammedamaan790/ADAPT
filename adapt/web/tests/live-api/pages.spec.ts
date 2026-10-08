@@ -10,7 +10,7 @@ const routes = [
   '/outcomes',
   '/learning',
   '/data',
-  '/scenarios',
+  '/inventory',
 ];
 
 test.beforeEach(async ({ page }) => signIn(page));

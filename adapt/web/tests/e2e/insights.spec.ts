@@ -38,12 +38,14 @@ test('Ask ADAPT links an allocation answer to the decision evidence', async ({ p
     .getByRole('link', { name: /^Decision / })
     .last()
     .click();
+  await page.getByRole('tab', { name: 'Alternatives', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Compare & inspect history' })).toBeVisible();
 });
 test('comparison, replay and sensitivity revisions remain separate from execution', async ({
   page,
 }) => {
   await page.goto('/decisions');
+  await page.getByRole('tab', { name: 'Alternatives', exact: true }).click();
   await page.getByRole('button', { name: 'Decision replay timeline' }).click();
   await page.getByRole('button', { name: 'Check replay availability' }).click();
   await expect(page.getByText(/No hash verification was performed/)).toBeVisible();

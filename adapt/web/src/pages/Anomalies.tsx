@@ -106,7 +106,7 @@ export function Anomalies() {
       {!filtered.length ? (
         <section className="panel">
           <Empty title="No matching investigations">
-            Adjust your filters or load another example in Scenario Lab.
+            Adjust your filters to see more investigations.
           </Empty>
           <button
             className="button secondary"

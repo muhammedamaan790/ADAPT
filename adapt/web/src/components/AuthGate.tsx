@@ -59,6 +59,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
   );
 }
 
+/** The signed-in session, or null in fixture mode. */
+export const useSession = () => useContext(SessionContext).session;
+
 /** The signed-in user's initials, role and a sign-out button (the topbar avatar). */
 export function SessionChip() {
   const { session, signOut } = useContext(SessionContext);

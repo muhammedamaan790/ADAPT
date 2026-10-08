@@ -136,9 +136,9 @@ function CommandCenter() {
       <div className="cc">
         <aside className="cc-nav" aria-hidden="true">
           {[
-            ['Operate', ['Command Center', 'Decision Center', 'Execution & Ledger']],
+            ['Operate', ['Command Center', 'Decision Center', 'Inventory', 'Execution & Ledger']],
             ['Analyze', ['Anomalies', 'Outcomes', 'Learning']],
-            ['Workspace', ['Data Hub', 'Scenario Lab']],
+            ['Workspace', ['Data Hub']],
           ].map(([g, items]) => (
             <div key={g as string}>
               <p>{g}</p>

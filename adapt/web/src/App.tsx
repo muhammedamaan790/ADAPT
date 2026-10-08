@@ -2,8 +2,8 @@ import { lazy, Suspense, useState, useEffect, useRef, type CSSProperties } from 
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
 import { PlatformBanner } from './components/PlatformBanner';
 import {
-  FlaskConical,
   LayoutDashboard,
+  Package,
   Workflow,
   Radar,
   ListChecks,
@@ -15,6 +15,7 @@ import {
 import { dataMode } from './api/client';
 import { Loading, Modal } from './components/ui';
 import { useOverview } from './hooks/workspace';
+import { LiveStrip } from './components/LiveStrip';
 import { ViewBoundary } from './components/ViewBoundary';
 import { SessionChip } from './components/AuthGate';
 import { useReveal } from './hooks/reveal';
@@ -25,9 +26,7 @@ const CommandCenter = lazy(() =>
 const DecisionCenter = lazy(() =>
   import('./pages/DecisionCenter').then((m) => ({ default: m.DecisionCenter })),
 );
-const ScenarioLab = lazy(() =>
-  import('./pages/ScenarioLab').then((m) => ({ default: m.ScenarioLab })),
-);
+const Inventory = lazy(() => import('./pages/Inventory').then((m) => ({ default: m.Inventory })));
 const Anomalies = lazy(() => import('./pages/Anomalies').then((m) => ({ default: m.Anomalies })));
 const ExecutionLedger = lazy(() =>
   import('./pages/ExecutionLedger').then((m) => ({ default: m.ExecutionLedger })),
@@ -37,7 +36,7 @@ const Learning = lazy(() => import('./pages/Learning').then((m) => ({ default: m
 const DataHub = lazy(() => import('./pages/DataHub').then((m) => ({ default: m.DataHub })));
 const routeNames: Record<string, string> = {
   decisions: 'Decision Center',
-  scenarios: 'Scenario Lab',
+  inventory: 'Inventory',
   anomalies: 'Anomalies',
   executions: 'Execution & Ledger',
   outcomes: 'Outcomes',
@@ -51,6 +50,7 @@ const navigation = [
     items: [
       { to: '/', label: 'Command Center', icon: LayoutDashboard },
       { to: '/decisions', label: 'Decision Center', icon: Workflow },
+      { to: '/inventory', label: 'Inventory', icon: Package },
       { to: '/executions', label: 'Execution & Ledger', icon: ListChecks },
     ],
   },
@@ -64,10 +64,7 @@ const navigation = [
   },
   {
     label: 'Workspace',
-    items: [
-      { to: '/data', label: 'Data Hub', icon: Database },
-      { to: '/scenarios', label: 'Scenario Lab', icon: FlaskConical },
-    ],
+    items: [{ to: '/data', label: 'Data Hub', icon: Database }],
   },
 ];
 
@@ -78,7 +75,7 @@ const footerLinks = [
     links: [
       { to: '/decisions', label: 'Pending approvals' },
       { to: '/executions', label: 'Verified changes' },
-      { to: '/scenarios', label: 'Controlled scenarios' },
+      { to: '/inventory', label: 'Stock alerts' },
     ],
   },
   {
@@ -94,7 +91,6 @@ const footerLinks = [
     links: [
       { to: '/executions?section=policy', label: 'Channel policy' },
       { to: '/data', label: 'Source health' },
-      { to: '/scenarios', label: 'World controls' },
     ],
   },
 ];
@@ -229,15 +225,7 @@ export function App() {
           <RouteStrip />
         </div>
       </header>
-      {dataMode === 'fixture' && (
-        <div className="shell-wide fixture-banner">
-          <span className="fixture-dot" aria-hidden="true" />
-          <span>Illustrative frontend data. No engine, simulator or ad account is connected.</span>
-          <Link to="/scenarios">
-            Explore examples <span aria-hidden="true">→</span>
-          </Link>
-        </div>
-      )}
+      <LiveStrip />
       <main
         id="main"
         tabIndex={-1}
@@ -252,7 +240,7 @@ export function App() {
               <Route path="/" element={<CommandCenter />} />
               <Route path="/decisions" element={<DecisionCenter />} />
               <Route path="/decisions/:id" element={<DecisionCenter />} />
-              <Route path="/scenarios" element={<ScenarioLab />} />
+              <Route path="/inventory" element={<Inventory />} />
               <Route path="/anomalies" element={<Anomalies />} />
               <Route path="/executions" element={<ExecutionLedger />} />
               <Route path="/outcomes" element={<Outcomes />} />

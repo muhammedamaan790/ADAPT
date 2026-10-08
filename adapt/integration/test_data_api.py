@@ -50,7 +50,23 @@ def test_reconciliation_window_and_excess(api, db):
     assert 0.7 < p["meta"]["session_click_ratio"] < 1.0
 
 
+def test_inventory_one_row_per_sku_from_the_canonical_state(api, db):
+    r = api.get("/api/v1/data/inventory").json()
+    assert r["as_of"] == "2026-09-30" and r["window_days"] == 28 and r["excess_cover_days"] == 45
+    (n,) = db.query("SELECT count(DISTINCT sku) FROM marts.sku_daily WHERE date = DATE '2026-09-30'")[0]
+    assert len(r["skus"]) == n > 0
+    for s in r["skus"]:
+        assert s["available"] == s["on_hand"] - s["reserved"] and s["reason"]
+        if s["units_28d_avg"] > 0:
+            assert s["cover_days"] == pytest.approx(s["available"] / s["units_28d_avg"], abs=0.1)
+    (spend,) = db.query("""SELECT sum(c.spend * m.attribution_weight) FROM core.campaign_sku m
+                           JOIN (SELECT campaign_id, sum(spend) AS spend FROM marts.campaign_daily
+                                 WHERE date BETWEEN DATE '2026-09-03' AND DATE '2026-09-30' GROUP BY 1) c
+                           USING (campaign_id) WHERE m.sku <> '__unmapped__'""")[0]
+    assert sum(s["ad_spend_28d"] for s in r["skus"]) == pytest.approx(spend or 0, abs=1.0)
+
+
 def test_openapi_lists_the_data_routes(api):
     paths = api.get("/openapi.json").json()["paths"]
     assert {"/api/v1/data/sources", "/api/v1/data/health", "/api/v1/data/mapping-coverage",
-            "/api/v1/data/reconciliation"} <= set(paths)
+            "/api/v1/data/reconciliation", "/api/v1/data/inventory"} <= set(paths)

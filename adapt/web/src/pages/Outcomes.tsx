@@ -90,10 +90,10 @@ export function Outcomes() {
           <Empty title={all.length ? 'No matching outcomes' : 'No matured outcomes yet'}>
             {all.length
               ? 'Change your class or verdict filter.'
-              : 'Verify an approved decision, then advance its evaluation horizon in Scenario Lab. Drafts and restored fixture allocations do not produce optimization feedback.'}
+              : 'Verify an approved decision, then advance its evaluation horizon from its decision page. Drafts and restored fixture allocations do not produce optimization feedback.'}
           </Empty>
-          <Link className="button secondary" to="/scenarios">
-            Open Scenario Lab <ArrowRight size={15} />
+          <Link className="button secondary" to="/decisions">
+            Open Decision Center <ArrowRight size={15} />
           </Link>
         </section>
       ) : (
