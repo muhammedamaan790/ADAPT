@@ -53,6 +53,8 @@ def _run_key(r) -> str | None:
 @router.get("/opportunities", response_model=list[m.Opportunity])
 def opportunities(request: Request):
     r = rt(request)
+    if r.brands.active():
+        return []  # engine response curves; an uploaded-data workspace has its proposals instead
     state, flags, _opt, _as_of = _state_cache(r)
     return iv.opportunities(r.db, state, flags)
 
@@ -70,6 +72,8 @@ def curve(budget_id: str, request: Request):
 @router.get("/creatives/fatigue", response_model=list[m.Fatigue])
 def creative_fatigue(request: Request):
     r = rt(request)
+    if r.brands.active():
+        return []  # uploads carry no creative-level data
     key = _run_key(r)
     cache = getattr(r, "_fatigue_cache", None)
     if not cache or cache[0] != key:
@@ -89,12 +93,22 @@ def creative_score(body: m.CreativeScoreBody, request: Request):
 # ---- learning ------------------------------------------------------------------------------------------------------
 @router.get("/learning/calibration", response_model=m.CalibrationOut)
 def calibration(request: Request):
-    return iv.calibration(rt(request).db)
+    r = rt(request)
+    if r.brands.active():
+        from adapt.api import brand_engine as be
+
+        return be.calibration(r.db)
+    return iv.calibration(r.db)
 
 
 @router.get("/learning/accuracy", response_model=m.AccuracyOut)
 def accuracy(request: Request):
-    return iv.accuracy(rt(request).db)
+    r = rt(request)
+    if r.brands.active():
+        from adapt.api import brand_engine as be
+
+        return be.accuracy(r.db)
+    return iv.accuracy(r.db)
 
 
 @router.get("/learning/uplift", response_model=m.UpliftOut)
@@ -104,7 +118,12 @@ def uplift(request: Request):
 
 @router.get("/learning/feedback", response_model=list[m.FeedbackOut])
 def feedback(request: Request):
-    return iv.feedback(rt(request).db)
+    r = rt(request)
+    if r.brands.active():
+        from adapt.api import brand_engine as be
+
+        return be.feedback(r.db)
+    return iv.feedback(r.db)
 
 
 @router.get("/learning/shadow", response_model=m.ShadowOut)
@@ -261,8 +280,17 @@ def objective_change(body: m.ObjectiveChangeBody, request: Request):
 
 
 # ---- decision detail -------------------------------------------------------------------------------------------------
+def _engine_only(request: Request) -> None:
+    """Timeline, snapshot, replay, simulation, alternatives and narratives come from the forecasting engine, which an
+    uploaded-data workspace does not run: a clear 404 instead of a missing-table error."""
+    if rt(request).brands.active():
+        raise HTTPException(404, detail="not available in an uploaded-data workspace: its proposals are rule-based "
+                                        "(see the decision's checks and evidence); the simulated world runs the engine")
+
+
 @router.get("/decisions/{decision_id}/timeline", response_model=list[m.TimelineEntry])
 def timeline(decision_id: str, request: Request):
+    _engine_only(request)
     r = rt(request)
     _decision_exists(r.db, decision_id)
     return iv.timeline(r.db, decision_id)
@@ -270,6 +298,7 @@ def timeline(decision_id: str, request: Request):
 
 @router.get("/decisions/{decision_id}/snapshot", response_model=m.SnapshotOut)
 def snapshot(decision_id: str, request: Request):
+    _engine_only(request)
     r = rt(request)
     _decision_exists(r.db, decision_id)
     return iv.snapshot(r.db, decision_id)
@@ -277,6 +306,7 @@ def snapshot(decision_id: str, request: Request):
 
 @router.get("/decisions/{decision_id}/archive", response_model=m.ArchiveOut)
 def archive(decision_id: str, request: Request):
+    _engine_only(request)
     r = rt(request)
     _decision_exists(r.db, decision_id)
     return iv.archive(r.db, decision_id)
@@ -284,6 +314,7 @@ def archive(decision_id: str, request: Request):
 
 @router.post("/decisions/{decision_id}/simulate", response_model=m.Comparison, dependencies=mutating)
 def simulate(decision_id: str, body: m.SimulateBody, request: Request):
+    _engine_only(request)
     r = rt(request)
     _decision_exists(r.db, decision_id)
     if dec.get_decision(r.db, decision_id)["decision_hash"] != body.decision_hash:
@@ -294,6 +325,7 @@ def simulate(decision_id: str, body: m.SimulateBody, request: Request):
 @router.post("/decisions/{decision_id}/alternatives/{name}/choose", response_model=m.Decision,
              dependencies=mutating)
 def choose_alternative(decision_id: str, name: str, body: m.ChooseAlternativeBody, request: Request):
+    _engine_only(request)
     """Choose a sensitivity scenario instead (spec §8.3): a NEW decision with its own snapshot and hash, superseding
     the recommended one, under that explicit risk preference; it then needs its own approval."""
     from adapt.decide.alternatives import choose_alternative as choose
@@ -321,6 +353,7 @@ def _narrative(r, kind: str, ref_id: str, make) -> dict:
 
 @router.get("/decisions/{decision_id}/narrative", response_model=m.NarrativeOut)
 def decision_narrative(decision_id: str, request: Request):
+    _engine_only(request)
     from adapt.agent.narrator import narrate_decision
 
     r = rt(request)
@@ -330,6 +363,7 @@ def decision_narrative(decision_id: str, request: Request):
 
 @router.get("/anomalies/{anomaly_id}/narrative", response_model=m.NarrativeOut)
 def anomaly_narrative(anomaly_id: str, request: Request):
+    _engine_only(request)
     from adapt.agent.narrator import narrate_incident
 
     r = rt(request)
@@ -340,6 +374,7 @@ def anomaly_narrative(anomaly_id: str, request: Request):
 
 @router.get("/decisions/{decision_id}/replay", response_model=m.ReplayOut)
 def replay(decision_id: str, request: Request):
+    _engine_only(request)
     """Replay re-runs economics + optimizer + policy from the snapshot (seconds to tens of seconds), so it runs in a
     background thread and is cached per decision; until it finishes the answer is UNAVAILABLE (in progress)."""
     r = rt(request)
@@ -425,6 +460,10 @@ def workspace_activate(workspace_id: str, request: Request):
         raise HTTPException(404, detail=f"workspace {workspace_id} does not exist")
     r.brands.activate(None if workspace_id == r.settings.workspace else workspace_id)
     r._state_cache = None
+    if r.brands.active():  # re-check the uploads on open, so proposals follow the current rules
+        from adapt.api import brand_engine as be
+
+        be.cycle(r.db)
     return _workspaces(r)
 
 
@@ -475,10 +514,18 @@ def ingest_confirm(body: m.ConfirmBody, request: Request):
         up = (_registry(r).load()["uploads"].get(import_id) or {})
         if not brand or up.get("target") != brand["id"]:
             raise UploadError("this file was staged for another workspace; switch back to it to confirm")
-        res = import_rows(r.brands.db(brand["id"]), kind, rows, import_id, who)
+        from adapt.api import brand_engine as be
+
+        bdb = r.brands.db(brand["id"])
+        res = import_rows(bdb, kind, rows, import_id, who)
+        run = be.cycle(bdb)
+        found = [f"{len(run['decisions'])} proposal(s)" if run["decisions"] else "",
+                 f"{run['anomalies']} anomaly signal(s)" if run["anomalies"] else "",
+                 f"{run['outcomes']} outcome(s) measured" if run["outcomes"] else ""]
+        found = [f for f in found if f]
         return (f"imported {res['rows']} {kind} rows into {brand['name']}"
                 + (f" ({res['replaced']} earlier rows with the same key replaced)" if res["replaced"] else "")
-                + "; the Command Center numbers now include them")
+                + "; the numbers now include them" + (f". Checked: {', '.join(found)}" if found else ""))
 
     try:
         return confirm(_registry(r), body.import_id, body.mapping, actor(request).user_id, sink=sink)

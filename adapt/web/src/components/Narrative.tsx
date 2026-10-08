@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { ApiError } from '../api/client';
 import { stage2 } from '../api/stage2';
 import { Badge, InlineError, Loading, SectionTitle } from './ui';
 
@@ -19,7 +20,11 @@ export function Narrative({ kind, id }: { kind: 'decision' | 'incident'; id: str
     retry: false,
   });
   if (q.isPending) return <Loading label="Loading explanation" />;
-  if (q.error) return <InlineError error={q.error} />;
+  // 404: no explanation exists for this item (uploaded-data workspaces have none): show nothing, not an error
+  if (q.error)
+    return q.error instanceof ApiError && q.error.status === 404 ? null : (
+      <InlineError error={q.error} />
+    );
   const n = q.data;
   if (!n) return null;
   const llm = n.source.startsWith('llm:');

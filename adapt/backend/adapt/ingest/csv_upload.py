@@ -33,6 +33,7 @@ FIELDS = {
     "inventory": ["sku", "on_hand", "reserved", "safety_stock"],
     "margins": ["sku", "price", "unit_cost"],
 }
+OPTIONAL = {"ads": ["conversion_value"]}  # mapped when the file has it; empty cells are stored as NULL
 TEXT = {"date", "sku", "budget_id", "platform", "order_id"}
 WHOLE = {"impressions", "clicks", "on_hand", "reserved", "safety_stock", "quantity"}
 PLATFORMS = {"Meta", "Google"}
@@ -41,6 +42,9 @@ SYNONYMS = {
     "budget_id": ["campaign budget", "budget", "budget id", "campaign budget id", "campaign id"],
     "platform": ["channel", "network", "source", "publisher"],
     "spend": ["cost", "amount spent", "spend inr", "cost inr", "cost micros"],
+    "conversion_value": ["conv value", "conv. value", "conversion value", "conversions value", "all conv value",
+                         "purchase conversion value", "website purchases conversion value", "purchases value",
+                         "total conversion value", "revenue", "roas value"],
     "impressions": ["impr", "impr.", "views served"],
     "clicks": ["link clicks", "clicks all"],
     "order_id": ["order", "order id", "order number", "order no", "name"],
@@ -70,13 +74,17 @@ def _norm(s: str) -> str:
 def template(kind: str) -> dict:
     if kind not in FIELDS:
         raise UploadError(f"unknown import type {kind}; types: {', '.join(FIELDS)}")
-    return {"type": kind, "columns": FIELDS[kind], "synonyms": {f: SYNONYMS.get(f, []) for f in FIELDS[kind]},
+    fields = FIELDS[kind] + OPTIONAL.get(kind, [])
+    return {"type": kind, "columns": FIELDS[kind], "optional": OPTIONAL.get(kind, []),
+            "synonyms": {f: SYNONYMS.get(f, []) for f in fields},
             "csv": ",".join(FIELDS[kind]) + "\n", "currency": "INR", "timezone": "Asia/Kolkata"}
 
 
 def suggest_mapping(kind: str, headers: list[str]) -> dict:
-    """{field: {header, score, method}} for every required field; header None when nothing scores >= 80."""
-    fields = template(kind)["columns"]
+    """{field: {header, score, method}} for every required and optional field; header None when nothing scores
+    >= 80."""
+    t = template(kind)
+    fields = t["columns"] + t["optional"]
     used: set[str] = set()
     out = {}
     for f in fields:
@@ -131,7 +139,20 @@ def validate(kind: str, records: list[dict]) -> list[dict]:
             if f in WHOLE and x != int(x):
                 errors.append(f"row {i}: {f} must be a whole number")
             row[f] = int(x) if f in WHOLE and x == int(x) else x
-        if kind in ("ads", "orders") and len(row) == len(fields):
+        for f in OPTIONAL.get(kind, []):
+            raw = r.get(f)
+            if raw is None or str(raw).strip() == "":
+                row[f] = None
+                continue
+            try:
+                x = float(raw)
+            except (TypeError, ValueError):
+                errors.append(f"row {i}: {f} must be a number")
+                continue
+            if not (x == x and abs(x) != float("inf")) or x < 0:
+                errors.append(f"row {i}: {f} must be a finite nonnegative number")
+            row[f] = x
+        if kind in ("ads", "orders") and all(f in row for f in fields):
             if kind == "ads" and row["platform"] not in PLATFORMS:
                 errors.append(f"row {i}: platform must be Meta or Google")
             try:
@@ -142,7 +163,7 @@ def validate(kind: str, records: list[dict]) -> list[dict]:
             if isinstance(row.get("clicks"), (int, float)) and isinstance(row.get("impressions"), (int, float)) \
                     and row["clicks"] > row["impressions"]:
                 errors.append(f"row {i}: clicks exceed impressions")
-        if kind == "inventory" and len(row) == len(fields) and row["reserved"] > row["on_hand"]:
+        if kind == "inventory" and all(f in row for f in fields) and row["reserved"] > row["on_hand"]:
             errors.append(f"row {i}: reserved units exceed on-hand stock")
         key = ((row.get("date"), row.get("platform"), row.get("budget_id")) if kind == "ads" else
                (row.get("order_id"), row.get("sku")) if kind == "orders" else row.get("sku"))
@@ -205,7 +226,8 @@ def confirm(registry: Registry, import_id: str, mapping: dict, actor: str, sink=
     if up is None:
         raise UploadError(f"no staged upload {import_id}")
     fields = template(up["type"])["columns"]
-    if sorted(mapping) != sorted(fields) or any(not mapping[f] for f in fields):
+    allowed = set(fields) | set(OPTIONAL.get(up["type"], []))
+    if any(f not in mapping or not mapping[f] for f in fields) or set(mapping) - allowed:
         raise UploadError(f"the mapping must name a column for every field: {', '.join(fields)}")
     if up["status"] == "IMPORTED":
         return {"import_id": import_id, "status": "IMPORTED", "row_count": len(up["rows"]),

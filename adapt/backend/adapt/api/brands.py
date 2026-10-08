@@ -20,7 +20,7 @@ from pathlib import Path
 
 from adapt.api.views import _rel, has
 from adapt.core.db import Database
-from adapt.ingest.csv_upload import FIELDS, TEXT, WHOLE
+from adapt.ingest.csv_upload import FIELDS, OPTIONAL, TEXT, WHOLE
 
 PREFIX = "brand-"
 MAX_BRANDS = 19  # plus the engine workspace: the frontend lists at most 20
@@ -103,8 +103,9 @@ class Brands:
 
 def import_rows(db: Database, kind: str, rows: list[dict], import_id: str, actor: str) -> dict:
     """Append validated rows to stg.upload_<kind>, replacing earlier rows with the same business key."""
-    fields = FIELDS[kind]
-    cols = ", ".join(f"{f} {'VARCHAR' if f in TEXT else ('BIGINT' if f in WHOLE else 'DOUBLE')}" for f in fields)
+    fields = FIELDS[kind] + OPTIONAL.get(kind, [])
+    typ = {f: "VARCHAR" if f in TEXT else ("BIGINT" if f in WHOLE else "DOUBLE") for f in fields}
+    cols = ", ".join(f"{f} {typ[f]}" for f in fields)
     table = f"stg.upload_{kind}"
     match = " AND ".join(f"n.{k} = t.{k}" for k in KEYS[kind])
     now = datetime.now()
@@ -112,10 +113,13 @@ def import_rows(db: Database, kind: str, rows: list[dict], import_id: str, actor
     def write(cur):
         cur.execute("CREATE SCHEMA IF NOT EXISTS stg; CREATE SCHEMA IF NOT EXISTS ops")
         cur.execute(f"CREATE TABLE IF NOT EXISTS {table} ({cols}, _import_id VARCHAR, available_at TIMESTAMP)")
+        for f in OPTIONAL.get(kind, []):  # tables created before an optional column existed
+            cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {f} {typ[f]}")
         cur.execute("CREATE TABLE IF NOT EXISTS ops.uploads (import_id VARCHAR, type VARCHAR, rows BIGINT, "
                     "replaced BIGINT, imported_at TIMESTAMP, actor VARCHAR)")
-        cur.executemany(f"INSERT INTO {table} VALUES ({', '.join('?' * (len(fields) + 2))})",
-                        [[r[f] for f in fields] + [import_id, now] for r in rows])
+        names = ", ".join([*fields, "_import_id", "available_at"])
+        cur.executemany(f"INSERT INTO {table} ({names}) VALUES ({', '.join('?' * (len(fields) + 2))})",
+                        [[r.get(f) for f in fields] + [import_id, now] for r in rows])
         older = f"""FROM {table} t WHERE t._import_id <> ? AND EXISTS
                     (SELECT 1 FROM {table} n WHERE n._import_id = ? AND {match})"""
         replaced = cur.execute(f"SELECT count(*) {older}", [import_id, import_id]).fetchone()[0]
@@ -126,6 +130,98 @@ def import_rows(db: Database, kind: str, rows: list[dict], import_id: str, actor
 
     replaced = db.write(write)
     return {"rows": len(rows), "replaced": replaced}
+
+
+# ---- Data Hub for a brand workspace ----------------------------------------------------------------------------------
+def upload_sources(db: Database) -> list[dict]:
+    if not has(db, "ops", "uploads"):
+        return []
+    out = []
+    for kind, files, at in db.query("SELECT type, count(*), max(imported_at) FROM ops.uploads GROUP BY type "
+                                    "ORDER BY type"):
+        newest = (db.query(f"SELECT max(date) FROM stg.upload_{kind}")[0][0] if kind in ("ads", "orders") else None)
+        current = int(_num(db, f"SELECT count(*) FROM stg.upload_{kind}"))
+        out.append({"id": f"upload_{kind}", "name": LABELS[kind], "kind": "upload", "score": 100.0,
+                    "status": "GREEN", "provenance": "UPLOADED",
+                    "freshness": f"{current} rows from {files} file{'s' if files != 1 else ''}"
+                                 + (f", newest day {newest}" if newest else "") + f", uploaded {at:%d %b %H:%M}"})
+    return out
+
+
+def upload_health(db: Database) -> list[dict]:
+    out = []
+    for s in upload_sources(db):
+        kind = s["id"].removeprefix("upload_")
+        newest = db.query(f"SELECT max(CAST(date AS DATE)) FROM stg.upload_{kind}")[0][0] \
+            if kind in ("ads", "orders") else None
+        checks = [{"id": "CONTRACT", "passed": True, "detail": "every row passed the data contract when uploaded "
+                   "(types, ranges, dates, duplicate keys)"}]
+        if kind == "ads":
+            cols = {c for (c,) in db.query("SELECT column_name FROM information_schema.columns WHERE "
+                                           "table_schema = 'stg' AND table_name = 'upload_ads'")}
+            with_value = int(_num(db, "SELECT count(*) FROM stg.upload_ads WHERE conversion_value IS NOT NULL")) \
+                if "conversion_value" in cols else 0
+            checks.append({"id": "CONVERSION_VALUE", "passed": with_value > 0,
+                           "detail": f"{with_value} rows carry conversion value" if with_value else
+                           "no conversion_value column: ROAS, anomalies and budget proposals need it"})
+        if kind == "orders" and has(db, "stg", "upload_margins"):
+            missing = int(_num(db, "SELECT count(DISTINCT sku) FROM stg.upload_orders o WHERE NOT EXISTS "
+                                   "(SELECT 1 FROM stg.upload_margins m WHERE m.sku = o.sku)"))
+            checks.append({"id": "MARGIN_COVERAGE", "passed": missing == 0,
+                           "detail": f"{missing} ordered SKUs have no margin row" if missing else
+                           "every ordered SKU has a margin row"})
+        ok = all(c["passed"] for c in checks)
+        out.append({**s, "status": "GREEN" if ok else "YELLOW", "score": 100.0 if ok else 70.0,
+                    "as_of": datetime.now().isoformat(timespec="seconds"),
+                    "newest_date": newest.isoformat() if newest else None, "age_hours": None,
+                    "freshness_score": 1.0, "completeness": 1.0, "consistency": 1.0 if ok else 0.7,
+                    "hard_failures": [], "checks": checks})
+    return out
+
+
+def upload_coverage(db: Database) -> dict:
+    if not (has(db, "stg", "upload_orders") and has(db, "stg", "upload_margins")):
+        return {"coverage": 0.0, "unmapped": [], "note": "Upload orders and SKU margins to see how much revenue has "
+                "a known unit cost."}
+    total, known = db.query("""SELECT sum(o.net_revenue), sum(o.net_revenue) FILTER (WHERE m.sku IS NOT NULL)
+                               FROM stg.upload_orders o LEFT JOIN stg.upload_margins m USING (sku)""")[0]
+    missing = [s for (s,) in db.query("""SELECT DISTINCT o.sku FROM stg.upload_orders o WHERE NOT EXISTS
+                                         (SELECT 1 FROM stg.upload_margins m WHERE m.sku = o.sku) ORDER BY 1""")]
+    return {"coverage": round((known or 0) / total, 4) if total else 0.0,
+            "unmapped": [f"{s}: sold but no margin row (contribution treats it as unknown)" for s in missing[:50]],
+            "note": "Share of uploaded order revenue whose SKU has a unit cost in the margins upload."}
+
+
+def upload_reconciliation(db: Database) -> dict | None:
+    if not (has(db, "stg", "upload_ads") and has(db, "stg", "upload_orders")):
+        return None
+    cols = {c for (c,) in db.query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'stg' "
+                                   "AND table_name = 'upload_ads'")}
+    if "conversion_value" not in cols:
+        return None
+    lo, hi = db.query("""SELECT greatest(a.lo, o.lo), least(a.hi, o.hi) FROM
+                         (SELECT min(CAST(date AS DATE)) lo, max(CAST(date AS DATE)) hi FROM stg.upload_ads) a,
+                         (SELECT min(CAST(date AS DATE)) lo, max(CAST(date AS DATE)) hi FROM stg.upload_orders) o""")[0]
+    if lo is None or hi is None or lo > hi:
+        return None
+    rng = [lo, hi]
+    plat = _num(db, "SELECT sum(conversion_value) FROM stg.upload_ads WHERE CAST(date AS DATE) BETWEEN ? AND ?", rng)
+    if not plat:
+        return None
+    store = _num(db, "SELECT sum(net_revenue) FROM stg.upload_orders WHERE CAST(date AS DATE) BETWEEN ? AND ?", rng)
+    orders = int(_num(db, "SELECT count(DISTINCT order_id) FROM stg.upload_orders WHERE CAST(date AS DATE) "
+                          "BETWEEN ? AND ?", rng))
+    platforms = [{"platform": p, "platform_conversions": round(float(v or 0), 2), "store_attributed_orders": 0,
+                  "over_attribution": None, "over_attribution_reason": "uploads carry no order-to-campaign link",
+                  "session_click_ratio": None}
+                 for p, v in db.query("SELECT platform, sum(conversion_value) FROM stg.upload_ads WHERE "
+                                      "CAST(date AS DATE) BETWEEN ? AND ? GROUP BY 1 ORDER BY 1", rng)]
+    return {"platform_revenue": round(plat, 2), "store_revenue": round(store, 2),
+            "attribution_excess": round(plat - store, 2), "window_start": lo.isoformat(),
+            "window_end": hi.isoformat(), "platforms": platforms,
+            "note": (f"Ad-platform conversion value against {orders:,} uploaded orders' net revenue, {lo} to {hi}. "
+                     "Platforms each claim the sales they touched, so their total can exceed the store's; the excess "
+                     "is double counting, not extra sales. platform_conversions here is conversion value (INR).")}
 
 
 # ---- the Command Center for a brand workspace ------------------------------------------------------------------------
@@ -233,17 +329,43 @@ def brand_overview(db: Database, ws: dict) -> dict:
                         "freshness": f"{current} rows from {files} file{'s' if files != 1 else ''}"
                                      + (f", newest day {newest}" if newest else "")
                                      + f", uploaded {at:%d %b %H:%M}"})
+    from adapt.api import brand_engine as be
+
+    decisions = be.decisions(db)
+    pending = [d for d in decisions if d["status"] == "PENDING_APPROVAL"]
+    decided = [d for d in decisions if d["status"] in ("APPROVED", "EXECUTED", "REJECTED")]
+    anomalies = [a for a in be.anomalies(db) if a["status"] != "RESOLVED"]
+    outs = be.outcomes(db)
+    counts = {"success": 0, "neutral": 0, "failed": 0, "inconclusive": 0}
+    for o in outs:
+        counts[o["verdict"].lower()] += 1
+    attention = [{"id": a["anomaly_id"], "decision_id": a["decision_id"], "kind": "incident", "title": a["title"],
+                  "description": f"Probable driver: {a['driver']}", "impact": abs(a["impact"]), "label": "Signal"}
+                 for a in anomalies[:4]]
+    attention += [{"id": d["decision_id"], "decision_id": d["decision_id"],
+                   "kind": "inventory" if d["type"] == "restock_alert" else "opportunity", "title": d["title"],
+                   "description": d["summary"], "impact": abs(d["expected"]["p50"]), "label": "Proposal"}
+                  for d in pending]
     if nothing:
         brief = ("Empty workspace: every number is 0. Upload ads, orders, inventory or margins CSVs to fill it; "
                  "each upload updates the numbers here.")
     else:
         missing = [k for k in ("ads", "orders", "margins", "inventory") if k not in kinds]
+        found = [f"{len(anomalies)} signal(s) flagged" if anomalies else "",
+                 f"{len(pending)} proposal(s) waiting for approval" if pending else ""]
+        found = [f for f in found if f]
         brief = (f"Built only from your uploads ({', '.join(sorted(kinds))})."
                  + (f" Upload {', '.join(missing)} to complete the picture." if missing else "")
-                 + " Decisions need the simulated world workspace, which runs the engine.")
+                 + (f" {'; '.join(found)}." if found else ""))
+        if not anomalies and not pending and "ads" in kinds and not be._has_conv(db):
+            brief += " Add a conversion_value column to the ads upload to get ROAS signals and budget proposals."
     return {"workspace": ws["name"], "decision_ts": as_of, "world_day": 0, "scenario": "NONE", "brief": brief,
-            "metrics": metrics, "sources": sources, "attention": [], "series": series,
+            "metrics": metrics, "sources": sources, "attention": attention, "series": series,
             "loop": [{"label": "Upload data", "state": "waiting" if nothing else "complete"},
-                     {"label": "Metrics", "state": "waiting" if nothing else "current"},
-                     {"label": "Decisions", "state": "waiting"}],
-            "calibration": 0.0, "counts": {"success": 0, "neutral": 0, "failed": 0, "inconclusive": 0}}
+                     {"label": "Signals", "state": "complete" if anomalies else ("waiting" if nothing else "current")},
+                     {"label": "Proposals", "state": "current" if pending else ("complete" if decided else
+                                                                               "waiting")},
+                     {"label": "Outcomes", "state": "complete" if outs else "waiting"},
+                     {"label": "Learning", "state": "complete" if any(o["calibration_applied"] for o in outs)
+                      else "waiting"}],
+            "calibration": be.factor(db), "counts": counts}

@@ -11,8 +11,8 @@ def test_mapper_uses_exact_synonym_and_fuzzy_matches_once_each():
     m = cu.suggest_mapping("ads", ["Day", "Campaign Budget ID", "Network", "Cost (INR)", "Impr.", "Link Clicks", "x"])
     assert {f: v["header"] for f, v in m.items()} == {
         "date": "Day", "budget_id": "Campaign Budget ID", "platform": "Network", "spend": "Cost (INR)",
-        "impressions": "Impr.", "clicks": "Link Clicks"}
-    assert m["date"]["method"] == "synonym" and all(v["score"] >= 80 for v in m.values())
+        "impressions": "Impr.", "clicks": "Link Clicks", "conversion_value": None}
+    assert m["date"]["method"] == "synonym" and all(v["score"] >= 80 for f, v in m.items() if f != "conversion_value")
     none = cu.suggest_mapping("margins", ["foo", "bar"])
     assert all(v["header"] is None for v in none.values())
     with pytest.raises(cu.UploadError):

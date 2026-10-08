@@ -156,7 +156,14 @@ export function DecisionCenter() {
       'COMPENSATION_FAILED',
       'HUMAN_RESOLUTION_REQUIRED',
     ].includes(execution.state);
-  const lossLabel = d.class === 'SAFETY' ? 'Model-estimated avoided loss' : 'Model-estimated ΔCAA';
+  const ruleBased = d.policy_version === 'uploads-rules-v1';
+  const lossLabel = ruleBased
+    ? d.type === 'restock_alert'
+      ? 'Rule-estimated sales at risk'
+      : 'Rule-estimated revenue change'
+    : d.class === 'SAFETY'
+      ? 'Model-estimated avoided loss'
+      : 'Model-estimated ΔCAA';
   const isOperational = d.class === 'OPERATIONAL';
   const valuationMissing = d.valuation_status === 'NOT_ESTIMABLE';
   const absenceMessage: Record<Decision['status'], { title: string; detail: string }> = {
@@ -379,7 +386,9 @@ export function DecisionCenter() {
                     ? 'Execution blocked'
                     : d.status === 'REJECTED'
                       ? 'Proposal rejected'
-                      : 'Approve & execute'}
+                      : ruleBased
+                        ? 'Approve change list'
+                        : 'Approve & execute'}
             </button>
           </div>
         </div>
@@ -750,6 +759,17 @@ export function DecisionCenter() {
                       : outcome.calibration_note || calibrationSkipReason(outcome)}
                   </p>
                 </Disclosure>
+              </div>
+            ) : d.status === 'APPROVED' && d.policy_version === 'uploads-rules-v1' ? (
+              <div className="feedback-pending">
+                <div>
+                  <h3>Complete the feedback loop</h3>
+                  <p>
+                    Apply the change list in the ad platforms, then upload the ads data (with
+                    conversion value) for the {d.horizon_days} days after it. ADAPT measures the
+                    result on that upload and updates its calibration.
+                  </p>
+                </div>
               </div>
             ) : (
               d.status === 'EXECUTED' && (

@@ -5,6 +5,8 @@ export const importFields: Record<ImportType, string[]> = {
   inventory: ['sku', 'on_hand', 'reserved', 'safety_stock'],
   margins: ['sku', 'price', 'unit_cost'],
 };
+/** Mapped when the file has them; ads conversion value unlocks ROAS signals and budget proposals. */
+export const optionalFields: Partial<Record<ImportType, string[]>> = { ads: ['conversion_value'] };
 export type Csv = { headers: string[]; rows: string[][] };
 export function parseCsv(input: string): Csv {
   if (input.length > 2_000_000) throw new Error('CSV must be smaller than 2 MB.');
@@ -91,6 +93,15 @@ export function validateImport(csv: Csv, type: ImportType, mapping: Record<strin
           errors.push(`Row ${i + 2}: ${k} must be a whole number.`);
       }
     });
+    for (const k of optionalFields[type] ?? []) {
+      if (!mapping[k] || !csv.headers.includes(mapping[k])) continue;
+      const raw = r[csv.headers.indexOf(mapping[k])].trim();
+      if (raw === '') continue;
+      const n = Number(raw);
+      record[k] = n;
+      if (!Number.isFinite(n) || n < 0)
+        errors.push(`Row ${i + 2}: ${k} must be a finite nonnegative number.`);
+    }
     if (type === 'ads' || type === 'orders') {
       if (type === 'ads' && !['Meta', 'Google'].includes(String(record.platform)))
         errors.push(`Row ${i + 2}: platform must be Meta or Google.`);

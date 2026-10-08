@@ -2,11 +2,18 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { insights } from '../api/insights';
 import { stage2 } from '../api/stage2';
-import { importFields, parseCsv, validateImport, type Csv, type ImportType } from '../lib/csv';
+import {
+  importFields,
+  optionalFields,
+  parseCsv,
+  validateImport,
+  type Csv,
+  type ImportType,
+} from '../lib/csv';
 import { InlineError, Modal } from './ui';
 
 const typeLabels: Record<ImportType, string> = {
-  ads: 'Ad spend (date, budget, platform, spend, impressions, clicks)',
+  ads: 'Ad spend (date, budget, platform, spend, impressions, clicks, optional conversion value)',
   orders: 'Orders (date, order id, sku, quantity, net revenue)',
   margins: 'SKU margins (sku, price, unit cost)',
   inventory: 'Inventory (sku, on hand, reserved, safety stock)',
@@ -26,7 +33,10 @@ export function UploadDialog({ close }: { close: () => void }) {
 
   const suggest = async (t: ImportType, parsed: Csv) => {
     const exact = Object.fromEntries(
-      importFields[t].map((f) => [f, parsed.headers.find((h) => h.toLowerCase() === f) ?? '']),
+      [...importFields[t], ...(optionalFields[t] ?? [])].map((f) => [
+        f,
+        parsed.headers.find((h) => h.toLowerCase() === f) ?? '',
+      ]),
     );
     try {
       const s = await stage2.suggestMapping(t, parsed.headers);
@@ -54,7 +64,12 @@ export function UploadDialog({ close }: { close: () => void }) {
   };
   const checked = csv ? validateImport(csv, type, mapping) : null;
   const run = useMutation({
-    mutationFn: () => insights.importData(type, checked!.records, mapping),
+    mutationFn: () =>
+      insights.importData(
+        type,
+        checked!.records,
+        Object.fromEntries(Object.entries(mapping).filter(([, v]) => v)),
+      ),
     onSuccess: (ack) => {
       setDone(ack.message);
       setCsv(null);
@@ -122,7 +137,29 @@ export function UploadDialog({ close }: { close: () => void }) {
                   </select>
                 </label>
               ))}
+              {(optionalFields[type] ?? []).map((f) => (
+                <label key={f}>
+                  <span>{f} (optional)</span>
+                  <select
+                    value={mapping[f] ?? ''}
+                    onChange={(e) => setMapping({ ...mapping, [f]: e.target.value })}
+                  >
+                    <option value="">Not in this file</option>
+                    {csv.headers.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
             </div>
+            {type === 'ads' && !mapping.conversion_value && (
+              <p className="muted">
+                Without conversion value ADAPT shows spend and cost signals only; with it, ROAS
+                signals and budget proposals.
+              </p>
+            )}
             {checked && checked.errors.length > 0 && (
               <ul className="upload-errors text-danger">
                 {checked.errors.slice(0, 6).map((e) => (

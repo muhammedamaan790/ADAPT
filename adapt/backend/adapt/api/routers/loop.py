@@ -167,6 +167,10 @@ def overview(request: Request):
 @router.get("/events", response_model=list[m.Event])
 def events(request: Request):
     r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return be.events(r.db)
     out = v.event_list(r.db)
     if r.job["state"] in ("running", "failed") and r.job["started_at"]:
         out.insert(0, {"id": f"job:{r.job['started_at']}", "at": r.job["started_at"], "kind": "pipeline_job",
@@ -185,16 +189,37 @@ def pipeline_status(request: Request) -> dict:
 # ---- Decision Center -------------------------------------------------------------------------------------------------
 @router.get("/decisions", response_model=list[m.Decision])
 def decisions(request: Request):
-    return v.decision_list(rt(request).db)
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return be.decisions(r.db)
+    return v.decision_list(r.db)
 
 
 @router.get("/decisions/{decision_id}", response_model=m.Decision)
 def decision(decision_id: str, request: Request):
-    return _decision_or_404(rt(request).db, decision_id)
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        d = be.decision(r.db, decision_id)
+        if d is None:
+            raise HTTPException(404, detail=f"decision {decision_id} not found")
+        return d
+    return _decision_or_404(r.db, decision_id)
 
 
 @router.get("/decisions/{decision_id}/evidence", response_model=m.EvidenceOut)
 def evidence(decision_id: str, request: Request):
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        e = be.evidence(r.db, decision_id)
+        if e is None:
+            raise HTTPException(404, detail=f"decision {decision_id} not found")
+        return e
     try:
         return v.evidence_view(rt(request).db, decision_id)
     except dec.DecisionError as exc:
@@ -205,6 +230,10 @@ def evidence(decision_id: str, request: Request):
 def approve(decision_id: str, body: m.ApproveBody, request: Request):
     """Hash-bound approval; with execute=true the saga runs immediately (Stage 1: Approve mode, mock platforms)."""
     r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return _brand_call(be.approve, r.db, decision_id, body.decision_hash, actor(request).user_id)
     try:
         with r.mutation():
             now = r.now()
@@ -221,6 +250,10 @@ def approve(decision_id: str, body: m.ApproveBody, request: Request):
 @router.post("/decisions/{decision_id}/reject", response_model=m.Decision, dependencies=mutating)
 def reject(decision_id: str, body: m.RejectBody, request: Request):
     r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return _brand_call(be.reject, r.db, decision_id, body.decision_hash, actor(request).user_id, body.reason)
     try:
         with r.mutation():
             d = dec.get_decision(r.db, decision_id)
@@ -380,12 +413,23 @@ def whatif(body: m.AllocationInput, request: Request):
 # ---- anomalies -----------------------------------------------------------------------------------------------------
 @router.get("/anomalies", response_model=list[m.Anomaly])
 def anomalies(request: Request):
-    return v.anomaly_list(rt(request).db)
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return be.anomalies(r.db)
+    return v.anomaly_list(r.db)
 
 
 @router.get("/anomalies/{anomaly_id}", response_model=m.Anomaly)
 def anomaly(anomaly_id: str, request: Request):
-    a = v.anomaly_view(rt(request).db, anomaly_id)
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        a = be.anomaly(r.db, anomaly_id)
+    else:
+        a = v.anomaly_view(r.db, anomaly_id)
     if a is None:
         raise HTTPException(404, detail=f"anomaly {anomaly_id} not found")
     return a
@@ -394,6 +438,13 @@ def anomaly(anomaly_id: str, request: Request):
 @router.post("/anomalies/{anomaly_id}/status", response_model=m.Anomaly, dependencies=mutating)
 def anomaly_status(anomaly_id: str, body: m.AnomalyStatusBody, request: Request):
     r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        a = be.set_anomaly_status(r.db, anomaly_id, body.status, body.reason)
+        if a is None:
+            raise HTTPException(404, detail=f"anomaly {anomaly_id} not found")
+        return a
     if v.anomaly_view(r.db, anomaly_id) is None:
         raise HTTPException(404, detail=f"anomaly {anomaly_id} not found")
     internal = {"OPEN": "investigating", "ACKNOWLEDGED": "acknowledged", "RESOLVED": "resolved"}[body.status]
@@ -417,17 +468,32 @@ def anomaly_status(anomaly_id: str, body: m.AnomalyStatusBody, request: Request)
 # ---- executions ----------------------------------------------------------------------------------------------------
 @router.get("/executions", response_model=list[m.Execution])
 def executions(request: Request):
-    return v.execution_list(rt(request).db)
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return be.executions(r.db)
+    return v.execution_list(r.db)
 
 
 @router.get("/outcomes", response_model=list[m.Outcome])
 def outcomes(request: Request):
-    return v.outcome_list(rt(request).db)
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return be.outcomes(r.db)
+    return v.outcome_list(r.db)
 
 
 @router.get("/ledger", response_model=list[m.LedgerEntry])
 def ledger(request: Request):
-    return v.ledger_list(rt(request).db)
+    r = rt(request)
+    if _brand_db(r):
+        from adapt.api import brand_engine as be
+
+        return be.ledger(r.db)
+    return v.ledger_list(r.db)
 
 
 def _execution(r: Runtime, execution_id: str, body: m.RecoveryBody) -> tuple[str, dict]:
@@ -542,6 +608,20 @@ def retry(execution_id: str, body: m.RecoveryBody, request: Request):
 
 
 # ---- Scenario Lab ---------------------------------------------------------------------------------------------------
+def _brand_db(r: Runtime):
+    """The active brand workspace's database (its uploads and rule-based loop), or None in the engine workspace."""
+    return r.db if r.brands.active() else None
+
+
+def _brand_call(fn, *args):
+    from adapt.api.brand_engine import BrandDecisionError
+
+    try:
+        return fn(*args)
+    except BrandDecisionError as exc:
+        raise HTTPException(exc.status, detail=str(exc)) from exc
+
+
 def _require_world(r: Runtime) -> None:
     """The simulator drives the engine workspace only; a brand workspace changes through its uploads."""
     brand = r.brands.active()

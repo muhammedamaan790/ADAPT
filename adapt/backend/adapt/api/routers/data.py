@@ -18,7 +18,7 @@ from adapt.economics.state import objectives_config
 from adapt.ingest.connectors.base import sources_config
 
 router = APIRouter(prefix="/api/v1/data", tags=["data"])
-Provenance = Literal["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED", "LIVE"]
+Provenance = Literal["PUBLIC-SAMPLE", "CALIBRATED", "SIMULATED", "LIVE", "UPLOADED"]
 SOURCE_META = {
     "meta_ads": ("Meta Ads", "ads"), "google_ads": ("Google Ads", "ads"), "store": ("Store orders", "commerce"),
     "finance": ("SKU economics", "finance"), "ga4": ("GA4", "analytics"), "erp": ("ERP inventory", "inventory"),
@@ -112,8 +112,16 @@ def _freshness_text(newest, age) -> str:
     return f"latest complete day {newest.isoformat()}, {age:.0f} h old" if age is not None else newest.isoformat()
 
 
+def _brand(request: Request) -> bool:
+    return request.app.state.runtime.brands.active() is not None
+
+
 @router.get("/sources", response_model=list[SourceOut])
 def sources(request: Request) -> list[SourceOut]:
+    if _brand(request):
+        from adapt.api.brands import upload_sources
+
+        return [SourceOut(**s) for s in upload_sources(_db(request))]
     cfg = sources_config()["sources"]
     return [SourceOut(id=src, name=source_meta(src)[0], kind=source_meta(src)[1], score=score, status=status,
                       freshness=_freshness_text(newest, age), provenance=cfg[src]["provenance"])
@@ -122,6 +130,10 @@ def sources(request: Request) -> list[SourceOut]:
 
 @router.get("/health", response_model=list[SourceHealthOut])
 def health(request: Request) -> list[SourceHealthOut]:
+    if _brand(request):
+        from adapt.api.brands import upload_health
+
+        return [SourceHealthOut(**s) for s in upload_health(_db(request))]
     cfg = sources_config()["sources"]
     out = []
     for as_of, src, newest, age, fr, comp, cons, score, status, hard, checks in _latest_health(_db(request)):
@@ -137,6 +149,10 @@ def health(request: Request) -> list[SourceHealthOut]:
 @router.get("/mapping-coverage", response_model=MappingCoverageOut)
 def mapping_coverage(request: Request) -> MappingCoverageOut:
     db = _db(request)
+    if _brand(request):
+        from adapt.api.brands import upload_coverage
+
+        return MappingCoverageOut(**upload_coverage(db))
     _require(db, "core.campaign_sku")
     total, unmapped = db.query("""SELECT sum(attributed_revenue), sum(attributed_revenue) FILTER
                                   (WHERE sku = '__unmapped__') FROM core.campaign_sku""")[0]
@@ -157,6 +173,14 @@ def mapping_coverage(request: Request) -> MappingCoverageOut:
 
 @router.get("/reconciliation", response_model=ReconciliationOut)
 def reconciliation(request: Request) -> ReconciliationOut:
+    if _brand(request):
+        from adapt.api.brands import upload_reconciliation
+
+        out = upload_reconciliation(_db(request))
+        if out is None:
+            raise HTTPException(503, detail="reconciliation needs an ads upload with conversion_value and an orders "
+                                            "upload over the same days")
+        return ReconciliationOut(**out)
     return reconciliation_view(_db(request))
 
 
